@@ -1,0 +1,24 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+  macros:
+    home: { do: { board.replace: main } }
+---
+schema: uca/1
+board: { id: main }
+layers: [ { id: l, items: [ { id: q, action: { key.tap: q } } ] } ]
+---
+schema: uca/1
+board: { id: other }
+layers: [ { id: l2, items: [ { id: h, action: { macro.run: home } } ] } ]
+---
+schema: uca/1
+board: { id: patterns }
+bindings:
+  - when: "key:F13 hold(0)"
+    do: { pause: }
+  - when: ""
+    do: { pause: }
+layers: [ { id: l3, items: [ { id: b, action: { board.back: } } ] } ]

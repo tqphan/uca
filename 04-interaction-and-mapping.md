@@ -288,14 +288,19 @@ Resolution order (first match wins): item → layer → board → profile global
 ```
 pattern   := term ( "|" term )*                     # alternatives
 term      := input modifier?
-input     := switch-alias | trigger-id | "gesture:" name | "dwell"
-modifier  := "press" | "release" | "hold(" ms ")" | "double(" ms ")"
            | "sequence[" input ("," input)* "]" ("within(" ms ")")?
            | "chord[" input ("+" input)* "]"
+input     := switch-alias | trigger-id | "gesture:" name | "dwell"
+modifier  := "press" | "release" | "hold(" ms ")" | "double(" ms ")"
 ```
 Examples: `blink hold(600)`, `key:F13 double(400)`, `sequence[face:browInnerUp, face:jawOpen] within(1500)`, `chord[mouse:left+mouse:right]`.
 
-Parser: hand-written or `winnow`; errors give column of failure. The pattern AST and parser live in `uca-config` (decided), so config validation can check the escape pattern (SAFETY-01). `uca-mapping` only matches parsed patterns.
+Decided:
+- `sequence[…]` and `chord[…]` are terms on their own, as in the examples. The inputs inside them take no modifiers.
+- `ms` in `hold`, `double` and `within` must be 1–60 000.
+- The parser is hand-written (no `winnow`).
+
+Parser errors give the column of failure. The pattern AST and parser live in `uca-config` (decided), so config validation can check the escape pattern (SAFETY-01). `uca-mapping` only matches parsed patterns.
 
 ## Actions
 

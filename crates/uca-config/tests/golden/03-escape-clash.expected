@@ -1,0 +1,2 @@
+boards/main.yaml bindings[0].when: error: binding "key:F13 hold(3000)" has the same meaning as the safety escape; the escape cannot be overridden (SAFETY-01)
+boards/main.yaml bindings[1].when: error: binding "mouse:right | switch1 hold(3000)" has the same meaning as the safety escape; the escape cannot be overridden (SAFETY-01)

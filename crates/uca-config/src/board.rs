@@ -38,7 +38,7 @@ macro_rules! with_base {
     };
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BoardFile {
     pub schema: String,
@@ -54,7 +54,7 @@ pub struct BoardFile {
 }
 
 with_base! {
-    #[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+    #[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
     #[serde(deny_unknown_fields)]
     pub struct Board {
         pub id: Id,
@@ -85,7 +85,7 @@ impl<'de> Deserialize<'de> for BoardMonitor {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Anchor {
     Top,
@@ -96,7 +96,7 @@ pub enum Anchor {
     Free,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum ClickThrough {
     None,
@@ -105,7 +105,7 @@ pub enum ClickThrough {
 }
 
 with_base! {
-    #[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+    #[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
     #[serde(deny_unknown_fields)]
     pub struct Layer {
         pub id: Id,
@@ -113,11 +113,12 @@ with_base! {
         #[serde(default)]
         pub bindings: Vec<Binding>,
         #[serde(default, deserialize_with = "de_items")]
+        #[schemars(schema_with = "crate::schema::items_schema")]
         pub items: Vec<Item>,
     }
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Layout {
     #[serde(rename = "type")]
@@ -127,7 +128,7 @@ pub struct Layout {
     pub gap: Option<Length>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum LayoutKind {
     Free,
@@ -138,7 +139,7 @@ pub enum LayoutKind {
 
 with_base! {
     /// An item, a template (a partial item) or an empty grid cell (`- empty`).
-    #[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+    #[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
     #[serde(deny_unknown_fields)]
     pub struct Item {
         pub id: Option<Id>,
@@ -193,14 +194,14 @@ pub(crate) fn de_items<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Item>, D::
         .collect())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Span {
     pub cols: u32,
     pub rows: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Cell {
     pub col: u32,
@@ -208,7 +209,7 @@ pub struct Cell {
 }
 
 /// One action set's meaning of an item (04 "Action sets").
-#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ActionSetEntry {
     pub start: Option<ActionSeq>,
@@ -294,7 +295,7 @@ impl<'de> Deserialize<'de> for Actions {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Group {
     #[serde(default)]
@@ -303,7 +304,7 @@ pub struct Group {
 }
 
 /// `when: <pattern> [in: <context>] do: <actions>` or with stages (04 "Bindings").
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Binding {
     /// Input pattern (04 "Pattern DSL"); parsed during validation.
@@ -319,13 +320,14 @@ pub struct Binding {
     pub passthrough: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ContextFilter {
     pub mode: Option<Mode>,
     pub board: Option<Id>,
     pub layer: Option<Id>,
     #[serde(default, deserialize_with = "de_modifier")]
+    #[schemars(schema_with = "crate::schema::modifier_schema")]
     pub latched: Option<uca_types::Key>,
     /// Foreground app id (platform-dependent).
     pub app: Option<String>,

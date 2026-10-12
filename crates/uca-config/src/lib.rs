@@ -8,10 +8,13 @@ pub mod app;
 pub mod board;
 pub mod error;
 pub mod load;
+pub mod pattern;
 pub mod profile;
+pub mod schema;
 mod setting;
 pub mod settings_registry;
 pub mod theme;
+pub mod validate;
 pub mod values;
 
 pub use error::ConfigError;

@@ -10,7 +10,7 @@ use serde::de::{Deserialize, Deserializer};
 use crate::board::{Group, Item};
 use crate::values::{Color, FontWeight, Id};
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ThemeFile {
     pub schema: String,
@@ -18,6 +18,7 @@ pub struct ThemeFile {
     pub vars: BTreeMap<Id, Color>,
     /// Family name → weight → source.
     #[serde(default, deserialize_with = "de_fonts")]
+    #[schemars(schema_with = "crate::schema::fonts_schema")]
     pub fonts: BTreeMap<String, BTreeMap<u16, FontSource>>,
     #[serde(default)]
     pub groups: BTreeMap<String, Group>,

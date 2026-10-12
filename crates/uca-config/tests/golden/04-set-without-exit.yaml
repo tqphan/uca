@@ -1,0 +1,20 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+  action_sets:
+    build: { label: "Build" }
+    sprint: { label: "Sprint" }
+    unused: { label: "Never used" }
+---
+schema: uca/1
+board: { id: main }
+layers:
+  - id: l
+    items:
+      - { id: on, action: { action_set.on: build } }
+      - id: run
+        actions:
+          default: { start: { action_set.toggle: sprint } }
+      - { id: back, action: { board.back: } }

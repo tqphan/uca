@@ -16,3 +16,17 @@ path = ["Cargo.lock"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "The UCA contributors"
 SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Generated JSON Schema, usable by any editor or tool (18-licensing.md).
+[[annotations]]
+path = ["schema/uca-1.schema.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "The UCA contributors"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
+# Test fixtures are part of their crate (18-licensing.md); `.expected` files have no comment syntax.
+[[annotations]]
+path = ["crates/*/tests/golden/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "The UCA contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"

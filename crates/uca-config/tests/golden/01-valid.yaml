@@ -1,0 +1,62 @@
+schema: uca/1
+profile:
+  name: Alex
+  method: mouse-dwell
+  start_board: main
+  inputs:
+    pointer_source: mouse
+    sources:
+      mouse: { enabled: true, filter: { kind: one-euro, min_cutoff: 1.0, beta: 0.007 } }
+    switches:
+      switch1: "key:F13"
+    trigger_settings:
+      switch1: { debounce_ms: 50 }
+  safety:
+    escape: "switch1 hold(3000)"
+  action_sets:
+    build: { label: "Build" }
+  bindings:
+    - when: "switch1 press"
+      do: { select: {} }
+  macros:
+    greet: { label: "Greet", do: [ { text.type: "Hello " }, { key.tap: enter } ] }
+---
+schema: uca/1
+board:
+  id: main
+  theme: default
+  font: { family: "Atkinson Hyperlegible", color: $text }
+layers:
+  - id: letters
+    layout: { type: grid, columns: 3, rows: 2 }
+    items:
+      - { id: key-q, extends: key, group: letters, label: q, action: { key.tap: q } }
+      - empty
+      - id: build
+        label: Build
+        action: { action_set.toggle: build }
+      - id: wall
+        cell: { col: 0, row: 1 }
+        actions:
+          default: { start: { key.down: w } }
+          build: { start: { key.tap: f1 }, repeat: start }
+      - { id: more, action: { board.open: second } }
+      - { id: hi, action: { macro.run: greet } }
+---
+schema: uca/1
+board: { id: second }
+layers:
+  - id: nav
+    items:
+      - { id: back, action: { board.back: } }
+      - { id: show, action: { layer.toggle: letters } }
+---
+# theme: default
+schema: uca/1
+vars: { text: "#ffffff" }
+fonts:
+  "Atkinson Hyperlegible": { 400: fonts/a.ttf }
+groups:
+  letters: { style: { background: "#1f2937" } }
+templates:
+  key: { border: { width: 2, radius: 6 } }

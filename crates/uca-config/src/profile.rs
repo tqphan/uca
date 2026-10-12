@@ -14,14 +14,14 @@ use crate::setting;
 use crate::settings_registry::SettingValue;
 use crate::values::{Color, Id};
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProfileFile {
     pub schema: String,
     pub profile: Profile,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Profile {
     pub name: String,
@@ -43,7 +43,7 @@ pub struct Profile {
 }
 
 /// Method ids from 08.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Method {
     GazeTrigger,
@@ -57,7 +57,7 @@ pub enum Method {
     Assisted,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Inputs {
     /// A plugin id, or `mouse`.
@@ -66,6 +66,7 @@ pub struct Inputs {
     pub sources: BTreeMap<String, SourceConfig>,
     /// Friendly names for trigger ids.
     #[serde(default, deserialize_with = "de_switches")]
+    #[schemars(schema_with = "crate::schema::switches_schema")]
     pub switches: BTreeMap<Id, TriggerId>,
     /// Keyed by trigger id or switch alias.
     #[serde(default)]
@@ -84,7 +85,7 @@ fn de_switches<'de, D: Deserializer<'de>>(d: D) -> Result<BTreeMap<Id, TriggerId
         .collect()
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SourceConfig {
     pub enabled: bool,
@@ -92,27 +93,34 @@ pub struct SourceConfig {
 }
 
 /// Point pipeline settings for one source (03 "PointPipeline").
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Filter {
     pub kind: FilterKind,
     #[serde(default, deserialize_with = "setting::min_confidence")]
+    #[schemars(schema_with = "crate::setting::schema::min_confidence")]
     pub min_confidence: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::max_velocity_px_s")]
+    #[schemars(schema_with = "crate::setting::schema::max_velocity_px_s")]
     pub max_velocity_px_s: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::outlier_agree_samples")]
+    #[schemars(schema_with = "crate::setting::schema::outlier_agree_samples")]
     pub outlier_agree_samples: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::min_cutoff")]
+    #[schemars(schema_with = "crate::setting::schema::min_cutoff")]
     pub min_cutoff: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::beta")]
+    #[schemars(schema_with = "crate::setting::schema::beta")]
     pub beta: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::d_cutoff")]
+    #[schemars(schema_with = "crate::setting::schema::d_cutoff")]
     pub d_cutoff: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::alpha")]
+    #[schemars(schema_with = "crate::setting::schema::alpha")]
     pub alpha: Option<SettingValue>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum FilterKind {
     None,
@@ -121,41 +129,46 @@ pub enum FilterKind {
 }
 
 /// TriggerConditioner settings for one trigger (03).
-#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TriggerSettings {
     #[serde(default, deserialize_with = "setting::debounce_ms")]
+    #[schemars(schema_with = "crate::setting::schema::debounce_ms")]
     pub debounce_ms: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::min_press_ms")]
+    #[schemars(schema_with = "crate::setting::schema::min_press_ms")]
     pub min_press_ms: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::acceptance_delay_ms")]
+    #[schemars(schema_with = "crate::setting::schema::acceptance_delay_ms")]
     pub acceptance_delay_ms: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::max_rate_hz")]
+    #[schemars(schema_with = "crate::setting::schema::max_rate_hz")]
     pub max_rate_hz: Option<SettingValue>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Presence {
     #[serde(default, deserialize_with = "setting::resume_delay_ms")]
+    #[schemars(schema_with = "crate::setting::schema::resume_delay_ms")]
     pub resume_delay_ms: Option<SettingValue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Safety {
     /// Binding pattern that opens the Safe Board (SAFETY-01).
     pub escape: String,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ActionSetDecl {
     pub label: String,
     pub color: Option<Color>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Macro {
     pub label: Option<String>,

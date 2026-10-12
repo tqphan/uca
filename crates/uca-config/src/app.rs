@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AppFile {
     pub schema: String,
@@ -15,7 +15,7 @@ pub struct AppFile {
 }
 
 /// Logging settings (11). Absent fields use the defaults in 11.
-#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Logging {
     pub level: Option<String>,

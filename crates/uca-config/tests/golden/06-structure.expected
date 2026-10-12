@@ -1,0 +1,19 @@
+profile.yaml profile.action_sets.start: error: "start" cannot be an action set id; it is reserved for the stage shorthand
+profile.yaml profile.inputs.sources.mouse.filter.beta: error: beta does not apply to the ema filter
+profile.yaml profile.bindings[0]: error: use either `do` or stages (start, repeat, stop), not both
+profile.yaml profile.bindings[1].repeat: warning: this repeat never runs, because the binding's pattern is always instant
+profile.yaml profile.bindings[2].repeat: error: action_set.hold can only be used in a start stage
+boards/main.yaml layers[0].items[0]: error: use either `action` or `actions`, not both
+boards/main.yaml layers[0].items[1].id: error: duplicate id "a"
+boards/main.yaml layers[0].items[1].action: error: the default action set cannot be turned off
+boards/main.yaml layers[0].items[2].span: error: span lies outside the grid
+boards/main.yaml layers[0].items[4].cell: error: this pinned item overlaps "p1"
+boards/main.yaml layers[0].items[5].cell: error: cell lies outside the grid
+boards/main.yaml layers[0].items[6].zone: error: zone items can only be used in a free layer
+boards/main.yaml layers[1].id: error: duplicate id "grid"
+boards/main.yaml layers[1].items[0].span: error: span can only be used in a grid layer
+boards/main.yaml layers[1].items[2].id: error: duplicate id "item-1"
+boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)
+boards/main.yaml board.id: error: duplicate id "main"
+boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)
+profile.yaml profile.action_sets.start: warning: action set "start" is declared but never used

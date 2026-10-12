@@ -1,0 +1,5 @@
+profile.yaml profile.macros.a.do: error: macro cycle: a → b → a
+profile.yaml profile.macros.b.do: error: macro cycle: b → a → b
+boards/main.yaml templates.one.extends: error: template cycle: one → two → one
+boards/main.yaml templates.three.extends: error: template cycle: three → three
+boards/main.yaml templates.two.extends: error: template cycle: two → one → two

@@ -18,6 +18,7 @@ pub struct ConfigError {
 }
 
 impl ConfigError {
+    // SPEC-GAP: serde_norway messages are English only; see SPEC_GAPS.md "Translating YAML parse messages".
     pub(crate) fn from_yaml(file: &Path, err: &serde_norway::Error) -> Self {
         let text = err.to_string();
         // serde_norway appends " at line L column C"; the position is kept separately.

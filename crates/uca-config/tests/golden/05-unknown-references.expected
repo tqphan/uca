@@ -1,0 +1,15 @@
+profile.yaml profile.start_board: error: unknown board "mian"
+profile.yaml profile.inputs.pointer_source: error: pointer source "tracker" must be listed under sources with enabled: true
+profile.yaml profile.inputs.trigger_settings.switch9: error: unknown switch "switch9"; add it under profile.inputs.switches
+profile.yaml profile.macros.greet.do: error: unknown macro "grete"
+boards/main.yaml board.theme: error: unknown theme "missing"
+boards/main.yaml bindings[0].when: error: unknown switch "switch2"; add it under profile.inputs.switches
+boards/main.yaml layers[0].items[0].extends: error: unknown template "kye"
+boards/main.yaml layers[0].items[0]: error: unknown color variable $nope; define it in the theme's vars
+boards/main.yaml layers[0].items[0].action: error: unknown board "seconds". Did you mean "second"?
+boards/main.yaml layers[0].items[1].action: error: no board has a layer "leters". Did you mean "letters"?
+boards/main.yaml layers[0].items[2].action: error: unknown action set "biuld"
+boards/main.yaml layers[0].items[3].action: error: unknown macro "gret". Did you mean "greet"?
+boards/main.yaml layers[0].items[4].group: warning: unknown group "nogroup"; the item is treated as `others`
+boards/second.yaml board.font.family: warning: unknown font family "Nope"; the default font is used
+profile.yaml profile.action_sets.build: warning: action set "build" is declared but never used

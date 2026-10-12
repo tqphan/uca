@@ -1,0 +1,44 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  inputs:
+    sources:
+      mouse: { enabled: true, filter: { kind: ema, alpha: 0.5, beta: 0.1 } }
+  safety: { escape: "key:F13 hold(3000)" }
+  action_sets:
+    build: { label: "Build" }
+    start: { label: "Reserved" }
+  bindings:
+    - when: "key:F1"
+      do: { pause: }
+      start: { resume: }
+    - when: "key:F2 release"
+      start: { key.tap: a }
+      repeat: start
+    - when: "key:F3"
+      repeat: { action_set.hold: build }
+---
+schema: uca/1
+board: { id: main }
+layers:
+  - id: grid
+    layout: { type: grid, columns: 3, rows: 2 }
+    items:
+      - { id: a, action: { key.tap: a }, actions: { start: { key.tap: b } } }
+      - { id: a, action: { action_set.off: default } }
+      - { id: wide, span: { cols: 4, rows: 1 } }
+      - { id: p1, cell: { col: 0, row: 0 }, span: { cols: 2, rows: 1 } }
+      - { id: p2, cell: { col: 1, row: 0 } }
+      - { id: out, cell: { col: 2, row: 2 } }
+      - { id: z, zone: true }
+  - id: grid
+    layout: { type: free }
+    items:
+      - { id: s, span: { cols: 1, rows: 1 } }
+      - { zone: true }
+      - { id: item-1 }
+---
+schema: uca/1
+board: { id: main }
+layers: []

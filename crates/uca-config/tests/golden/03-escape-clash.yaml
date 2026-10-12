@@ -1,0 +1,19 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  inputs:
+    switches: { switch1: "key:F13" }
+  safety: { escape: "switch1 hold(3000)" }
+  bindings:
+    - when: "switch1"
+      do: { select: {} }
+---
+schema: uca/1
+board: { id: main }
+bindings:
+  - when: "key:F13 hold(3000)"
+    do: { pause: }
+  - when: "mouse:right | switch1 hold(3000)"
+    do: { resume: }
+layers: [ { id: l, items: [ { id: back, action: { board.back: } } ] } ]

@@ -32,6 +32,16 @@ macro_rules! setting_fns {
             }
         )*
 
+        /// JSON Schema of each setting, from the registry.
+        pub(crate) mod schema {
+            use schemars::{Schema, SchemaGenerator};
+            $(
+                pub(crate) fn $name(_: &mut SchemaGenerator) -> Schema {
+                    crate::schema::setting_schema($key)
+                }
+            )*
+        }
+
         #[cfg(test)]
         pub(crate) const KEYS: &[&str] = &[$($key),*];
     };

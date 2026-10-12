@@ -1,0 +1,2 @@
+parse error: boards/main.yaml:7:17 layers[0].items[0].action: unknown action "key.tapp". Did you mean "key.tap"?
+profile.yaml profile.start_board: error: unknown board "main"

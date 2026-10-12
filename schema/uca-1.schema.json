@@ -1,0 +1,2780 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UCA configuration (uca/1)",
+  "description": "Board, profile, theme and app.yaml files. Generated from the Rust types in uca-config; do not edit.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/BoardFile"
+    },
+    {
+      "$ref": "#/$defs/ProfileFile"
+    },
+    {
+      "$ref": "#/$defs/ThemeFile"
+    },
+    {
+      "$ref": "#/$defs/AppFile"
+    }
+  ],
+  "$defs": {
+    "Action": {
+      "description": "An action: { <action-name>: <args> }.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "key.tap": {
+              "description": "A key name: a W3C code in any case (KeyA, F13) or an alias (q, shift, enter).",
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "key.tap"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key.down": {
+              "description": "A key name: a W3C code in any case (KeyA, F13) or an alias (q, shift, enter).",
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "key.down"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key.up": {
+              "description": "A key name: a W3C code in any case (KeyA, F13) or an alias (q, shift, enter).",
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "key.up"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key.hold": {
+              "description": "A key name: a W3C code in any case (KeyA, F13) or an alias (q, shift, enter).",
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "key.hold"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key.release": {
+              "description": "A key name: a W3C code in any case (KeyA, F13) or an alias (q, shift, enter).",
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "key.release"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key.toggle": {
+              "description": "A key name: a W3C code in any case (KeyA, F13) or an alias (q, shift, enter).",
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "key.toggle"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key.latch": {
+              "description": "A key name: a W3C code in any case (KeyA, F13) or an alias (q, shift, enter).",
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "key.latch"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "text.type": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "text.type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mouse.click": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MouseButton"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "button": {
+                      "$ref": "#/$defs/MouseButton"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mouse.click"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mouse.down": {
+              "$ref": "#/$defs/MouseButton"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mouse.down"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mouse.up": {
+              "$ref": "#/$defs/MouseButton"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mouse.up"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mouse.move": {
+              "type": "object",
+              "properties": {
+                "monitor": {
+                  "description": "primary, a monitor index, or a monitor name.",
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "relative": {
+                  "type": "boolean"
+                },
+                "space": {
+                  "enum": [
+                    "logical",
+                    "physical"
+                  ]
+                },
+                "x": {
+                  "$ref": "#/$defs/Length"
+                },
+                "y": {
+                  "$ref": "#/$defs/Length"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mouse.move"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mouse.scroll": {
+              "$ref": "#/$defs/MouseScroll"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mouse.scroll"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "board.open": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "board.open"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "board.back": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "board.back"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "board.replace": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "board.replace"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "layer.show": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "layer.show"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "layer.hide": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "layer.hide"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "layer.toggle": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "layer.toggle"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_set.hold": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "action_set.hold"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_set.on": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "action_set.on"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_set.off": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "action_set.off"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_set.toggle": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "action_set.toggle"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_set.switch": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "action_set.switch"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_set.cycle": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Id"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "action_set.cycle"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_set.once": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "action_set.once"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_set.reset": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "action_set.reset"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode.set": {
+              "$ref": "#/$defs/Mode"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "mode.set"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "select": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "select"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "pause": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "pause"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resume": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "resume"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recalibrate": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "recalibrate"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "delay": {
+              "description": "Milliseconds.",
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "delay"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "macro.run": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "macro.run"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "app.launch": {
+              "$ref": "#/$defs/AppLaunch"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "app.launch"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "window.focus": {
+              "anyOf": [
+                {
+                  "const": "next"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "title_contains": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "title_contains"
+                  ]
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "window.focus"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "clipboard.copy": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "clipboard.copy"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "clipboard.paste": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "clipboard.paste"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "clipboard.cut": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "clipboard.cut"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "debug.session": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "level": {
+                      "$ref": "#/$defs/DebugLevel"
+                    },
+                    "minutes": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "sensitive": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "debug.session"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "debug.overlay": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "debug.overlay"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "debug.record": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "debug.record"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "debug.export": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "debug.export"
+          ]
+        }
+      ]
+    },
+    "ActionSeq": {
+      "description": "An action or a list of actions.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Action"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Action"
+          }
+        }
+      ]
+    },
+    "ActionSetDecl": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "label"
+      ]
+    },
+    "ActionSetEntry": {
+      "description": "One action set's meaning of an item (04 \"Action sets\").",
+      "type": "object",
+      "properties": {
+        "behavior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Behavior"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label_shift": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "repeat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repeat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionSeq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionSeq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tooltip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Actions": {
+      "description": "Action set id → stages, or the stages directly (shorthand for `default`).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ActionSetEntry"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionSetEntry"
+          },
+          "propertyNames": {
+            "not": {
+              "enum": [
+                "start",
+                "repeat",
+                "stop",
+                "label",
+                "label_shift",
+                "icon",
+                "tooltip",
+                "behavior"
+              ]
+            },
+            "pattern": "^[a-z0-9_-]+$"
+          }
+        }
+      ]
+    },
+    "Align": {
+      "type": "string",
+      "enum": [
+        "left",
+        "center",
+        "right"
+      ]
+    },
+    "Anchor": {
+      "type": "string",
+      "enum": [
+        "top",
+        "bottom",
+        "left",
+        "right",
+        "center",
+        "free"
+      ]
+    },
+    "AppFile": {
+      "type": "object",
+      "properties": {
+        "logging": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Logging"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema": {
+          "type": "string"
+        },
+        "ui_language": {
+          "description": "BCP 47 tag; the OS locale when absent (17).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema"
+      ]
+    },
+    "AppLaunch": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ]
+    },
+    "Behavior": {
+      "description": "Behavior (02). Numbers are checked against the settings registry.",
+      "type": "object",
+      "properties": {
+        "confirm": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "confirm_window_ms": {
+          "description": "Setting `behavior.confirm_window_ms` (ms)",
+          "type": "integer",
+          "maximum": 30000.0,
+          "minimum": 500.0
+        },
+        "cooldown_ms": {
+          "description": "Setting `behavior.cooldown_ms` (ms)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 0.0
+        },
+        "dwell_grace_ms": {
+          "description": "Setting `behavior.dwell_grace_ms` (ms)",
+          "type": "integer",
+          "maximum": 5000.0,
+          "minimum": 0.0
+        },
+        "dwell_ms": {
+          "anyOf": [
+            {
+              "description": "off",
+              "const": 0
+            },
+            {
+              "description": "Setting `behavior.dwell_ms` (ms)",
+              "type": "integer",
+              "maximum": 10000.0,
+              "minimum": 100.0
+            }
+          ]
+        },
+        "enter_delay_ms": {
+          "description": "Setting `behavior.enter_delay_ms` (ms)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 0.0
+        },
+        "hold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Hold"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repeat_delay_ms": {
+          "description": "Setting `behavior.repeat_delay_ms` (ms)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 0.0
+        },
+        "repeat_interval_ms": {
+          "description": "Setting `behavior.repeat_interval_ms` (ms)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 30.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Binding": {
+      "description": "`when: <pattern> [in: <context>] do: <actions>` or with stages (04 \"Bindings\").",
+      "type": "object",
+      "properties": {
+        "behavior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Behavior"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "do": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionSeq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "in": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextFilter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "passthrough": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "repeat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repeat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionSeq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionSeq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "when": {
+          "description": "Input pattern (04 \"Pattern DSL\"); parsed during validation.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "when"
+      ]
+    },
+    "Board": {
+      "type": "object",
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Anchor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "behavior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Behavior"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "click_through": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClickThrough"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extends": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "font": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Font"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "group": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Groups"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "monitor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoardMonitor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "opacity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opacity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "padding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Four_Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reserve_space": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "shadow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Shadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "show_action_sets": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Size"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "states": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "$ref": "#/$defs/Style"
+            },
+            "disabled": {
+              "$ref": "#/$defs/Style"
+            },
+            "dwell": {
+              "$ref": "#/$defs/Style"
+            },
+            "hover": {
+              "$ref": "#/$defs/Style"
+            },
+            "latched": {
+              "$ref": "#/$defs/Style"
+            }
+          },
+          "additionalProperties": false
+        },
+        "theme": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "visible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "BoardFile": {
+      "type": "object",
+      "properties": {
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Binding"
+          }
+        },
+        "board": {
+          "$ref": "#/$defs/Board"
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Group"
+          }
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Layer"
+          }
+        },
+        "schema": {
+          "type": "string"
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Item"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "board"
+      ]
+    },
+    "BoardMonitor": {
+      "description": "primary, follow-pointer, a monitor index, or a monitor name.",
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "Border": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "radius": {
+          "description": "One radius, or `[top-left, top-right, bottom-right, bottom-left]`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Four_Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BorderStyle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "BorderStyle": {
+      "type": "string",
+      "enum": [
+        "solid",
+        "dashed"
+      ]
+    },
+    "Cell": {
+      "type": "object",
+      "properties": {
+        "col": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "row": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "col",
+        "row"
+      ]
+    },
+    "ClickThrough": {
+      "type": "string",
+      "enum": [
+        "none",
+        "outside-items",
+        "all"
+      ]
+    },
+    "Color": {
+      "description": "\"#rgb\", \"#rrggbb\", \"#rrggbbaa\", \"rgba(r,g,b,a)\" or a theme variable \"$name\".",
+      "type": "string",
+      "pattern": "^\\s*(#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba\\(.*\\)|\\$[a-z0-9_-]+)\\s*$"
+    },
+    "ContextFilter": {
+      "type": "object",
+      "properties": {
+        "action_set": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "app": {
+          "description": "Foreground app id (platform-dependent).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "board": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latched": {
+          "description": "A key name: a W3C code in any case (KeyA, F13) or an alias (q, shift, enter).",
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Mode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "DebugLevel": {
+      "type": "string",
+      "enum": [
+        "debug",
+        "trace"
+      ]
+    },
+    "Filter": {
+      "description": "Point pipeline settings for one source (03 \"PointPipeline\").",
+      "type": "object",
+      "properties": {
+        "alpha": {
+          "description": "Setting `filter.ema.alpha` (ratio)",
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.01
+        },
+        "beta": {
+          "description": "Setting `filter.one_euro.beta` (factor)",
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.0
+        },
+        "d_cutoff": {
+          "description": "Setting `filter.one_euro.d_cutoff` (factor)",
+          "type": "number",
+          "maximum": 10.0,
+          "minimum": 0.01
+        },
+        "kind": {
+          "$ref": "#/$defs/FilterKind"
+        },
+        "max_velocity_px_s": {
+          "description": "Setting `filter.max_velocity_px_s` (px/s)",
+          "type": "number",
+          "maximum": 100000.0,
+          "minimum": 1000.0
+        },
+        "min_confidence": {
+          "description": "Setting `filter.min_confidence` (ratio)",
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.0
+        },
+        "min_cutoff": {
+          "description": "Setting `filter.one_euro.min_cutoff` (factor)",
+          "type": "number",
+          "maximum": 10.0,
+          "minimum": 0.01
+        },
+        "outlier_agree_samples": {
+          "description": "Setting `filter.outlier_agree_samples` (samples)",
+          "type": "integer",
+          "maximum": 10.0,
+          "minimum": 1.0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ]
+    },
+    "FilterKind": {
+      "type": "string",
+      "enum": [
+        "none",
+        "ema",
+        "one-euro"
+      ]
+    },
+    "Font": {
+      "type": "object",
+      "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Align"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FontWeight"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "FontWeight": {
+      "type": "integer",
+      "maximum": 900,
+      "minimum": 100
+    },
+    "Four_Length": {
+      "description": "One value for all four sides or corners, or a list of four.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Length"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Length"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        }
+      ]
+    },
+    "Group": {
+      "type": "object",
+      "properties": {
+        "behavior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Behavior"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/Style"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Groups": {
+      "description": "A group name or a list of group names.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "Hold": {
+      "type": "string",
+      "enum": [
+        "release",
+        "toggle",
+        "instant"
+      ]
+    },
+    "Id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+$"
+    },
+    "Inputs": {
+      "type": "object",
+      "properties": {
+        "pointer_source": {
+          "description": "A plugin id, or `mouse`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "presence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Presence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sources": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/SourceConfig"
+          }
+        },
+        "switches": {
+          "description": "Friendly names for trigger ids.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^(key|mouse|face|switch|touch|plugin\\.[^:]+):.+$"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z0-9_-]+$"
+          }
+        },
+        "trigger_settings": {
+          "description": "Keyed by trigger id or switch alias.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/TriggerSettings"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Item": {
+      "description": "An item, a template (a partial item) or an empty grid cell (`- empty`).",
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ActionSeq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Actions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "behavior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Behavior"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Binding"
+          }
+        },
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cell": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cell"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "empty": {
+          "description": "Holds a grid cell without an item.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "extends": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "font": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Font"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "group": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Groups"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label_shift": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opacity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "padding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Four_Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shadow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Shadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Size"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "states": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "$ref": "#/$defs/Style"
+            },
+            "disabled": {
+              "$ref": "#/$defs/Style"
+            },
+            "dwell": {
+              "$ref": "#/$defs/Style"
+            },
+            "hover": {
+              "$ref": "#/$defs/Style"
+            },
+            "latched": {
+              "$ref": "#/$defs/Style"
+            }
+          },
+          "additionalProperties": false
+        },
+        "tooltip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "visible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "zone": {
+          "description": "A game zone in a free layer (12).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Layer": {
+      "type": "object",
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "behavior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Behavior"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Binding"
+          }
+        },
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extends": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "font": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Font"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "group": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Groups"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Item"
+              },
+              {
+                "const": "empty"
+              }
+            ]
+          }
+        },
+        "layout": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Layout"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "opacity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opacity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "padding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Four_Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shadow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Shadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Size"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "states": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "$ref": "#/$defs/Style"
+            },
+            "disabled": {
+              "$ref": "#/$defs/Style"
+            },
+            "dwell": {
+              "$ref": "#/$defs/Style"
+            },
+            "hover": {
+              "$ref": "#/$defs/Style"
+            },
+            "latched": {
+              "$ref": "#/$defs/Style"
+            }
+          },
+          "additionalProperties": false
+        },
+        "visible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "Layout": {
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "gap": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rows": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "type": {
+          "$ref": "#/$defs/LayoutKind"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    "LayoutKind": {
+      "type": "string",
+      "enum": [
+        "free",
+        "grid",
+        "row",
+        "column"
+      ]
+    },
+    "Length": {
+      "description": "A number (logical px), \"12px\", \"50%\" or \"2grid\".",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^\\s*-?[0-9]+(\\.[0-9]+)?\\s*(px|%|grid)?\\s*$"
+        }
+      ]
+    },
+    "Logging": {
+      "description": "Logging settings (11). Absent fields use the defaults in 11.",
+      "type": "object",
+      "properties": {
+        "console": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "file": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "keep_days": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "level": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_file_mb": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_total_mb": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "ring_buffer_events": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "targets": {
+          "description": "Per-target EnvFilter directives.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        }
+      },
+      "additionalProperties": false
+    },
+    "Macro": {
+      "type": "object",
+      "properties": {
+        "do": {
+          "$ref": "#/$defs/ActionSeq"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "do"
+      ]
+    },
+    "Method": {
+      "description": "Method ids from 08.",
+      "type": "string",
+      "enum": [
+        "gaze-trigger",
+        "gaze-dwell",
+        "gaze-dwell-large",
+        "mouse-direct",
+        "mouse-dwell",
+        "two-switch-step-scan",
+        "inverse-scan",
+        "single-switch-auto-scan",
+        "assisted"
+      ]
+    },
+    "Mode": {
+      "type": "string",
+      "enum": [
+        "Direct",
+        "Paused"
+      ]
+    },
+    "MouseButton": {
+      "type": "string",
+      "enum": [
+        "left",
+        "right",
+        "middle",
+        "x1",
+        "x2"
+      ]
+    },
+    "MouseScroll": {
+      "type": "object",
+      "properties": {
+        "dx": {
+          "description": "Notches.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "dy": {
+          "description": "Notches.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Opacity": {
+      "type": "number",
+      "maximum": 1,
+      "minimum": 0
+    },
+    "Position": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "y": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Presence": {
+      "type": "object",
+      "properties": {
+        "resume_delay_ms": {
+          "description": "Setting `presence.resume_delay_ms` (ms)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Profile": {
+      "type": "object",
+      "properties": {
+        "action_sets": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z0-9_-]+$": {
+              "$ref": "#/$defs/ActionSetDecl"
+            }
+          }
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Binding"
+          }
+        },
+        "inputs": {
+          "$ref": "#/$defs/Inputs"
+        },
+        "language": {
+          "description": "Communication language, BCP 47 (17).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "macros": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z0-9_-]+$": {
+              "$ref": "#/$defs/Macro"
+            }
+          }
+        },
+        "method": {
+          "description": "Informational; bindings are what run (08).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Method"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "safety": {
+          "description": "Required (SAFETY-01); checked during validation so the message is exact.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Safety"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_board": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "start_board"
+      ]
+    },
+    "ProfileFile": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/Profile"
+        },
+        "schema": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "profile"
+      ]
+    },
+    "Repeat": {
+      "description": "An action, a list of actions, or start (rerun the start sequence).",
+      "anyOf": [
+        {
+          "const": "start"
+        },
+        {
+          "$ref": "#/$defs/ActionSeq"
+        }
+      ]
+    },
+    "Safety": {
+      "type": "object",
+      "properties": {
+        "escape": {
+          "description": "Binding pattern that opens the Safe Board (SAFETY-01).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "escape"
+      ]
+    },
+    "Shadow": {
+      "type": "object",
+      "properties": {
+        "blur": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "x": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "y": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Size": {
+      "type": "object",
+      "properties": {
+        "height": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SourceConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Filter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled"
+      ]
+    },
+    "Span": {
+      "type": "object",
+      "properties": {
+        "cols": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "cols",
+        "rows"
+      ]
+    },
+    "Style": {
+      "description": "The style keys a state, group or theme may set.",
+      "type": "object",
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "border": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "font": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Font"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "opacity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opacity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "padding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Four_Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shadow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Shadow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ThemeFile": {
+      "type": "object",
+      "properties": {
+        "fonts": {
+          "description": "Family name → weight → source.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "pattern": "^[1-9]00$"
+            }
+          }
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Group"
+          }
+        },
+        "schema": {
+          "type": "string"
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Item"
+          }
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z0-9_-]+$": {
+              "$ref": "#/$defs/Color"
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema"
+      ]
+    },
+    "TriggerSettings": {
+      "description": "TriggerConditioner settings for one trigger (03).",
+      "type": "object",
+      "properties": {
+        "acceptance_delay_ms": {
+          "description": "Setting `trigger.acceptance_delay_ms` (ms)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 0.0
+        },
+        "debounce_ms": {
+          "description": "Setting `trigger.debounce_ms` (ms)",
+          "type": "integer",
+          "maximum": 1000.0,
+          "minimum": 0.0
+        },
+        "max_rate_hz": {
+          "anyOf": [
+            {
+              "description": "off",
+              "type": "null"
+            },
+            {
+              "description": "Setting `trigger.max_rate_hz` (Hz)",
+              "type": "number",
+              "maximum": 50.0,
+              "minimum": 0.1
+            }
+          ]
+        },
+        "min_press_ms": {
+          "description": "Setting `trigger.min_press_ms` (ms)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

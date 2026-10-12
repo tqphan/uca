@@ -1,0 +1,1 @@
+profile.yaml profile.safety.escape: error: the profile has no safety escape; add `safety: { escape: "<pattern>" }` (SAFETY-01)

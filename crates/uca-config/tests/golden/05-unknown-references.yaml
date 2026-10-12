@@ -1,0 +1,33 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: mian
+  inputs:
+    pointer_source: tracker
+    sources: { tracker: { enabled: false } }
+    switches: { switch1: "key:F13" }
+    trigger_settings:
+      switch9: { debounce_ms: 50 }
+  safety: { escape: "switch1 hold(3000)" }
+  action_sets:
+    build: { label: "Build" }
+  macros:
+    greet: { do: { macro.run: grete } }
+---
+schema: uca/1
+board: { id: main, theme: missing }
+bindings:
+  - when: "switch2 press"
+    do: { select: {} }
+layers:
+  - id: letters
+    items:
+      - { id: a, extends: kye, background: $nope, action: { board.open: seconds } }
+      - { id: b, action: { layer.show: leters } }
+      - { id: c, action: { action_set.on: biuld } }
+      - { id: d, action: { macro.run: gret } }
+      - { id: e, group: nogroup, action: { board.back: } }
+---
+schema: uca/1
+board: { id: second, font: { family: Nope } }
+layers: [ { id: x, items: [ { id: back, action: { board.back: } } ] } ]

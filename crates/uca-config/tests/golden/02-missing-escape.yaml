@@ -1,0 +1,8 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+---
+schema: uca/1
+board: { id: main }
+layers: [ { id: l, items: [ { id: back, action: { board.back: } } ] } ]

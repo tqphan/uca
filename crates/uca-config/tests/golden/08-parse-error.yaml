@@ -1,0 +1,13 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+---
+schema: uca/1
+board: { id: main }
+layers:
+  - id: l
+    items:
+      - id: x
+        action: { key.tapp: q }

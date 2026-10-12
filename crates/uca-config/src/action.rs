@@ -107,7 +107,7 @@ pub const ACTION_NAMES: &[&str] = &[
     "debug.export",
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum MouseButton {
     Left,
@@ -123,7 +123,7 @@ pub struct MouseClick {
     pub count: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MouseScroll {
     /// Notches.
@@ -155,13 +155,13 @@ pub enum MouseMove {
     Physical { x: f64, y: f64, relative: bool },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 pub enum Mode {
     Direct,
     Paused,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AppLaunch {
     pub path: String,
@@ -175,7 +175,7 @@ pub enum WindowQuery {
     Next,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum DebugLevel {
     Debug,

@@ -11,6 +11,7 @@
 | Plugin interface: `uca-plugin-protocol`, `uca-plugin-sdk`, the Python plugin SDK, `examples/plugins/*` templates | `MIT OR Apache-2.0` | So plugins can use any licence, including plugins that load closed vendor libraries (e.g. the Tobii guide in `15`) |
 | Docs and plugin guides (`docs/`) | `CC-BY-SA-4.0` | Copyleft for text |
 | Spec files at the repo root (`AGENTS.md`, `NN-*.md`, `SPEC_GAPS.md`) | `CC-BY-SA-4.0`, declared in `REUSE.toml` | Same as other docs (decided) |
+| Generated config schema (`schema/uca-1.schema.json`) | `MIT OR Apache-2.0`, declared in `REUSE.toml` | So any editor or tool can use it (decided) |
 | Repo plumbing (`Cargo.lock`, `.gitignore`, `rust-toolchain.toml`, `deny.toml`, CI workflows, `REUSE.toml`) | `GPL-3.0-or-later` | Same as the code (decided); header where the format allows comments, else `REUSE.toml` |
 | Default vocabulary, phrases, boards, themes, language-pack content | `CC-BY-SA-4.0` | Copyleft for AAC content; easy to reuse in other AAC tools under the same terms |
 | Prediction base data (`locales/<tag>/prediction/`) | `CC-BY-SA-4.0`, with wordfreq's upstream attributions | Derived from wordfreq data (`16`) |
@@ -34,7 +35,7 @@ The README and `LICENSE` notice state this. It only applies to the plugin protoc
     - `LICENSE` (GPL-3.0 text)
     - `LICENSE-MIT` and `LICENSE-APACHE`, for the plugin interface crates
     - `LICENSES/CC-BY-SA-4.0.txt`
-    - `LICENSES/GPL-3.0-or-later.txt`, `LICENSES/MIT.txt`, `LICENSES/Apache-2.0.txt`: identical copies of the root files, required by REUSE (decided: keep both). `LICENSES/MIT.txt` and `LICENSES/Apache-2.0.txt` are added together with the first plugin-interface crate (M2), because REUSE rejects licence texts no file uses (decided).
+    - `LICENSES/GPL-3.0-or-later.txt`, `LICENSES/MIT.txt`, `LICENSES/Apache-2.0.txt`: identical copies of the root files, required by REUSE (decided: keep both). `LICENSES/MIT.txt` and `LICENSES/Apache-2.0.txt` are added together with the first file that uses them (the generated schema), because REUSE rejects licence texts no file uses (decided).
     - The MIT copyright line reads `Copyright (c) The UCA contributors`, with no year (decided).
     - `NOTICE.md` with the plugin permission and third-party notices
 - **Copyright holder (decided):** `The UCA contributors`. It is used in `LICENSE-MIT`, `NOTICE.md` and every SPDX copyright line.

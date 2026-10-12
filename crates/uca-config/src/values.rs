@@ -179,28 +179,28 @@ impl<'de, T: Deserialize<'de> + Copy> Deserialize<'de> for Four<T> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Position {
     pub x: Option<Length>,
     pub y: Option<Length>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Size {
     pub width: Option<Length>,
     pub height: Option<Length>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum BorderStyle {
     Solid,
     Dashed,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Border {
     pub width: Option<Length>,
@@ -210,7 +210,7 @@ pub struct Border {
     pub style: Option<BorderStyle>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Align {
     Left,
@@ -235,7 +235,7 @@ impl<'de> Deserialize<'de> for FontWeight {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Font {
     pub family: Option<String>,
@@ -245,7 +245,7 @@ pub struct Font {
     pub align: Option<Align>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Shadow {
     pub x: Option<Length>,
@@ -272,7 +272,7 @@ impl<'de> Deserialize<'de> for Opacity {
 }
 
 /// The style keys a state, group or theme may set.
-#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Style {
     pub opacity: Option<Opacity>,
@@ -283,7 +283,7 @@ pub struct Style {
     pub shadow: Option<Shadow>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Hold {
     Release,
@@ -292,28 +292,37 @@ pub enum Hold {
 }
 
 /// Behavior (02). Numbers are checked against the settings registry.
-#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Behavior {
     #[serde(default, deserialize_with = "setting::dwell_ms")]
+    #[schemars(schema_with = "crate::setting::schema::dwell_ms")]
     pub dwell_ms: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::dwell_grace_ms")]
+    #[schemars(schema_with = "crate::setting::schema::dwell_grace_ms")]
     pub dwell_grace_ms: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::cooldown_ms")]
+    #[schemars(schema_with = "crate::setting::schema::cooldown_ms")]
     pub cooldown_ms: Option<SettingValue>,
     pub hold: Option<Hold>,
     #[serde(default, deserialize_with = "setting::repeat_delay_ms")]
+    #[schemars(schema_with = "crate::setting::schema::repeat_delay_ms")]
     pub repeat_delay_ms: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::repeat_interval_ms")]
+    #[schemars(schema_with = "crate::setting::schema::repeat_interval_ms")]
     pub repeat_interval_ms: Option<SettingValue>,
     pub confirm: Option<bool>,
     #[serde(default, deserialize_with = "setting::confirm_window_ms")]
+    #[schemars(schema_with = "crate::setting::schema::confirm_window_ms")]
     pub confirm_window_ms: Option<SettingValue>,
     #[serde(default, deserialize_with = "setting::enter_delay_ms")]
+    #[schemars(schema_with = "crate::setting::schema::enter_delay_ms")]
     pub enter_delay_ms: Option<SettingValue>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum State {
     Hover,

@@ -346,7 +346,8 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
 - Errors report: file, line, column, JSON path, plain-language message, suggested fix. Example:
   `boards/main.yaml:42:9 layers[0].items[3].action: unknown action "key.tapp". Did you mean "key.tap"?`
 - **Positions (decided):** line and column come only from the YAML deserialiser (`serde_norway`). Syntax and schema errors, such as an unknown action, a wrong type or an unknown key, carry `file:line:column`, the JSON path and the message. `serde_norway` reports the path itself, so no path-tracking dependency is added (decided). Example: `boards/main.yaml:42:9 layers[0].items[3].action: unknown action "key.tapp". Did you mean "key.tap"?`. Semantic errors, such as duplicate ids, unknown references, template cycles or a missing escape, carry the file and JSON path only. For example: `boards/main.yaml layers[0].items[3].id: duplicate id "key-q"`. No second YAML parser is added.
-- **Schema check at runtime (decided):** typed deserialisation with `deny_unknown_fields` is the schema check. The generated `schema/uca-1.schema.json` serves editors, the board editor and docs, and a test keeps it in sync with the types. No runtime JSON Schema validator.
+- **Message text (decided):** each semantic problem is a structured value with arguments, such as `DuplicateId { id }`. It has an English `Display` for logs and tests, and a Fluent message id whose en-US text is in `locales/en-US/config.ftl`. The UI renders it through `t!` (`17`). Messages from the YAML deserialiser (syntax and type errors) stay English until they can be mapped (SPEC-GAP in `SPEC_GAPS.md`).
+- **Schema check at runtime (decided):** typed deserialisation with `deny_unknown_fields` is the schema check. The generated `schema/uca-1.schema.json` serves editors, the board editor and docs, and a test keeps it in sync with the types. After changing a config type, regenerate it with `UCA_UPDATE_SCHEMA=1 cargo test -p uca-config` and commit it. No runtime JSON Schema validator.
 - **Actions in config (decided):** one typed `Action` enum, deserialised from `{ <name>: <args> }` with the scalar shorthands in `04`. It holds only the actions of features already built, starting with the M1 actions. Later actions are added with their feature; until then they are an "unknown action" error.
 - **M1 actions (decided):**
   - `key.tap`, `key.down`, `key.up`, `key.hold`, `key.release`, `key.toggle`, `key.latch`
@@ -358,6 +359,41 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
   - `debug.session`, `debug.overlay`, `debug.record`, `debug.export`
 - On hot reload, a file that fails validation is NOT applied; the last valid version stays live and the error is shown.
 - Saving from the editor must preserve comments and key order (use a round-trip YAML approach; if unavailable in Rust, store an editor-owned sidecar and document it as a SPEC-GAP).
+
+### Validation rules (decided)
+
+The validator checks a profile together with its boards and themes. An **error** stops the file from loading, and the last valid version stays live. A **warning** is shown, and the file still loads.
+
+| Check | Severity |
+| --- | --- |
+| Missing escape, or an invalid escape pattern (SAFETY-01) | error |
+| A binding has the same meaning as the escape (below) | error |
+| Invalid binding pattern | error |
+| `action` and `actions` both on one item; `do` and stages both on one binding | error |
+| Unknown action-set id (with "Did you mean"); a reserved name declared as a set | error |
+| `action_set.hold` outside a `start` stage; `action_set.off: default` | error |
+| Duplicate ids among siblings (boards, layers in a board, items in a layer) | error |
+| Unknown template in `extends`, or a template cycle | error |
+| Unknown or cyclic macro | error |
+| Unknown colour variable `$name` | error |
+| Unknown switch alias in a pattern or in `trigger_settings` | error |
+| `board.open` / `board.replace` / `start_board` names a missing board | error |
+| `board.theme` names a missing theme | error |
+| `layer.show` / `.hide` / `.toggle` names a layer that exists on no board | error |
+| `pointer_source` missing from `sources`, or not enabled | error |
+| A filter parameter for another filter kind, e.g. `alpha` with `one-euro` | error |
+| `span` / `cell` outside a grid layer; `zone` outside a free layer | error |
+| A grid `cell` or `span` outside the grid; two pinned items overlapping | error |
+| Declared action set never used | warning |
+| `repeat` stage on a binding whose pattern is always instant | warning |
+| A latchable set with no way out while it is on top (SAFETY-14) | warning |
+| A board with no way to another board (SAFETY-09) | warning |
+| Unknown group (treated as `others`) | warning |
+| Unknown font family (falls back to `default`) | warning |
+
+- **Escape clash:** patterns are compared by meaning. Switch aliases are resolved to their trigger ids, and `x` counts the same as `x press`.
+- **Layer references:** `layer.*` may name a layer on any board.
+- **SAFETY-09 "way out":** this counts `board.open`, `board.back` and `board.replace`, used directly or through a macro, in the board's items and bindings and in the profile's global bindings. The escape binding does not count, because it exists on every board.
 
 ## Acceptance tests
 

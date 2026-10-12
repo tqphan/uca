@@ -22,6 +22,7 @@ allow = [
     "LGPL-3.0-or-later",
     "GPL-3.0-only",
     "GPL-3.0-or-later",
+    "CC0-1.0",
 ]
 
 # Dependencies come only from crates.io: no git dependencies, no other registries.

@@ -216,7 +216,25 @@ Resolve each property for an item, lowest → highest priority:
 7. Item's own properties
 8. Active state overrides, in fixed order: `disabled` < `latched` < `scan-focus` < `hover` < `dwell` < `active`
 
-Inheritable keys: `font`, `behavior`, `opacity` (multiplicative). Others apply only at their own level.
+Inheritable keys: `font`, `behavior`, `opacity` (multiplicative).
+
+Decided details:
+- **Built-in defaults (level 1)** are readable with no theme at all:
+  - background `#000000`
+  - border 2 px, `#ffffff`, `solid`, radius 0
+  - padding 0, no shadow, opacity 1
+  - font `default`, 24 logical px, weight 700, colour `#ffffff`, align `center`
+
+  Behavior defaults come from the settings registry, plus `hold: release` and `confirm: false`.
+- **Theme (level 2)** adds no item style directly. A theme reaches items through its groups (level 4) and templates (level 3).
+- **Templates:** a board template with the same name as a theme template is deep-merged over it. `extends` chains are applied root first.
+- **Groups:** with `group: [a, b]`, `b` overrides `a`, so the last listed wins. A board group is deep-merged over the theme group with the same name. With no `group`, the item is in `others`.
+- **Output:** the cascade produces fully resolved values:
+  - colours as RGBA, with `$name` variables replaced
+  - behavior numbers filled from the registry
+  - opacity multiplied through board → layer → item
+
+  Lengths stay as `Length` until layout, because `%` and `grid` need the parent size. States are applied on request, for the set of states that are active. Others apply only at their own level.
 Merge is deep for maps, replace for lists and scalars.
 
 ## Profile
@@ -358,6 +376,11 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
   - `delay`, `macro.run`, `app.launch`, `window.focus`, `clipboard.copy` / `.paste` / `.cut`
   - `debug.session`, `debug.overlay`, `debug.record`, `debug.export`
 - On hot reload, a file that fails validation is NOT applied; the last valid version stays live and the error is shown.
+- **Hot reload (decided):**
+  - **What must pass:** a change is applied only if the whole set still validates with no errors: the profile, all its boards and its themes. For example, deleting a board that another board opens is rejected, and the old board stays live. Warnings never block.
+  - **Debounce:** the watcher waits until no file event has arrived for 250 ms, then reloads once. This is UCA's own debounce on top of `notify`; it does not interpret user input, so it is not a registry setting.
+  - **Delivery:** updates reach the engine thread over a `std::sync::mpsc` channel.
+- **Theme lookup (decided):** a theme in the profile's own `themes/` replaces the shared `themes/` file of the same name for that profile.
 - Saving from the editor must preserve comments and key order (use a round-trip YAML approach; if unavailable in Rust, store an editor-owned sidecar and document it as a SPEC-GAP).
 
 ### Validation rules (decided)

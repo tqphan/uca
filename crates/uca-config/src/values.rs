@@ -200,7 +200,7 @@ pub enum BorderStyle {
     Dashed,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Border {
     pub width: Option<Length>,
@@ -235,7 +235,7 @@ impl<'de> Deserialize<'de> for FontWeight {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Font {
     pub family: Option<String>,
@@ -245,7 +245,7 @@ pub struct Font {
     pub align: Option<Align>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Shadow {
     pub x: Option<Length>,

@@ -1115,11 +1115,9 @@ struct StyleScope<'a> {
 }
 
 impl<'a> StyleScope<'a> {
-    fn template(&self, name: &str) -> Option<&'a Item> {
-        self.file
-            .templates
-            .get(name)
-            .or_else(|| self.theme.and_then(|t| t.templates.get(name)))
+    /// A template, with the board's version merged over the theme's (02).
+    fn template(&self, name: &str) -> Option<Item> {
+        crate::cascade::Cascade::new(self.file, self.theme).template(name)
     }
 
     fn template_names(&self) -> impl Iterator<Item = &'a str> {

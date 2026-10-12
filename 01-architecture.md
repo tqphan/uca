@@ -57,7 +57,7 @@ Dependency rule: arrows only point down this list. `uca-engine` and `uca-mapping
 | Engine thread | InputHub dispatch, PointPipeline, Engine, Mapping | event-driven loop; also wakes on next timer deadline (dwell/scan) |
 | Executor thread | ActionExecutor | receives `Vec<Action>`; serializes OS injection |
 | Plugin host (async, tokio) | IPC with plugin processes | forwards plugin signals into the input channel |
-| Config watcher | File watching (`notify`) | sends `ConfigUpdate` to engine thread |
+| Config watcher | File watching (`notify`) | sends `ConfigUpdate` to engine thread over a `std::sync::mpsc` channel (decided) |
 
 The engine loop:
 

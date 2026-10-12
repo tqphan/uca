@@ -300,7 +300,12 @@ Decided:
 - `sequence[…]` and `chord[…]` are terms on their own, as in the examples. The inputs inside them take no modifiers.
 - `ms` in `hold`, `double` and `within` must be 1–60 000.
 - The parser is hand-written (no `winnow`).
-- `key:*` matches any keyboard key. It is used, for example, by the built-in safe profile's escape `key:* hold(3000)` (SAFETY-04).
+- `key:*` matches any keyboard key.
+- **Sequences:** only the listed inputs count; other presses in between are ignored. A press of the first input restarts the sequence when it is not the expected next one. Without `within(ms)` there is no time limit; with it, the time from the first input to the last must be at most `ms`.
+- **Chords** fire when the last part goes down while all the others are still held, in any order and with no time window.
+- **`dwell`** as an input fires whenever a dwell completes on any item, just before that item's own activation starts.
+- **Several bindings on one event:** among bindings whose patterns have the same meaning (switch aliases resolved, `x` = `x press`), only the highest-priority one fires: item → layer → board → profile, then by `action_set` filter, then file order. Bindings with different patterns all fire, for example `x` and `x double(400)` on the second press.
+- **Single and double on one trigger:** if both `x` (or `x press`) and `x double(ms)` are bound in the same context, a press fires `x` at once, and a second press within `ms` also fires the double. The validator warns that `x` also fires on the first press of a double. It is used, for example, by the built-in safe profile's escape `key:* hold(3000)` (SAFETY-04).
 
 Parser errors give the column of failure. The pattern AST and parser live in `uca-config` (decided), so config validation can check the escape pattern (SAFETY-01). `uca-mapping` only matches parsed patterns.
 

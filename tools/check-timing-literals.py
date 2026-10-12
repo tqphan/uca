@@ -54,11 +54,31 @@ def check_source(text: str):
         yield i + 1, line.strip()
 
 
+TEST_MOD = re.compile(r"^\s*#\[cfg\(test\)\]\s*(?:\n\s*)?mod\s+(\w+)\s*;", re.MULTILINE)
+
+
+def test_module_files(path: pathlib.Path, text: str):
+    """Files of `#[cfg(test)] mod name;` declared in `path` (test code, not checked)."""
+    base = path.parent if path.name in ("lib.rs", "main.rs", "mod.rs") else path.with_suffix("")
+    for name in TEST_MOD.findall(text):
+        yield base / f"{name}.rs"
+        yield base / name / "mod.rs"
+
+
 def source_files(root: pathlib.Path):
     for crate in CRATES:
         src = root / "crates" / crate / "src"
-        if src.is_dir():
-            yield from sorted(src.rglob("*.rs"))
+        if not src.is_dir():
+            continue
+        files = sorted(src.rglob("*.rs"))
+        test_files = set()
+        for f in files:
+            test_files.update(test_module_files(f, f.read_text(encoding="utf-8")))
+        tests_dirs = {t.parent for t in test_files if t.name == "mod.rs"}
+        for f in files:
+            if f in test_files or any(d in f.parents for d in tests_dirs):
+                continue
+            yield f
 
 
 def main() -> int:
@@ -108,6 +128,11 @@ def self_test() -> int:
     tests_only = "fn f() {}\n#[cfg(test)]\nmod tests { fn t() { Duration::from_millis(800); } }"
     if list(check_source(tests_only)):
         print("self-test: test module was checked")
+        failed = True
+    lib = pathlib.Path("crates/x/src/lib.rs")
+    found = set(test_module_files(lib, "pub mod a;\n#[cfg(test)]\nmod tests;\n"))
+    if pathlib.Path("crates/x/src/tests.rs") not in found or pathlib.Path("crates/x/src/a.rs") in found:
+        print("self-test: test module files not recognised")
         failed = True
     print("self-test failed" if failed else "self-test ok")
     return 1 if failed else 0

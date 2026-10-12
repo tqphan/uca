@@ -132,6 +132,9 @@ pub enum ProblemKind {
     GridOverflow {
         layer: String,
     },
+    SingleAlsoFires {
+        pattern: String,
+    },
 }
 
 impl ProblemKind {
@@ -174,6 +177,7 @@ impl ProblemKind {
             PositionIgnored => "config-position-ignored",
             GridUnitOutsideGrid => "config-grid-unit-outside-grid",
             GridOverflow { .. } => "config-grid-overflow",
+            SingleAlsoFires { .. } => "config-single-also-fires",
         }
     }
 
@@ -215,6 +219,7 @@ impl ProblemKind {
             UnknownFont { family } => vec![("family", family.clone())],
             FreeItemWithoutSize | PositionIgnored | GridUnitOutsideGrid => vec![],
             GridOverflow { layer } => vec![("layer", layer.clone())],
+            SingleAlsoFires { pattern } => vec![("pattern", pattern.clone())],
         }
     }
 }
@@ -309,6 +314,10 @@ impl fmt::Display for ProblemKind {
             FreeItemWithoutSize => write!(f, "items in a free layer need a size with width and height"),
             PositionIgnored => write!(f, "position is only used with anchor: free"),
             GridUnitOutsideGrid => write!(f, "the grid unit can only be used inside a grid layer"),
+            SingleAlsoFires { pattern } => write!(
+                f,
+                "{pattern:?} is also bound on its own, which fires on the first press of every double"
+            ),
             GridOverflow { layer } => write!(f, "some items in layer {layer:?} do not fit its rows and are not shown"),
             UnknownFont { family } => write!(
                 f,
@@ -368,6 +377,8 @@ struct Validator<'a> {
     boards: BTreeSet<String>,
     layers: BTreeSet<String>,
     escape: Vec<Term>,
+    /// Every binding's normalised terms: (file, path, original pattern, terms).
+    binding_terms: Vec<(PathBuf, String, String, Vec<Term>)>,
 }
 
 impl<'a> Validator<'a> {
@@ -394,6 +405,7 @@ impl<'a> Validator<'a> {
             boards,
             layers,
             escape: Vec::new(),
+            binding_terms: Vec::new(),
         }
     }
 
@@ -432,6 +444,7 @@ impl<'a> Validator<'a> {
         }
         self.file = self.set.profile_file.to_owned();
         self.action_set_usage();
+        self.single_and_double();
     }
 
     // ---------------------------------------------------------------- profile
@@ -600,6 +613,12 @@ impl<'a> Validator<'a> {
         let when_path = format!("{path}.when");
         if let Some(pattern) = self.pattern(&b.when, &when_path) {
             let norm = normalize(&pattern, self.set.profile);
+            self.binding_terms.push((
+                self.file.clone(),
+                when_path.clone(),
+                b.when.clone(),
+                norm.clone(),
+            ));
             if norm.iter().any(|t| self.escape.contains(t)) {
                 self.error(
                     when_path,
@@ -1080,6 +1099,37 @@ impl<'a> Validator<'a> {
         })
     }
 
+    /// 04: when `x` and `x double(ms)` are both bound, `x` also fires on the first press.
+    fn single_and_double(&mut self) {
+        let singles: Vec<Input> = self
+            .binding_terms
+            .iter()
+            .flat_map(|(_, _, _, terms)| terms.iter())
+            .filter_map(|t| match t {
+                Term::Input {
+                    input,
+                    modifier: Some(Modifier::Press),
+                } => Some(input.clone()),
+                _ => None,
+            })
+            .collect();
+        let doubles: Vec<(PathBuf, String, String)> = self
+            .binding_terms
+            .iter()
+            .filter(|(_, _, _, terms)| {
+                terms.iter().any(|t| {
+                    matches!(t, Term::Input { input, modifier: Some(Modifier::Double(_)) } if singles.contains(input))
+                })
+            })
+            .map(|(f, p, w, _)| (f.clone(), p.clone(), w.clone()))
+            .collect();
+        for (file, path, pattern) in doubles {
+            self.file = file;
+            self.warn(path, ProblemKind::SingleAlsoFires { pattern });
+        }
+        self.file = self.set.profile_file.to_owned();
+    }
+
     /// Unused sets, and SAFETY-14 for sets that can be latched on.
     fn action_set_usage(&mut self) {
         let profile = self.set.profile;
@@ -1486,6 +1536,7 @@ mod tests {
             PositionIgnored,
             GridUnitOutsideGrid,
             GridOverflow { layer: s() },
+            SingleAlsoFires { pattern: s() },
         ];
         for kind in &kinds {
             assert!(

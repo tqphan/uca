@@ -25,6 +25,11 @@ Built-in, not user-editable (users may restyle via theme only). Large items (≥
 
 Items: Resume · Recalibrate · Switch method (cycles through methods supported by assessment results) · Switch profile (only when more than one profile exists, `02`) · Restart UCA.
 
+Decided for M1:
+- **Layout:** a 2 × 2 grid covering the whole primary monitor.
+- **Items:** Resume, Recalibrate and Restart. Switch method is hidden until the assessment exists (M3), but keeps its cell. Switch profile arrives with multiple profiles (M2) as a third row.
+- **Selection:** by dwell, or by pressing any trigger named under `inputs.switches` or `mouse:left` while an item is hovered. Scanning with auto-scan is added in M3.
+
 **Out of scope: "Call for help".** UCA itself does not ship any emergency, alarm or call-for-help feature, built in, in default boards, or as a first-party plugin. Do not add one. UCA is not an emergency or alerting system, and its components (eye trackers, face tracking) are not intended for life-critical use. The help text and installer state this.
 
 **But UCA does not stop users from building their own.** Users may create alarm or alert items with the normal tools: boards, macros, `app.launch`, `plugin.call`, third-party plugins.

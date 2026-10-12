@@ -1,0 +1,1 @@
+boards/main.yaml bindings[0].when: warning: "key:F13 double(400)" is also bound on its own, which fires on the first press of every double

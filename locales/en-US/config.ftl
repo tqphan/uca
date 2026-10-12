@@ -65,6 +65,7 @@ config-free-item-without-size = Items in a free layer need a size with both widt
 config-position-ignored = The board's position is only used when its anchor is free.
 config-grid-unit-outside-grid = The grid unit can only be used inside a grid layer.
 config-grid-overflow = Some items in the layer “{ $layer }” do not fit its rows and are not shown.
+config-single-also-fires = “{ $pattern }” is a double press, but the same input is also bound on its own, which fires on the first press of every double.
 
 ## Messages from reading a file (02 "Message text")
 

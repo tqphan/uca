@@ -9,7 +9,11 @@ The rest of this file lists what gaming needs on top of the other specs.
 ## Outputs games need
 
 **Held keys.** Games need keys held down, not just tapped.
-- Actions `key.hold` (press; released by `key.release`, by the same item again, or by SAFETY-08) and `key.toggle`.
+- Actions `key.hold` (press; released by `key.release`, by the same item again, or by SAFETY-08) and `key.toggle`. Decided:
+    - `key.hold: w` presses W if it is not already held, and does nothing if it is.
+    - `key.toggle: w` presses W if it is not held and releases it if it is, so an item using `key.toggle` releases "by the same item again".
+    - `key.release: w` releases a held W.
+    - None of the three is activation-owned (`04` rule 4).
 - Hold while active: an item whose start stage is `key.down: w` keeps W down for the item's whole activation: while the pointer stays on it, while the bound trigger is held, or until activated again with `hold: toggle`. W is released when the activation ends (activation-owned release, `04` "Action sets and stages"). Example: look at a "W" zone to walk forward.
 - Bindings have the same stages. `when: "face:jawOpen"` with `start: { key.down: w }` maps "jaw open" to "hold W".
 - Action sets give one board several control schemes, e.g. `default` for walking, `combat`, and `build`, switched with `action_set.*` (`04`).

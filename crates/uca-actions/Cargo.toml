@@ -11,6 +11,11 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+tracing.workspace = true
+uca-config = { path = "../uca-config" }
+uca-engine = { path = "../uca-engine" }
+uca-platform = { path = "../uca-platform" }
+uca-types = { path = "../uca-types" }
 
 [lints]
 workspace = true

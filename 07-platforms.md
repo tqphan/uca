@@ -31,6 +31,7 @@ pub trait Platform: Send + Sync {
     fn launch(&self, path: &str, args: &[String]) -> Result<()>;
     fn focus_window(&self, q: WindowQuery) -> Result<()>;
     fn foreground_app(&self) -> Option<String>;
+    fn clipboard_chord(&self, op: ClipboardOp) -> Vec<Key>;  // decided: keys for copy/paste/cut (e.g. ctrl+c; macOS meta+c), pressed by the executor on the chosen output
     fn key_label(&self, key: Key, mods: Modifiers) -> Option<String>; // character this key produces under the current OS keyboard layout (`17`)
     // also emits PlatformEvent::KeyboardLayoutChanged
 
@@ -74,6 +75,8 @@ Decided details:
 
   An unknown name is an error with a "Did you mean" suggestion.
 - **Generic modifier aliases** mean the left key everywhere. `shift` is `ShiftLeft` both for output and as a trigger: `key:shift` matches only ShiftLeft.
+
+**Trait growth (decided):** like config keys and actions, the trait gains methods with the feature that needs them. M1 has output, hooks, monitors, events, overlay, system and `clipboard_chord`. `ui_targets` / `ui_invoke` arrive in M3, `key_label` in M4 and `request_permissions` with macOS.
 
 ## Capability matrix (target)
 

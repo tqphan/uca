@@ -413,6 +413,13 @@ dependencies = [
 [[package]]
 name = "uca-actions"
 version = "0.1.0"
+dependencies = [
+ "tracing",
+ "uca-config",
+ "uca-engine",
+ "uca-platform",
+ "uca-types",
+]
 
 [[package]]
 name = "uca-app"
@@ -467,6 +474,10 @@ dependencies = [
 [[package]]
 name = "uca-platform"
 version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "uca-types",
+]
 
 [[package]]
 name = "uca-platform-windows"

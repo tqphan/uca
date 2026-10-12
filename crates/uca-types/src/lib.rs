@@ -7,6 +7,7 @@ pub mod clock;
 pub mod geometry;
 pub mod ids;
 pub mod key;
+pub mod output;
 pub mod signal;
 pub mod suggest;
 pub mod trigger;
@@ -17,6 +18,7 @@ pub use geometry::{
 };
 pub use ids::{ItemId, SourceId};
 pub use key::{Key, KeyError};
+pub use output::{KeyDir, MouseButton};
 pub use signal::{
     FilteredPoint, GestureEvent, HeadPoseSample, Phase, PointSample, Signal, SourceStatus,
     SourceStatusEvent, TriggerEvent,

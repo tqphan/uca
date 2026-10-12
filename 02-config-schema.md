@@ -267,6 +267,33 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
     - cue rate
     - presence resume delay
 - **No hidden constants:** none of these may be hard-coded. Each one is a setting with a default, a valid range and a plain-language description. These live in one registry (`uca-config/src/settings_registry.rs`), which drives validation, the Settings UI and the docs.
+- **Registry growth (decided):** the registry gains entries together with the feature that uses them. M1 holds the settings of M1 features only.
+- **Keys (decided):** dotted and namespaced. The last part is the YAML key, e.g. `behavior.dwell_ms`, `trigger.debounce_ms`, `filter.one_euro.beta`. These keys are used by `setting.adjust`, Settings, docs and validation errors.
+- **Off values (decided):** a setting may declare an explicit "off" value outside its range. `behavior.dwell_ms: 0` turns dwell off (`04`). Any other value must be in range, e.g. 1–99 ms is rejected with the range shown.
+- **M1 registry entries (decided):**
+
+  | Key | Default | Range |
+  | --- | --- | --- |
+  | `behavior.dwell_ms` | 800 | off = 0, else 100–10 000 ms |
+  | `behavior.dwell_grace_ms` | 150 | 0–5 000 ms |
+  | `behavior.cooldown_ms` | 300 | 0–10 000 ms |
+  | `behavior.repeat_delay_ms` | 500 | 0–10 000 ms |
+  | `behavior.repeat_interval_ms` | 100 | 30–10 000 ms |
+  | `behavior.confirm_window_ms` | 3 000 | 500–30 000 ms (the "within 3 s" of `confirm`, `04`) |
+  | `trigger.debounce_ms` | 30 | 0–1 000 ms |
+  | `trigger.min_press_ms` | 0 | 0–10 000 ms |
+  | `trigger.acceptance_delay_ms` | 0 | 0–10 000 ms |
+  | `trigger.max_rate_hz` | off | 0.1–50 Hz |
+  | `filter.min_confidence` | 0.3 | 0–1 |
+  | `filter.max_velocity_px_s` | 20 000 | 1 000–100 000 px/s |
+  | `filter.outlier_agree_samples` | 3 | 1–10 samples (the "3 consecutive samples" of outlier rejection, `03`) |
+  | `filter.one_euro.min_cutoff` | 1.0 | 0.01–10 |
+  | `filter.one_euro.beta` | 0.007 | 0–1 |
+  | `filter.one_euro.d_cutoff` | 1.0 | 0.01–10 |
+  | `filter.ema.alpha` | 0.5 | 0.01–1 |
+  | `presence.resume_delay_ms` | 500 | 0–10 000 ms |
+  | `zone.enter_delay_ms` | 150 | 0–10 000 ms |
+
 - **Levels:** each can be set at profile, board, layer, group or item level wherever the cascade allows (`behavior`, above), so a user can, for example, use a longer dwell on just the Backspace key.
 - **Adjusting in Settings:** grouped by input method, with a **live preview** (e.g. a test target showing dwell timing, a live score bar with the on/off levels for each expression). Every value has a **reset to default** and **reset to assessment value**.
 - **Adjusting from a board:** the user can change values without a carer. Action `setting.adjust: {key, delta}` (or `{key, value}`) changes a value immediately, and `setting.undo` reverts the last change. The default boards include a small "Timing" board with dwell faster/slower and scan faster/slower.

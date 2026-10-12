@@ -383,8 +383,8 @@ mod tests {
     }
 
     const PROFILE: &str = "schema: uca/1\nprofile:\n  name: Alex\n  start_board: main\n  safety: { escape: \"key:F13 hold(3000)\" }\n";
-    const MAIN: &str = "schema: uca/1\nboard: { id: main, theme: default }\nlayers: [ { id: l, items: [ { id: a, action: { board.open: second } } ] } ]\n";
-    const SECOND: &str = "schema: uca/1\nboard: { id: second }\nlayers: [ { id: l2, items: [ { id: b, action: { board.back: } } ] } ]\n";
+    const MAIN: &str = "schema: uca/1\nboard: { id: main, theme: default }\nlayers: [ { id: l, layout: { type: free }, items: [ { id: a, action: { board.open: second } } ] } ]\n";
+    const SECOND: &str = "schema: uca/1\nboard: { id: second }\nlayers: [ { id: l2, layout: { type: free }, items: [ { id: b, action: { board.back: } } ] } ]\n";
     const THEME: &str = "schema: uca/1\nvars: { fg: \"#ffffff\" }\n";
 
     fn valid_sources(p: &ProfilePaths) -> Sources {

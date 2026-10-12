@@ -16,4 +16,4 @@ bindings:
     do: { pause: }
   - when: "mouse:right | switch1 hold(3000)"
     do: { resume: }
-layers: [ { id: l, items: [ { id: back, action: { board.back: } } ] } ]
+layers: [ { id: l, layout: { type: free }, items: [ { id: back, action: { board.back: } } ] } ]

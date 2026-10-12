@@ -5,4 +5,4 @@ profile:
 ---
 schema: uca/1
 board: { id: main }
-layers: [ { id: l, items: [ { id: back, action: { board.back: } } ] } ]
+layers: [ { id: l, layout: { type: free }, items: [ { id: back, action: { board.back: } } ] } ]

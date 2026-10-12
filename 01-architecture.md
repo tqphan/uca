@@ -125,7 +125,7 @@ pub trait Clock: Send + Sync { fn now(&self) -> Instant; }
 Decided details:
 - `HeadPoseSample { t, source, yaw, pitch, roll, position: Option<[f64; 3]>, confidence }`. Angles are in radians and position is in metres. Position is all-or-nothing: the host drops a partial `x?/y?/z?` set from the wire.
 - `SourceStatusEvent { t, source, status: SourceStatus }`.
-- `TriggerId` is a validated type, built only through `TriggerId::parse`. It holds a known kind and a non-empty name, and the engine can match on the kind. `mouse` and `touch` names are checked against their fixed lists below. `key` names are checked against the `Key` enum (`07`) once that exists.
+- `TriggerId` is a validated type, built only through `TriggerId::parse`. It holds a known kind and a non-empty name, and the engine can match on the kind. `mouse` and `touch` names are checked against their fixed lists below. `key` names are checked against the `Key` enum (`07`). `key:*` is a wildcard for any keyboard key (`04`).
 - Signal types get serde derives only with the `.ucarec` recording task (`11`), which also settles how timestamps are stored.
 
 `TriggerId` string format: `<kind>:<name>`. Kinds: `key` (platform-neutral key names, see `07-platforms.md`), `mouse` (`left|right|middle|x1|x2`), `face` (blendshape name from a plugin with `trigger_namespace: face`, see `15`), `switch` (alias from profile), `touch` (`tap`, `long-press`), `plugin.<id>` (plugin-defined).

@@ -109,7 +109,8 @@ with_base! {
     #[serde(deny_unknown_fields)]
     pub struct Layer {
         pub id: Id,
-        pub layout: Option<Layout>,
+        /// Required (02).
+        pub layout: Layout,
         #[serde(default)]
         pub bindings: Vec<Binding>,
         #[serde(default, deserialize_with = "de_items")]

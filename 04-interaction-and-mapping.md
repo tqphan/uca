@@ -299,6 +299,7 @@ Decided:
 - `sequence[…]` and `chord[…]` are terms on their own, as in the examples. The inputs inside them take no modifiers.
 - `ms` in `hold`, `double` and `within` must be 1–60 000.
 - The parser is hand-written (no `winnow`).
+- `key:*` matches any keyboard key. It is used, for example, by the built-in safe profile's escape `key:* hold(3000)` (SAFETY-04).
 
 Parser errors give the column of failure. The pattern AST and parser live in `uca-config` (decided), so config validation can check the escape pattern (SAFETY-01). `uca-mapping` only matches parsed patterns.
 

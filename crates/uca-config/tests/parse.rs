@@ -68,10 +68,7 @@ fn full_board_parses() {
     assert_eq!(b.templates.len(), 1);
     assert_eq!(b.bindings.len(), 1);
     let layer = &b.layers[0];
-    assert_eq!(
-        layer.layout.as_ref().map(|l| l.kind),
-        Some(LayoutKind::Grid)
-    );
+    assert_eq!(layer.layout.kind, LayoutKind::Grid);
     assert_eq!(layer.items.len(), 4);
     assert_eq!(layer.items[1].empty, Some(true));
     let q = &layer.items[0];
@@ -95,11 +92,11 @@ fn full_board_parses() {
 fn stage_shorthand_equals_explicit_default() {
     let short = r#"schema: uca/1
 board: { id: b }
-layers: [ { id: l, items: [ { id: x, actions: { start: { key.tap: a }, repeat: start } } ] } ]
+layers: [ { id: l, layout: { type: free }, items: [ { id: x, actions: { start: { key.tap: a }, repeat: start } } ] } ]
 "#;
     let long = r#"schema: uca/1
 board: { id: b }
-layers: [ { id: l, items: [ { id: x, actions: { default: { start: { key.tap: a }, repeat: start } } } ] } ]
+layers: [ { id: l, layout: { type: free }, items: [ { id: x, actions: { default: { start: { key.tap: a }, repeat: start } } } ] } ]
 "#;
     let a = parse_board(short, Path::new("a.yaml")).expect("short");
     let b = parse_board(long, Path::new("b.yaml")).expect("long");
@@ -112,6 +109,7 @@ fn mixing_shorthand_and_sets_is_an_error() {
 board: { id: b }
 layers:
   - id: l
+    layout: { type: free }
     items:
       - id: x
         actions:
@@ -128,12 +126,13 @@ fn errors_carry_line_and_column() {
 board: { id: b }
 layers:
   - id: l
+    layout: { type: free }
     items:
       - id: x
         action: { key.tapp: q }
 ";
     let err = parse_board(text, Path::new("boards/main.yaml")).unwrap_err();
-    assert_eq!(err.line, Some(7), "{err}");
+    assert_eq!(err.line, Some(8), "{err}");
     assert_eq!(err.column, Some(17), "{err}");
     assert_eq!(
         err.path.as_deref(),
@@ -146,7 +145,7 @@ layers:
     );
     assert_eq!(
         err.to_string(),
-        "boards/main.yaml:7:17 layers[0].items[0].action: unknown action \"key.tapp\". Did you mean \"key.tap\"?"
+        "boards/main.yaml:8:17 layers[0].items[0].action: unknown action \"key.tapp\". Did you mean \"key.tap\"?"
     );
 }
 
@@ -161,7 +160,7 @@ fn unknown_keys_are_rejected() {
 #[test]
 fn later_milestone_keys_are_rejected() {
     let text =
-        "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, scan: { pattern: linear } } ]\n";
+        "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: free }, scan: { pattern: linear } } ]\n";
     assert!(parse_board(text, Path::new("b.yaml")).is_err());
     for later in ["magnet: true", "scannable: true"] {
         let text = format!("schema: uca/1\nboard: {{ id: b, behavior: {{ {later} }} }}\n");
@@ -169,6 +168,16 @@ fn later_milestone_keys_are_rejected() {
     }
     let text = "schema: uca/1\nboard: { id: b, states: { scan-focus: {} } }\n";
     assert!(parse_board(text, Path::new("b.yaml")).is_err());
+}
+
+#[test]
+fn layout_is_required() {
+    let text = "schema: uca/1
+board: { id: b }
+layers: [ { id: l, items: [] } ]
+";
+    let err = parse_board(text, Path::new("b.yaml")).unwrap_err();
+    assert!(err.message.contains("missing field `layout`"), "{err}");
 }
 
 #[test]

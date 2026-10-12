@@ -12,6 +12,8 @@ use crate::key::{Key, KeyError};
 const MOUSE_NAMES: &[&str] = &["left", "right", "middle", "x1", "x2"];
 const TOUCH_NAMES: &[&str] = &["tap", "long-press"];
 const PLUGIN_PREFIX: &str = "plugin.";
+/// The name of the any-key wildcard, `key:*`.
+pub const ANY_KEY: &str = "*";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TriggerKind {
@@ -98,6 +100,8 @@ impl TriggerId {
         // Key names are stored as their W3C code, so `key:f13`, `key:F13` and
         // `key:shift` / `key:ShiftLeft` are the same trigger (07).
         let name = match kind {
+            // `key:*` matches any keyboard key (04).
+            TriggerKind::Key if name == ANY_KEY => name.into(),
             TriggerKind::Key => Key::parse(name)
                 .map_err(|source| TriggerIdError::UnknownKey {
                     id: s.to_owned(),
@@ -116,6 +120,16 @@ impl TriggerId {
             TriggerKind::Key => Key::parse(&self.name).ok(),
             _ => None,
         }
+    }
+
+    /// `key:*`: matches any keyboard key.
+    pub fn is_any_key(&self) -> bool {
+        self.kind == TriggerKind::Key && self.name == ANY_KEY
+    }
+
+    /// Whether a concrete trigger is matched by this id (`key:*` matches every key).
+    pub fn matches(&self, other: &TriggerId) -> bool {
+        self == other || (self.is_any_key() && other.kind == TriggerKind::Key)
     }
 
     pub fn kind(&self) -> &TriggerKind {
@@ -188,6 +202,19 @@ mod tests {
             TriggerId::parse("key:entr"),
             Err(TriggerIdError::UnknownKey { .. })
         ));
+    }
+
+    #[test]
+    fn any_key_wildcard() {
+        let any = TriggerId::parse("key:*").expect("valid");
+        assert!(any.is_any_key());
+        assert_eq!(any.key(), None);
+        assert_eq!(any.to_string(), "key:*");
+        let f13 = TriggerId::parse("key:F13").expect("valid");
+        assert!(any.matches(&f13));
+        assert!(!f13.matches(&any));
+        assert!(!any.matches(&TriggerId::parse("mouse:left").expect("valid")));
+        assert!(TriggerId::parse("mouse:*").is_err());
     }
 
     #[test]

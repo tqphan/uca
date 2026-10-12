@@ -61,3 +61,22 @@ config-set-without-exit = The action set “{ $id }” can be turned on, but not
 config-no-way-out = The board “{ $board }” has no item or binding that leads to another board.
 config-unknown-group = There is no group called “{ $name }”. The item is treated as “others”.
 config-unknown-font = The font “{ $family }” is not declared in the theme. The default font is used.
+
+## Messages from reading a file (02 "Message text")
+
+config-parse-unknown-field = “{ $name }” is not a known setting here. Known settings: { $expected }.
+config-parse-missing-field = “{ $name }” is required here.
+config-parse-duplicate-field = “{ $name }” is written twice.
+config-parse-invalid-type = Expected { $expected }, but found { $found }.
+config-parse-invalid-value = Expected { $expected }, but found { $found }.
+config-parse-unknown-variant = “{ $name }” is not one of the allowed values: { $expected }.
+config-parse-unknown-action = There is no action called “{ $name }”.{ $suggestion ->
+        [none] {""}
+       *[other] { " " }Did you mean “{ $suggestion }”?
+    }
+config-parse-unknown-key = There is no key called “{ $name }”.{ $suggestion ->
+        [none] {""}
+       *[other] { " " }Did you mean “{ $suggestion }”?
+    }
+config-parse-out-of-range = { $what }: { $value } is outside the allowed range { $min }–{ $max }.
+config-parse-other = The file could not be read: { $message }

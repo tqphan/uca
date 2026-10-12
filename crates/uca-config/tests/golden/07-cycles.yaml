@@ -13,4 +13,4 @@ templates:
   one: { extends: two }
   two: { extends: one }
   three: { extends: three }
-layers: [ { id: l, items: [ { id: back, action: { board.back: } } ] } ]
+layers: [ { id: l, layout: { type: free }, items: [ { id: back, action: { board.back: } } ] } ]

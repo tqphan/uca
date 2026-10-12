@@ -21,6 +21,7 @@ bindings:
     do: { select: {} }
 layers:
   - id: letters
+    layout: { type: free }
     items:
       - { id: a, extends: kye, background: $nope, action: { board.open: seconds } }
       - { id: b, action: { layer.show: leters } }
@@ -30,4 +31,4 @@ layers:
 ---
 schema: uca/1
 board: { id: second, font: { family: Nope } }
-layers: [ { id: x, items: [ { id: back, action: { board.back: } } ] } ]
+layers: [ { id: x, layout: { type: free }, items: [ { id: back, action: { board.back: } } ] } ]

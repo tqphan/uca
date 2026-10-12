@@ -141,7 +141,7 @@ layers:      [ Layer ]
 
 ### Layer layouts
 
-Every layer chooses one of four layouts. Different layers on the same board may use different layouts, e.g. a grid keyboard layer plus a free layer of a few large buttons.
+Every layer chooses one of four layouts. `layout` is required (decided): a layer without one is a config error. Different layers on the same board may use different layouts, e.g. a grid keyboard layer plus a free layer of a few large buttons.
 
 - **`free`:** each item is placed by its own `position` and `size`, relative to the layer's content box.
     - Units are logical px (DPI-scaled, so a board looks the same at any scale factor) or `%` of the layer.
@@ -364,7 +364,7 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
 - Errors report: file, line, column, JSON path, plain-language message, suggested fix. Example:
   `boards/main.yaml:42:9 layers[0].items[3].action: unknown action "key.tapp". Did you mean "key.tap"?`
 - **Positions (decided):** line and column come only from the YAML deserialiser (`serde_norway`). Syntax and schema errors, such as an unknown action, a wrong type or an unknown key, carry `file:line:column`, the JSON path and the message. `serde_norway` reports the path itself, so no path-tracking dependency is added (decided). Example: `boards/main.yaml:42:9 layers[0].items[3].action: unknown action "key.tapp". Did you mean "key.tap"?`. Semantic errors, such as duplicate ids, unknown references, template cycles or a missing escape, carry the file and JSON path only. For example: `boards/main.yaml layers[0].items[3].id: duplicate id "key-q"`. No second YAML parser is added.
-- **Message text (decided):** each semantic problem is a structured value with arguments, such as `DuplicateId { id }`. It has an English `Display` for logs and tests, and a Fluent message id whose en-US text is in `locales/en-US/config.ftl`. The UI renders it through `t!` (`17`). Messages from the YAML deserialiser (syntax and type errors) stay English until they can be mapped (SPEC-GAP in `SPEC_GAPS.md`).
+- **Message text (decided):** each semantic problem is a structured value with arguments, such as `DuplicateId { id }`. It has an English `Display` for logs and tests, and a Fluent message id whose en-US text is in `locales/en-US/config.ftl`. The UI renders it through `t!` (`17`). Messages from the YAML deserialiser are recognised and mapped to Fluent ids with arguments (decided): unknown field, missing field, duplicate field, invalid type, invalid value, unknown variant, plus UCA's own unknown action, unknown key and out-of-range setting. Anything not recognised is shown in English.
 - **Schema check at runtime (decided):** typed deserialisation with `deny_unknown_fields` is the schema check. The generated `schema/uca-1.schema.json` serves editors, the board editor and docs, and a test keeps it in sync with the types. After changing a config type, regenerate it with `UCA_UPDATE_SCHEMA=1 cargo test -p uca-config` and commit it. No runtime JSON Schema validator.
 - **Actions in config (decided):** one typed `Action` enum, deserialised from `{ <name>: <args> }` with the scalar shorthands in `04`. It holds only the actions of features already built, starting with the M1 actions. Later actions are added with their feature; until then they are an "unknown action" error.
 - **M1 actions (decided):**

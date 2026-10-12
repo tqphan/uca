@@ -2071,14 +2071,8 @@
           }
         },
         "layout": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Layout"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "description": "Required (02).",
+          "$ref": "#/$defs/Layout"
         },
         "opacity": {
           "anyOf": [
@@ -2160,7 +2154,8 @@
       },
       "additionalProperties": false,
       "required": [
-        "id"
+        "id",
+        "layout"
       ]
     },
     "Layout": {

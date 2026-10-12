@@ -793,9 +793,9 @@ impl<'a> Validator<'a> {
         for (i, b) in layer.bindings.iter().enumerate() {
             self.binding(b, &format!("{path}.bindings[{i}]"));
         }
-        let kind = layer.layout.as_ref().map(|l| l.kind);
-        let columns = layer.layout.as_ref().and_then(|l| l.columns);
-        let rows = layer.layout.as_ref().and_then(|l| l.rows);
+        let kind = layer.layout.kind;
+        let columns = layer.layout.columns;
+        let rows = layer.layout.rows;
         let mut ids = BTreeSet::new();
         let mut pinned: Vec<(String, (u32, u32, u32, u32))> = Vec::new();
         for (ii, item) in layer.items.iter().enumerate() {
@@ -812,9 +812,6 @@ impl<'a> Validator<'a> {
             }
             self.item(scope, item, &ipath);
 
-            // SPEC-GAP: the layout of a layer without `layout:` is not defined (SPEC_GAPS.md
-            // "Default layer layout"); layout-dependent checks are skipped for such layers.
-            let Some(kind) = kind else { continue };
             if kind != LayoutKind::Grid {
                 if item.span.is_some() {
                     self.error(

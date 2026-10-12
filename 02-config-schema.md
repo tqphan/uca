@@ -269,6 +269,11 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
 - **No hidden constants:** none of these may be hard-coded. Each one is a setting with a default, a valid range and a plain-language description. These live in one registry (`uca-config/src/settings_registry.rs`), which drives validation, the Settings UI and the docs.
 - **Registry growth (decided):** the registry gains entries together with the feature that uses them. M1 holds the settings of M1 features only.
 - **Keys (decided):** dotted and namespaced. The last part is the YAML key, e.g. `behavior.dwell_ms`, `trigger.debounce_ms`, `filter.one_euro.beta`. These keys are used by `setting.adjust`, Settings, docs and validation errors.
+- **Enforcement (decided):** CI runs `tools/check-timing-literals.py`. It fails on numeric timing literals in the non-test code of `uca-engine`, `uca-input` and `uca-mapping`:
+  - literals passed to `Duration` constructors;
+  - literals assigned to names ending in `_ms`, `_secs` or `_hz`.
+
+  The literal `0` is allowed. The fixed safety values (above) carry `// SETTINGS-EXEMPT: <reason>` on the same line or the line above. Test code (`#[cfg(test)]` modules, `tests/`, `benches/`) is not checked.
 - **Off values (decided):** a setting may declare an explicit "off" value outside its range. `behavior.dwell_ms: 0` turns dwell off (`04`). Any other value must be in range, e.g. 1–99 ms is rejected with the range shown.
 - **M1 registry entries (decided):**
 

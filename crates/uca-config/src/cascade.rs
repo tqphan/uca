@@ -283,6 +283,15 @@ pub fn builtin_behavior() -> Behavior {
     }
 }
 
+/// Built-in behavior with `over` merged on top (bindings' `behavior`, 04).
+pub fn behavior_over_builtin(over: Option<&Behavior>) -> ResolvedBehavior {
+    let mut b = builtin_behavior();
+    if let Some(o) = over {
+        b.merge_from(o);
+    }
+    resolve_behavior(&b)
+}
+
 // ------------------------------------------------------------------ the cascade
 
 /// Cascade context for one board and its theme.

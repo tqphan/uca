@@ -31,6 +31,14 @@ pub enum Intent {
 }
 ```
 
+## Paused mode (decided)
+
+Boards stay visible, but nothing activates by dwell or `select`. The escape still works (SAFETY-02), and so do bindings that explicitly say `in: { mode: Paused }`, such as a resume switch. Entering `Paused` is a safety event: open activations are cancelled and everything UCA pressed is released (SAFETY-08).
+
+## Layer visibility (decided)
+
+`layer.show`, `layer.hide` and `layer.toggle` change the layer with that id on the board that is on top. If the top board has no such layer, nothing happens (logged at `debug`). Visibility is remembered per board for the session and resets to the YAML `visible:` values when the config reloads or the profile loads. It is not saved.
+
 ## Hit-testing
 
 - Items are hit-tested in the board's monitor logical space, top layer first, reverse item order within a layer (last drawn wins).

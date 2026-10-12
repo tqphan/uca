@@ -29,6 +29,8 @@ Decided for M1:
 - **Layout:** a 2 × 2 grid covering the whole primary monitor.
 - **Items:** Resume, Recalibrate and Restart. Switch method is hidden until the assessment exists (M3), but keeps its cell. Switch profile arrives with multiple profiles (M2) as a third row.
 - **Selection:** by dwell, or by pressing any trigger named under `inputs.switches` or `mouse:left` while an item is hovered. Scanning with auto-scan is added in M3.
+- **While it is open:** opening the Safe Board is a safety event: open activations are cancelled, everything UCA pressed is released, and the action-set stack resets. While it is open, only Safe Board selection and the escape work; all other bindings and boards are inactive. Pressing the escape again changes nothing.
+- **Resume** closes the Safe Board and returns to the board that was on top, in `Direct` mode (this also ends `Paused`).
 
 **Out of scope: "Call for help".** UCA itself does not ship any emergency, alarm or call-for-help feature, built in, in default boards, or as a first-party plugin. Do not add one. UCA is not an emergency or alerting system, and its components (eye trackers, face tracking) are not intended for life-critical use. The help text and installer state this.
 

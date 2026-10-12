@@ -3,7 +3,20 @@
 
 //! Interaction engine: hit-test, dwell, scanning, modes.
 //!
-//! Pure and deterministic (AGENTS.md rule 2): time comes from a `Clock`, and
-//! there is no I/O.
+//! Pure and deterministic (AGENTS.md rule 2): time comes from a `Clock` and
+//! event times, and there is no I/O.
 
+mod engine;
 pub mod layout;
+pub mod safe_board;
+pub mod sets;
+pub mod types;
+
+pub use engine::Engine;
+pub use types::{
+    ActivationId, BoardSnapshot, Control, EngineInput, EngineSnapshot, Intent, ItemSnapshot, Latch,
+    LayerSnapshot, SafeItem,
+};
+
+#[cfg(test)]
+mod tests;

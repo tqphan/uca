@@ -122,6 +122,22 @@ bindings:    [ Binding ]                # board-level, see 04
 layers:      [ Layer ]
 ```
 
+### Board placement (decided)
+
+- **`anchor`:**
+  - `top`, `bottom`, `left` and `right` dock the board against that edge of its monitor, centred along the edge.
+  - `center` centres it on the monitor.
+  - `free` places it at `position`.
+
+  `position` is used only with `anchor: free`; the validator warns if it is set otherwise. The example above therefore means: on the bottom edge, full width, 40 % high.
+- **`%` on a board** is a percentage of the monitor's full bounds, taskbar included.
+- **Defaults:** a board without `anchor` is `center`, and a board without `monitor` uses the `primary` monitor.
+- **Default sizes:**
+  - A board without `size` covers 100 % × 100 % of its monitor.
+  - A layer without `size` fills its board's content box (inside the board's padding).
+  - An item in a `free` layer must have a `size`; otherwise it is a config error, because the item would be invisible.
+- **Direction:** until the RTL work in M4 (`17`), every board is laid out left to right.
+
 ## Layer
 
 ```yaml
@@ -157,6 +173,15 @@ Every layer chooses one of four layouts. `layout` is required (decided): a layer
     - Each item's `size.width` sets its width. Items without a width share the remaining space equally.
     - Item height is the layer height unless `size.height` is set.
 - **`column`:** like `row`, but vertical, top to bottom.
+
+**Layout details (decided):**
+- **Grid placement:** pinned items (`cell`) take their cells first. The other items fill the remaining free cells in order, left to right and top to bottom. A spanning item goes to the first position where its whole span is free. Without `rows`, the grid has as many rows as needed. With `rows` set, items that do not fit are not shown and the validator warns.
+- **Grid without `columns`:** columns = ceil(√(number of items)); for example, 9 items make 3 × 3.
+- **Hidden items** (`visible: false`) keep their cell or slot in grid, row and column layouts, so other items do not move (motor planning, `16`). They are not drawn or hit-tested.
+- **Cell size:** `(content width − gap × (columns − 1)) / columns`, and the same for height with the row count.
+- **Padding:** on a board or layer, padding shrinks the content box its children are laid out in, as in CSS. On an item, it only insets the label and icon. Border width never changes layout.
+- **`grid` unit:** `1grid` is one cell's width for horizontal values and one cell's height for vertical values, gaps not included. It is valid only inside a grid layer; anywhere else it is a config error.
+- **Row and column alignment:** an item smaller than its row's height, or its column's width, is centred across it.
 
 **Scanning order per layout:**
 - **Grid:** rows and columns are the grid's.

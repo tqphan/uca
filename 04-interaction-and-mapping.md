@@ -23,10 +23,11 @@ The engine outputs **Intents**:
 
 ```rust
 pub enum Intent {
-    Item(ItemId, ActionSetId, Stage), // Stage = Start | Repeat | Stop; one stage run of an item's activation
-    Signal(Signal, ContextKey),    // a raw trigger/gesture that no item consumed -> bindings
-    Zoom { center: PhysPoint },
-    Control(Control),              // Pause, Resume, Recalibrate, OpenSafeBoard, SwitchMethod
+    Execute { activation: ActivationId, actions: Vec<Action> }, // device actions of one sequence step (decided: the engine runs sequences, 01)
+    Release(ActivationId),         // activation ended: release what it pressed (rule 4)
+    ReleaseAll,                    // SAFETY-08
+    Zoom { center: PhysPoint },    // M2
+    Control(Control),              // Recalibrate, SwitchMethod, RestartApp, ... (handled outside the engine)
 }
 ```
 
@@ -322,7 +323,7 @@ YAML form: `{ <action-name>: <args> }` or a list. Args may be a scalar shorthand
 | `pad.button` / `pad.stick` / `pad.trigger` / `pad.hat` | `{button, down}` / `{stick, x, y}` / `{trigger, value}` / `direction` | gamepad output via the HID bridge (`14`) or a `gamepad-output` plugin (`06`); config warning and runtime no-op if no provider |
 | `speech.say`, `speech.speak_buffer`, `speech.buffer.*`, `speech.compose.*`, `speech.repeat`, `speech.stop`, `speech.voice` | see `13` | text-to-speech: speaking aloud |
 | `message.add`, `message.morph`, `message.speak`, `message.clear` / `.delete_word` / `.delete_letter` / `.undo`, `message.show`, `message.save_phrase`, `board.home` | see `16` | AAC message bar and vocabulary |
-| `key.latch` | modifier | toggle latch; double activation = lock |
+| `key.latch` | modifier | each activation moves the modifier off → latched → locked → off (decided; no time window). A latch clears after the next `key.tap`; a lock stays until the item is activated again |
 | `text.type` | string | Unicode text injection, layout-independent |
 | `mouse.click` | `{button: left, count: 1}` | at current OS cursor |
 | `mouse.down` / `mouse.up` | button | |

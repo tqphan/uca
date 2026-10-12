@@ -70,6 +70,38 @@ pub struct LogPoint {
     pub y: LogPx,
 }
 
+/// A rectangle in one monitor's logical pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct RectLog {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl RectLog {
+    pub const fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    /// Half-open like [`RectPhys::contains`].
+    pub fn contains(&self, x: LogPx, y: LogPx) -> bool {
+        x.0 >= self.x && x.0 < self.x + self.width && y.0 >= self.y && y.0 < self.y + self.height
+    }
+
+    pub fn center(&self) -> (LogPx, LogPx) {
+        (
+            LogPx(self.x + self.width / 2.0),
+            LogPx(self.y + self.height / 2.0),
+        )
+    }
+}
+
 /// Converts between physical and one monitor's logical pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MonitorTransform {

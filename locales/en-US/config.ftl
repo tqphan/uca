@@ -61,6 +61,10 @@ config-set-without-exit = The action set “{ $id }” can be turned on, but not
 config-no-way-out = The board “{ $board }” has no item or binding that leads to another board.
 config-unknown-group = There is no group called “{ $name }”. The item is treated as “others”.
 config-unknown-font = The font “{ $family }” is not declared in the theme. The default font is used.
+config-free-item-without-size = Items in a free layer need a size with both width and height.
+config-position-ignored = The board's position is only used when its anchor is free.
+config-grid-unit-outside-grid = The grid unit can only be used inside a grid layer.
+config-grid-overflow = Some items in the layer “{ $layer }” do not fit its rows and are not shown.
 
 ## Messages from reading a file (02 "Message text")
 

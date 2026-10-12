@@ -92,11 +92,11 @@ fn full_board_parses() {
 fn stage_shorthand_equals_explicit_default() {
     let short = r#"schema: uca/1
 board: { id: b }
-layers: [ { id: l, layout: { type: free }, items: [ { id: x, actions: { start: { key.tap: a }, repeat: start } } ] } ]
+layers: [ { id: l, layout: { type: row }, items: [ { id: x, actions: { start: { key.tap: a }, repeat: start } } ] } ]
 "#;
     let long = r#"schema: uca/1
 board: { id: b }
-layers: [ { id: l, layout: { type: free }, items: [ { id: x, actions: { default: { start: { key.tap: a }, repeat: start } } } ] } ]
+layers: [ { id: l, layout: { type: row }, items: [ { id: x, actions: { default: { start: { key.tap: a }, repeat: start } } } ] } ]
 "#;
     let a = parse_board(short, Path::new("a.yaml")).expect("short");
     let b = parse_board(long, Path::new("b.yaml")).expect("long");
@@ -109,7 +109,7 @@ fn mixing_shorthand_and_sets_is_an_error() {
 board: { id: b }
 layers:
   - id: l
-    layout: { type: free }
+    layout: { type: row }
     items:
       - id: x
         actions:
@@ -126,7 +126,7 @@ fn errors_carry_line_and_column() {
 board: { id: b }
 layers:
   - id: l
-    layout: { type: free }
+    layout: { type: row }
     items:
       - id: x
         action: { key.tapp: q }
@@ -160,7 +160,7 @@ fn unknown_keys_are_rejected() {
 #[test]
 fn later_milestone_keys_are_rejected() {
     let text =
-        "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: free }, scan: { pattern: linear } } ]\n";
+        "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: row }, scan: { pattern: linear } } ]\n";
     assert!(parse_board(text, Path::new("b.yaml")).is_err());
     for later in ["magnet: true", "scannable: true"] {
         let text = format!("schema: uca/1\nboard: {{ id: b, behavior: {{ {later} }} }}\n");

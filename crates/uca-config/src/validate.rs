@@ -16,7 +16,7 @@ use crate::board::{Binding, BoardFile, Item, Layer, LayoutKind, RESERVED_SET_NAM
 use crate::pattern::{Input, Modifier, Pattern, PatternError, Term};
 use crate::profile::{Filter, FilterKind, Profile};
 use crate::theme::ThemeFile;
-use crate::values::{Border, Color, Font, Groups, Id, Shadow, States, Style};
+use crate::values::{Border, Color, Font, Groups, Id, Length, Shadow, States, Style};
 
 /// The built-in action set every profile has.
 pub const DEFAULT_SET: &str = "default";
@@ -126,6 +126,12 @@ pub enum ProblemKind {
     UnknownFont {
         family: String,
     },
+    FreeItemWithoutSize,
+    PositionIgnored,
+    GridUnitOutsideGrid,
+    GridOverflow {
+        layer: String,
+    },
 }
 
 impl ProblemKind {
@@ -164,6 +170,10 @@ impl ProblemKind {
             NoWayOut { .. } => "config-no-way-out",
             UnknownGroup { .. } => "config-unknown-group",
             UnknownFont { .. } => "config-unknown-font",
+            FreeItemWithoutSize => "config-free-item-without-size",
+            PositionIgnored => "config-position-ignored",
+            GridUnitOutsideGrid => "config-grid-unit-outside-grid",
+            GridOverflow { .. } => "config-grid-overflow",
         }
     }
 
@@ -203,6 +213,8 @@ impl ProblemKind {
             CellOverlap { other } => vec![("other", other.clone())],
             NoWayOut { board } => vec![("board", board.clone())],
             UnknownFont { family } => vec![("family", family.clone())],
+            FreeItemWithoutSize | PositionIgnored | GridUnitOutsideGrid => vec![],
+            GridOverflow { layer } => vec![("layer", layer.clone())],
         }
     }
 }
@@ -294,6 +306,10 @@ impl fmt::Display for ProblemKind {
             UnknownGroup { name } => {
                 write!(f, "unknown group {name:?}; the item is treated as `others`")
             }
+            FreeItemWithoutSize => write!(f, "items in a free layer need a size with width and height"),
+            PositionIgnored => write!(f, "position is only used with anchor: free"),
+            GridUnitOutsideGrid => write!(f, "the grid unit can only be used inside a grid layer"),
+            GridOverflow { layer } => write!(f, "some items in layer {layer:?} do not fit its rows and are not shown"),
             UnknownFont { family } => write!(
                 f,
                 "unknown font family {family:?}; the default font is used"
@@ -736,6 +752,12 @@ impl<'a> Validator<'a> {
         let scope = StyleScope { file, theme };
 
         let b = &file.board;
+        if b.position.is_some() && b.anchor != Some(crate::board::Anchor::Free) {
+            self.warn("board.position", ProblemKind::PositionIgnored);
+        }
+        if lengths_of(BaseLengths::from(b), &b.states).any(|l| matches!(l, Length::Grid(_))) {
+            self.error("board", ProblemKind::GridUnitOutsideGrid);
+        }
         self.base(
             &scope,
             "board",
@@ -782,6 +804,11 @@ impl<'a> Validator<'a> {
     }
 
     fn layer(&mut self, scope: &StyleScope<'a>, layer: &Layer, path: &str) {
+        if lengths_of(BaseLengths::from(layer), &layer.states).any(|l| matches!(l, Length::Grid(_)))
+        {
+            self.error(path, ProblemKind::GridUnitOutsideGrid);
+        }
+        let mut grid_cells = 0u64;
         self.base(
             scope,
             path,
@@ -794,7 +821,12 @@ impl<'a> Validator<'a> {
             self.binding(b, &format!("{path}.bindings[{i}]"));
         }
         let kind = layer.layout.kind;
-        let columns = layer.layout.columns;
+        let columns = Some(
+            layer
+                .layout
+                .columns
+                .unwrap_or_else(|| (layer.items.len() as f64).sqrt().ceil().max(1.0) as u32),
+        );
         let rows = layer.layout.rows;
         let mut ids = BTreeSet::new();
         let mut pinned: Vec<(String, (u32, u32, u32, u32))> = Vec::new();
@@ -829,7 +861,24 @@ impl<'a> Validator<'a> {
             if kind != LayoutKind::Free && item.zone == Some(true) {
                 self.error(format!("{ipath}.zone"), ProblemKind::ZoneOutsideFree);
             }
+            if kind == LayoutKind::Free
+                && item.empty != Some(true)
+                && !item
+                    .size
+                    .is_some_and(|s| s.width.is_some() && s.height.is_some())
+            {
+                self.error(format!("{ipath}.size"), ProblemKind::FreeItemWithoutSize);
+            }
+            if kind != LayoutKind::Grid
+                && lengths_of(BaseLengths::from(item), &item.states)
+                    .any(|l| matches!(l, Length::Grid(_)))
+            {
+                self.error(ipath.clone(), ProblemKind::GridUnitOutsideGrid);
+            }
             if kind == LayoutKind::Grid {
+                grid_cells += item
+                    .span
+                    .map_or(1, |s| u64::from(s.cols.max(1)) * u64::from(s.rows.max(1)));
                 let span = item.span.map_or((1, 1), |s| (s.cols.max(1), s.rows.max(1)));
                 if columns.is_some_and(|c| span.0 > c) || rows.is_some_and(|r| span.1 > r) {
                     self.error(
@@ -856,6 +905,21 @@ impl<'a> Validator<'a> {
                     }
                     pinned.push((id, rect));
                 }
+            }
+        }
+        if let (LayoutKind::Grid, Some(rows)) = (layer.layout.kind, layer.layout.rows) {
+            let n = layer.items.len() as f64;
+            let columns = layer
+                .layout
+                .columns
+                .map_or_else(|| n.sqrt().ceil().max(1.0) as u64, u64::from);
+            if grid_cells > columns * u64::from(rows) {
+                self.warn(
+                    path,
+                    ProblemKind::GridOverflow {
+                        layer: layer.id.0.clone(),
+                    },
+                );
             }
         }
     }
@@ -1105,6 +1169,82 @@ impl<'a> Validator<'a> {
     }
 }
 
+/// The `Length`-valued base properties of a board, layer or item.
+struct BaseLengths<'s> {
+    position: Option<&'s crate::values::Position>,
+    size: Option<&'s crate::values::Size>,
+    padding: Option<&'s crate::values::Four<Length>>,
+    border: Option<&'s Border>,
+    font: Option<&'s Font>,
+    shadow: Option<&'s Shadow>,
+}
+
+macro_rules! base_lengths {
+    ($($t:ty),*) => {$(
+        impl<'s> From<&'s $t> for BaseLengths<'s> {
+            fn from(x: &'s $t) -> Self {
+                BaseLengths {
+                    position: x.position.as_ref(),
+                    size: x.size.as_ref(),
+                    padding: x.padding.as_ref(),
+                    border: x.border.as_ref(),
+                    font: x.font.as_ref(),
+                    shadow: x.shadow.as_ref(),
+                }
+            }
+        }
+    )*};
+}
+
+base_lengths!(crate::board::Board, Layer, Item);
+
+fn four(f: Option<&crate::values::Four<Length>>) -> Vec<Length> {
+    match f {
+        None => vec![],
+        Some(crate::values::Four::All(l)) => vec![*l],
+        Some(crate::values::Four::Each(e)) => e.to_vec(),
+    }
+}
+
+fn style_lengths(
+    border: Option<&Border>,
+    font: Option<&Font>,
+    shadow: Option<&Shadow>,
+    padding: Option<&crate::values::Four<Length>>,
+) -> Vec<Length> {
+    let mut out = four(padding);
+    if let Some(b) = border {
+        out.extend(b.width);
+        out.extend(four(b.radius.as_ref()));
+    }
+    out.extend(font.and_then(|f| f.size));
+    if let Some(s) = shadow {
+        out.extend([s.x, s.y, s.blur].into_iter().flatten());
+    }
+    out
+}
+
+/// Every length of a board, layer or item, including its states.
+fn lengths_of(b: BaseLengths<'_>, states: &States) -> impl Iterator<Item = Length> {
+    let mut out = Vec::new();
+    if let Some(p) = b.position {
+        out.extend([p.x, p.y].into_iter().flatten());
+    }
+    if let Some(s) = b.size {
+        out.extend([s.width, s.height].into_iter().flatten());
+    }
+    out.extend(style_lengths(b.border, b.font, b.shadow, b.padding));
+    for s in states.values() {
+        out.extend(style_lengths(
+            s.border.as_ref(),
+            s.font.as_ref(),
+            s.shadow.as_ref(),
+            s.padding.as_ref(),
+        ));
+    }
+    out.into_iter()
+}
+
 /// Theme and board context for style references.
 struct StyleScope<'a> {
     file: &'a BoardFile,
@@ -1342,6 +1482,10 @@ mod tests {
             NoWayOut { board: s() },
             UnknownGroup { name: s() },
             UnknownFont { family: s() },
+            FreeItemWithoutSize,
+            PositionIgnored,
+            GridUnitOutsideGrid,
+            GridOverflow { layer: s() },
         ];
         for kind in &kinds {
             assert!(

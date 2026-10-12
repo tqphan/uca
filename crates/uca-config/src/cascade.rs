@@ -599,7 +599,7 @@ templates:
   wide: { extends: key, font: { align: left } }
 layers:
   - id: l
-    layout: { type: free }
+    layout: { type: row }
     opacity: 0.5
     behavior: { dwell_grace_ms: 250 }
     items:
@@ -713,12 +713,12 @@ layers:
     #[test]
     fn no_theme_uses_builtins() {
         let board = parse_board(
-            "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: free }, items: [ { id: x, dwell_ms: 0 } ] } ]\n",
+            "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: x, dwell_ms: 0 } ] } ]\n",
             Path::new("b.yaml"),
         );
         assert!(board.is_err(), "dwell_ms belongs under behavior");
         let board = parse_board(
-            "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: free }, items: [ { id: x, behavior: { dwell_ms: 0 }, shadow: { x: 2 } } ] } ]\n",
+            "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: x, behavior: { dwell_ms: 0 }, shadow: { x: 2 } } ] } ]\n",
             Path::new("b.yaml"),
         )
         .expect("board");
@@ -743,7 +743,7 @@ layers:
     #[test]
     fn template_cycles_do_not_hang() {
         let board = parse_board(
-            "schema: uca/1\nboard: { id: b }\ntemplates: { a: { extends: b }, b: { extends: a } }\nlayers: [ { id: l, layout: { type: free }, items: [ { id: x, extends: a } ] } ]\n",
+            "schema: uca/1\nboard: { id: b }\ntemplates: { a: { extends: b }, b: { extends: a } }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: x, extends: a } ] } ]\n",
             Path::new("b.yaml"),
         )
         .expect("board");

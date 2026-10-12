@@ -13,7 +13,7 @@ pub mod trigger;
 
 pub use clock::{Clock, FakeClock, SystemClock};
 pub use geometry::{
-    LogPoint, LogPx, MonitorId, MonitorInfo, MonitorTransform, PhysPoint, PhysPx, RectPhys,
+    LogPoint, LogPx, MonitorId, MonitorInfo, MonitorTransform, PhysPoint, PhysPx, RectLog, RectPhys,
 };
 pub use ids::{ItemId, SourceId};
 pub use key::{Key, KeyError};

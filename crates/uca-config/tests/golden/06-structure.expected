@@ -10,9 +10,13 @@ boards/main.yaml layers[0].items[2].span: error: span lies outside the grid
 boards/main.yaml layers[0].items[4].cell: error: this pinned item overlaps "p1"
 boards/main.yaml layers[0].items[5].cell: error: cell lies outside the grid
 boards/main.yaml layers[0].items[6].zone: error: zone items can only be used in a free layer
+boards/main.yaml layers[0]: warning: some items in layer "grid" do not fit its rows and are not shown
 boards/main.yaml layers[1].id: error: duplicate id "grid"
 boards/main.yaml layers[1].items[0].span: error: span can only be used in a grid layer
+boards/main.yaml layers[1].items[0].size: error: items in a free layer need a size with width and height
+boards/main.yaml layers[1].items[1].size: error: items in a free layer need a size with width and height
 boards/main.yaml layers[1].items[2].id: error: duplicate id "item-1"
+boards/main.yaml layers[1].items[2].size: error: items in a free layer need a size with width and height
 boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)
 boards/main.yaml board.id: error: duplicate id "main"
 boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)

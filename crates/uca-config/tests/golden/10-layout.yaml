@@ -1,0 +1,22 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+---
+schema: uca/1
+board:
+  id: main
+  anchor: bottom
+  position: { x: 0, y: 60% }
+  padding: 1grid
+layers:
+  - id: g
+    layout: { type: grid, columns: 4 }
+    items:
+      - { id: ok, font: { size: 1grid }, action: { board.back: } }
+  - id: f
+    layout: { type: free }
+    items:
+      - { id: z, zone: true, size: { width: 2grid, height: 100 } }
+      - { id: sized, position: { x: 0, y: 0 }, size: { width: 50%, height: 10% } }

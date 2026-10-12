@@ -12,7 +12,7 @@ schema: uca/1
 board: { id: main }
 layers:
   - id: l
-    layout: { type: free }
+    layout: { type: row }
     items:
       - { id: on, action: { action_set.on: build } }
       - id: run

@@ -8,11 +8,11 @@ profile:
 ---
 schema: uca/1
 board: { id: main }
-layers: [ { id: l, layout: { type: free }, items: [ { id: q, action: { key.tap: q } } ] } ]
+layers: [ { id: l, layout: { type: row }, items: [ { id: q, action: { key.tap: q } } ] } ]
 ---
 schema: uca/1
 board: { id: other }
-layers: [ { id: l2, layout: { type: free }, items: [ { id: h, action: { macro.run: home } } ] } ]
+layers: [ { id: l2, layout: { type: row }, items: [ { id: h, action: { macro.run: home } } ] } ]
 ---
 schema: uca/1
 board: { id: patterns }
@@ -21,4 +21,4 @@ bindings:
     do: { pause: }
   - when: ""
     do: { pause: }
-layers: [ { id: l3, layout: { type: free }, items: [ { id: b, action: { board.back: } } ] } ]
+layers: [ { id: l3, layout: { type: row }, items: [ { id: b, action: { board.back: } } ] } ]

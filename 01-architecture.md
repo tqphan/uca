@@ -35,7 +35,7 @@ uca/
 └─ assets/boards/              # default boards and themes
 ```
 
-Dependency rule: arrows only point down this list. `uca-engine` and `uca-mapping` depend only on `uca-types` and `uca-config` (types only).
+Dependency rule: arrows only point down this list. `uca-engine` depends only on `uca-types`, `uca-config` and `uca-mapping`; `uca-mapping` depends only on `uca-types` and `uca-config` (decided: the engine runs sequences and uses mapping for binding resolution, see below).
 
 ## Event flow
 
@@ -71,13 +71,17 @@ loop {
         Err(Timeout)              => engine.on_tick(&clock),
         Err(Disconnected)         => break,
     }
-    for intent in engine.drain_intents() {
-        let actions = mapping.resolve(&intent, engine.context());
-        executor_tx.send(actions)?;
+    for intent in engine.drain_intents() {        // Execute(device actions), Release(activation), ReleaseAll, Control
+        executor_tx.send(intent)?;
     }
     snapshot_tx.publish(engine.snapshot());
 }
 ```
+
+**Who runs sequences (decided).** The engine steps through every stage's action sequence on its `Clock`, including `delay` steps (`04`, timing rule 1).
+- **Engine actions** apply to engine state at their step: `board.*`, `layer.*`, `action_set.*`, `key.latch`, `mode.set`, `select`, `pause`, `resume`, `macro.run`.
+- **Device actions** are emitted as `Intent::Execute`: `key.*` except `key.latch`, `text.type`, `mouse.*`, `app.launch`, `window.focus`, `clipboard.*` and `debug.*`.
+- **Mapping** matches patterns and resolves bindings. It is called by the engine.
 
 ## Core types (`uca-types`)
 

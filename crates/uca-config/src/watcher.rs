@@ -119,7 +119,7 @@ mod tests {
     }
 
     const PROFILE: &str = "schema: uca/1\nprofile:\n  name: Alex\n  start_board: main\n  safety: { escape: \"key:F13 hold(3000)\" }\n";
-    const MAIN: &str = "schema: uca/1\nboard: { id: main }\nlayers: [ { id: l, layout: { type: free }, items: [ { id: a, label: one, action: { board.back: } } ] } ]\n";
+    const MAIN: &str = "schema: uca/1\nboard: { id: main }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: a, label: one, action: { board.back: } } ] } ]\n";
 
     fn wait(rx: &Receiver<ConfigUpdate>) -> ConfigUpdate {
         // Generous for slow CI machines; the 1 s target is checked separately.

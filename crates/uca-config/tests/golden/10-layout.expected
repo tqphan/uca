@@ -1,0 +1,3 @@
+boards/main.yaml board.position: warning: position is only used with anchor: free
+boards/main.yaml board: error: the grid unit can only be used inside a grid layer
+boards/main.yaml layers[1].items[0]: error: the grid unit can only be used inside a grid layer

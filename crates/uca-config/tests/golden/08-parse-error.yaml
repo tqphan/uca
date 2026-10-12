@@ -8,7 +8,7 @@ schema: uca/1
 board: { id: main }
 layers:
   - id: l
-    layout: { type: free }
+    layout: { type: row }
     items:
       - id: x
         action: { key.tapp: q }

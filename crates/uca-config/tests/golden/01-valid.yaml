@@ -47,7 +47,7 @@ schema: uca/1
 board: { id: second }
 layers:
   - id: nav
-    layout: { type: free }
+    layout: { type: row }
     items:
       - { id: back, action: { board.back: } }
       - { id: show, action: { layer.toggle: letters } }

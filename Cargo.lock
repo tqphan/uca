@@ -435,6 +435,11 @@ dependencies = [
 [[package]]
 name = "uca-engine"
 version = "0.1.0"
+dependencies = [
+ "tracing",
+ "uca-config",
+ "uca-types",
+]
 
 [[package]]
 name = "uca-i18n"

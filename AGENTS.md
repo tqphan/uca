@@ -38,13 +38,19 @@ UCA is used with whatever input the person has: gaze, facial expression, head mo
 ## Decisions already made (do not revisit without being told)
 
 - **Language:** Rust (stable, edition 2021), Cargo workspace.
+- **Toolchain:** track the latest `stable` channel; no exact version pin (`rust-toolchain.toml` names `stable` only). Windows uses the MSVC toolchain.
+- **Workspace growth:** the skeleton contains only the crates needed for the current milestone; later crates from `01` are added in the milestone that needs them.
+- **YAML crate:** `serde_norway` (maintained fork of `serde_yaml`).
+- **CI:** GitHub Actions.
+- **Repository:** `https://github.com/tqphan/uca`.
+- **Crate metadata:** one shared version in `[workspace.package]` (starting at `0.1.0`), bumped together per release. All crates have `publish = false` until a crates.io release is decided.
 - **UI:** `egui` for everything drawn on screen: the board overlays, the switch-pointer and debug overlays, the assessment wizard, settings and the board editor. One `winit` event loop on the main thread with `egui-winit` + `egui-wgpu` (no `eframe`), so the platform layer can configure each native window. Pin one `egui` version for the whole workspace (see `05`).
 - **Licence:** `GPL-3.0-or-later` for UCA itself; `MIT OR Apache-2.0` for the plugin protocol, SDKs and plugin templates, so plugins can use any licence; `CC-BY-SA-4.0` for docs and default vocabulary. Never add a dependency whose licence isn't GPL-3.0-compatible (see `18`).
 - **Distribution:** public source repository on GitHub; releases (installers and packages) published as GitHub Releases.
 - **Platform order:** Windows → Linux X11 → Linux Wayland → macOS. Only Windows is required until milestone M5.
 - **Localization from day one:** all user-visible text through `uca-i18n` (Fluent), separate UI and communication languages, language packs, RTL support (see `17`).
 - **Board editor:** a separate app, `uca-editor`, built for carers (mouse, keyboard, touch, screen reader), not for switch or gaze operation. It reuses `uca-config`, `uca-render`, `uca-engine` and `uca-mapping`, and never injects input (see `19`).
-- **Config format:** YAML (`serde_yaml` or `serde_norway`), validated against a JSON Schema generated from the Rust types (`schemars`).
+- **Config format:** YAML (`serde_norway`), validated against a JSON Schema generated from the Rust types (`schemars`).
 - **Plugins:** out-of-process by default, local IPC (named pipe on Windows, Unix socket elsewhere), length-prefixed MessagePack frames.
 - **No built-in device support for eye or face tracking.** Eye trackers, head trackers and face trackers are plugins built by users or third parties on the public contracts (`06`). UCA ships none.
 - **No Tobii or MediaPipe in UCA.** The repository, installers and releases contain no Tobii or MediaPipe code, bindings, libraries, headers or models. Facial expressions and Tobii eye tracking come from plugins that users or third parties build. UCA provides vendor-neutral templates and detailed step-by-step guides for building them (see `15`). Never add Tobii- or MediaPipe-specific code anywhere else.

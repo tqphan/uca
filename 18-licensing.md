@@ -10,6 +10,8 @@
 | HID bridge firmware (`firmware/uca-hid-bridge/`) | `GPL-3.0-or-later` | Same goal. Its dependencies (Pico SDK, TinyUSB, Arduino cores) use GPL-compatible licences; check each in CI. |
 | Plugin interface: `uca-plugin-protocol`, `uca-plugin-sdk`, the Python plugin SDK, `examples/plugins/*` templates | `MIT OR Apache-2.0` | So plugins can use any licence, including plugins that load closed vendor libraries (e.g. the Tobii guide in `15`) |
 | Docs and plugin guides (`docs/`) | `CC-BY-SA-4.0` | Copyleft for text |
+| Spec files at the repo root (`AGENTS.md`, `NN-*.md`, `SPEC_GAPS.md`) | `CC-BY-SA-4.0`, declared in `REUSE.toml` | Same as other docs (decided) |
+| Repo plumbing (`Cargo.lock`, `.gitignore`, `rust-toolchain.toml`, `deny.toml`, CI workflows, `REUSE.toml`) | `GPL-3.0-or-later` | Same as the code (decided); header where the format allows comments, else `REUSE.toml` |
 | Default vocabulary, phrases, boards, themes, language-pack content | `CC-BY-SA-4.0` | Copyleft for AAC content; easy to reuse in other AAC tools under the same terms |
 | Prediction base data (`locales/<tag>/prediction/`) | `CC-BY-SA-4.0`, with wordfreq's upstream attributions | Derived from wordfreq data (`16`) |
 | Piper speech helper (`uca-tts-piper`, Linux) | `GPL-3.0` (from `piper1-gpl`, embeds eSpeak NG) | Compatible with UCA's GPL-3.0-or-later |
@@ -32,8 +34,16 @@ The README and `LICENSE` notice state this. It only applies to the plugin protoc
     - `LICENSE` (GPL-3.0 text)
     - `LICENSE-MIT` and `LICENSE-APACHE`, for the plugin interface crates
     - `LICENSES/CC-BY-SA-4.0.txt`
+    - `LICENSES/GPL-3.0-or-later.txt`, `LICENSES/MIT.txt`, `LICENSES/Apache-2.0.txt`: identical copies of the root files, required by REUSE (decided: keep both). `LICENSES/MIT.txt` and `LICENSES/Apache-2.0.txt` are added together with the first plugin-interface crate (M2), because REUSE rejects licence texts no file uses (decided).
+    - The MIT copyright line reads `Copyright (c) The UCA contributors`, with no year (decided).
     - `NOTICE.md` with the plugin permission and third-party notices
-- Every source file starts with an SPDX header, e.g. `// SPDX-License-Identifier: GPL-3.0-or-later`. Plugin interface crates use `MIT OR Apache-2.0`. Data and content files use the REUSE convention: a `REUSE.toml` or `.license` sidecar files.
+- **Copyright holder (decided):** `The UCA contributors`. It is used in `LICENSE-MIT`, `NOTICE.md` and every SPDX copyright line.
+- Every source file starts with an SPDX header holding both copyright and licence (decided: in the file itself, not only in `REUSE.toml`), e.g.
+  ```rust
+  // SPDX-FileCopyrightText: The UCA contributors
+  // SPDX-License-Identifier: GPL-3.0-or-later
+  ```
+  Plugin interface crates use `MIT OR Apache-2.0`. Data and content files use the REUSE convention: a `REUSE.toml` or `.license` sidecar files.
 - Every `Cargo.toml` sets `license` accordingly.
 - The About screen shows UCA's licence, a link to the source code for the exact version running (the GitHub tag), and the third-party notices.
 
@@ -42,6 +52,7 @@ The README and `LICENSE` notice state this. It only applies to the plugin protoc
 - `cargo deny` with a licence allow-list of GPL-3.0-compatible licences: MIT, Apache-2.0, BSD-2/3-Clause, ISC, Zlib, Unicode-3.0, MPL-2.0, LGPL-2.1/3.0, GPL-3.0.
 - **Rejected:** GPL-2.0-only (incompatible with GPL-3.0), proprietary, "non-commercial", SSPL and unknown licences.
 - The plugin interface crates use a stricter list (permissive only), so they stay usable under any licence.
+- **Reputable sources only (decided):** Rust dependencies come only from crates.io. Git dependencies and other registries are rejected by `cargo deny check sources`. Tools come only from their official publishers: rustup from rust-lang.org, Python packages such as `reuse` from PyPI, and GitHub Actions only from GitHub's own `actions/*` org. Prefer well-maintained crates from known maintainers or organisations.
 - `reuse lint` runs in CI to check that every file has licence information.
 - Release builds generate a third-party notices file from the dependency tree (e.g. `cargo about`) and include it in installers.
 
@@ -53,5 +64,5 @@ The README and `LICENSE` notice state this. It only applies to the plugin protoc
 ## Contributions
 
 - Inbound = outbound: contributions are accepted under the licence of the file they change.
-- Contributors sign off commits with the Developer Certificate of Origin (`Signed-off-by:`), checked by CI.
+- Contributors sign off commits with the Developer Certificate of Origin (`Signed-off-by:`), checked by CI. The check is a script step in the repository's own GitHub Actions workflow (decided; no third-party DCO app). It requires every commit in a pull request to carry a `Signed-off-by:` line matching the commit author.
 - No CLA. The trade-off: without a CLA, the project cannot later relicense contributed code under a non-GPL licence. "Or later" still allows moving to future GPL versions.

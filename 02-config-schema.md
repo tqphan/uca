@@ -33,6 +33,20 @@ One computer can hold several user profiles, for example for schools, clinics or
 - **Management:** create, duplicate, rename and delete profiles in Settings. Delete moves the profile to a trash folder for 30 days. A profile can be exported or imported as a `.ucapack` (`16`).
 - **Not user accounts:** profiles are not a security boundary. Anyone at the computer can switch profiles. For privacy between people, use separate OS user accounts; each OS account has its own UCA config dir.
 
+### Theme file (decided)
+
+A theme file uses flat top-level keys, mirroring how a board file places `groups` and `templates`:
+
+```yaml
+schema: uca/1
+vars:      { accent: "#ffcc00" }       # style variables, used as "$accent"
+fonts:     { ... }                     # see "Fonts" below
+groups:    { <name>: Group }
+templates: { <name>: partial Item }
+```
+
+The theme's name is its file name: `board.theme: default` loads `themes/default.yaml`.
+
 Every file starts with `schema: uca/1`. Unknown `schema` major version → refuse file with clear error. Migrations live in `uca-config/src/migrate/`.
 
 ## Base properties (shared by board, layer, item)
@@ -245,8 +259,27 @@ profile:
     sprint: { label: "Sprint", color: "#f59e0b" }
     build:  { label: "Build" }
   bindings: [ Binding ]                 # global bindings
+  macros:                               # named action sequences, run by `macro.run: <id>` (04)
+    greet:
+      label: "Greet"                    # optional display name for the editor and Settings
+      do: [ { text.type: "Hello " }, { delay: 200 }, { key.tap: enter } ]
   assessment: { ... }                   # stored results, see 08
 ```
+
+**Config keys grow with features (decided):** the config accepts only keys whose feature exists. An unknown key is an error that names the key. The example above shows the full design; in M1 these keys are not accepted yet:
+- `inputs.face_thresholds` and `fallback_method` (M2)
+- `switch_pointer` and `assessment` (M3)
+
+**Trigger settings (decided):** the per-trigger conditioner settings (`03`) live under `profile.inputs.trigger_settings`. Each key is a trigger id or a switch alias: `trigger_settings: { switch1: { debounce_ms: 50, min_press_ms: 80 } }`.
+
+**`mode.set` (decided):** accepts only modes that are built: `Direct` and `Paused` in M1. Other modes are added with their milestone.
+
+**Item ids (decided):** an item without an `id` gets `item-<n>`, where `<n>` is its 0-based position in the layer. A generated id that clashes with a written one is a duplicate-id error.
+
+**Macros (decided):**
+- A macro is a labelled action sequence. Its id follows `[a-z0-9_-]+`, `label` is optional, and `do` is required (an action or a list).
+- `macro.run: <id>` runs the sequence inline, inside the stage that called it. Its `delay` steps count toward that run's duration (`04`, timing rule 1).
+- A macro may run other macros. A cycle, or an unknown macro id, is a config error.
 
 ## User-adjustable timings and thresholds (decided)
 
@@ -296,8 +329,8 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
   | `filter.one_euro.beta` | 0.007 | 0–1 |
   | `filter.one_euro.d_cutoff` | 1.0 | 0.01–10 |
   | `filter.ema.alpha` | 0.5 | 0.01–1 |
-  | `presence.resume_delay_ms` | 500 | 0–10 000 ms |
-  | `zone.enter_delay_ms` | 150 | 0–10 000 ms |
+  | `presence.resume_delay_ms` | 500 | 0–10 000 ms (YAML: `profile.inputs.presence.resume_delay_ms`) |
+  | `behavior.enter_delay_ms` | 150 | 0–10 000 ms (zone items only, `12`; cascades like the other `behavior` keys) |
 
 - **Levels:** each can be set at profile, board, layer, group or item level wherever the cascade allows (`behavior`, above), so a user can, for example, use a longer dwell on just the Backspace key.
 - **Adjusting in Settings:** grouped by input method, with a **live preview** (e.g. a test target showing dwell timing, a live score bar with the on/off levels for each expression). Every value has a **reset to default** and **reset to assessment value**.
@@ -312,6 +345,17 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
 - Validate syntax, then schema, then semantics (unique ids, existing references incl. action set ids, template cycles, escape binding present, action-set rules in `04`).
 - Errors report: file, line, column, JSON path, plain-language message, suggested fix. Example:
   `boards/main.yaml:42:9 layers[0].items[3].action: unknown action "key.tapp". Did you mean "key.tap"?`
+- **Positions (decided):** line and column come only from the YAML deserialiser (`serde_norway`). Syntax and schema errors, such as an unknown action, a wrong type or an unknown key, carry `file:line:column`, the JSON path and the message. `serde_norway` reports the path itself, so no path-tracking dependency is added (decided). Example: `boards/main.yaml:42:9 layers[0].items[3].action: unknown action "key.tapp". Did you mean "key.tap"?`. Semantic errors, such as duplicate ids, unknown references, template cycles or a missing escape, carry the file and JSON path only. For example: `boards/main.yaml layers[0].items[3].id: duplicate id "key-q"`. No second YAML parser is added.
+- **Schema check at runtime (decided):** typed deserialisation with `deny_unknown_fields` is the schema check. The generated `schema/uca-1.schema.json` serves editors, the board editor and docs, and a test keeps it in sync with the types. No runtime JSON Schema validator.
+- **Actions in config (decided):** one typed `Action` enum, deserialised from `{ <name>: <args> }` with the scalar shorthands in `04`. It holds only the actions of features already built, starting with the M1 actions. Later actions are added with their feature; until then they are an "unknown action" error.
+- **M1 actions (decided):**
+  - `key.tap`, `key.down`, `key.up`, `key.hold`, `key.release`, `key.toggle`, `key.latch`
+  - `text.type`
+  - `mouse.click`, `mouse.down`, `mouse.up`, `mouse.move`, `mouse.scroll`
+  - `board.open`, `board.back`, `board.replace`, `layer.show`, `layer.hide`, `layer.toggle`
+  - `action_set.*`, `mode.set`, `select`, `pause`, `resume`, `recalibrate`
+  - `delay`, `macro.run`, `app.launch`, `window.focus`, `clipboard.copy` / `.paste` / `.cut`
+  - `debug.session`, `debug.overlay`, `debug.record`, `debug.export`
 - On hot reload, a file that fails validation is NOT applied; the last valid version stays live and the error is shown.
 - Saving from the editor must preserve comments and key order (use a round-trip YAML approach; if unavailable in Rust, store an editor-owned sidecar and document it as a SPEC-GAP).
 

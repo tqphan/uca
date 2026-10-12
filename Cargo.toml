@@ -13,6 +13,8 @@ repository = "https://github.com/tqphan/uca"
 publish = false
 
 [workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_norway = "0.9"
 smol_str = "0.3"
 thiserror = "2"
 

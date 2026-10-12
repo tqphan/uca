@@ -7,13 +7,15 @@ use std::fmt;
 
 use smol_str::SmolStr;
 
+use crate::key::{Key, KeyError};
+
 const MOUSE_NAMES: &[&str] = &["left", "right", "middle", "x1", "x2"];
 const TOUCH_NAMES: &[&str] = &["tap", "long-press"];
 const PLUGIN_PREFIX: &str = "plugin.";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TriggerKind {
-    /// Platform-neutral key name (07).
+    /// Platform-neutral key (07); the name is stored as its W3C code.
     Key,
     /// `left | right | middle | x1 | x2`.
     Mouse,
@@ -50,6 +52,8 @@ pub enum TriggerIdError {
         name: String,
         allowed: &'static [&'static str],
     },
+    #[error("trigger id {id:?}: {source}")]
+    UnknownKey { id: String, source: KeyError },
 }
 
 impl TriggerId {
@@ -91,10 +95,27 @@ impl TriggerId {
                 });
             }
         }
-        Ok(Self {
-            kind,
-            name: name.into(),
-        })
+        // Key names are stored as their W3C code, so `key:f13`, `key:F13` and
+        // `key:shift` / `key:ShiftLeft` are the same trigger (07).
+        let name = match kind {
+            TriggerKind::Key => Key::parse(name)
+                .map_err(|source| TriggerIdError::UnknownKey {
+                    id: s.to_owned(),
+                    source,
+                })?
+                .code()
+                .into(),
+            _ => name.into(),
+        };
+        Ok(Self { kind, name })
+    }
+
+    /// The key, for `key:` triggers.
+    pub fn key(&self) -> Option<Key> {
+        match self.kind {
+            TriggerKind::Key => Key::parse(&self.name).ok(),
+            _ => None,
+        }
     }
 
     pub fn kind(&self) -> &TriggerKind {
@@ -150,7 +171,23 @@ mod tests {
             assert_eq!(id.kind(), &kind, "{s}");
             assert_eq!(id.name(), name, "{s}");
             assert_eq!(id.to_string(), s, "round trip");
+            assert_eq!(id.key().is_some(), kind == TriggerKind::Key, "{s}");
         }
+    }
+
+    #[test]
+    fn key_names_are_normalised() {
+        let a = TriggerId::parse("key:f13").expect("valid");
+        assert_eq!(a, TriggerId::parse("key:F13").expect("valid"));
+        assert_eq!(a.to_string(), "key:F13");
+        assert_eq!(a.key(), Some(Key::F13));
+        let shift = TriggerId::parse("key:shift").expect("valid");
+        assert_eq!(shift, TriggerId::parse("key:ShiftLeft").expect("valid"));
+        assert_ne!(shift, TriggerId::parse("key:ShiftRight").expect("valid"));
+        assert!(matches!(
+            TriggerId::parse("key:entr"),
+            Err(TriggerIdError::UnknownKey { .. })
+        ));
     }
 
     #[test]

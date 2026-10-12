@@ -64,6 +64,17 @@ pub struct UiTarget {
 
 Key names: platform-neutral enum `Key` modeled on W3C UI Events `code` values (`KeyA`, `Digit1`, `ShiftLeft`, `F13`, `ArrowUp`, …). YAML accepts lowercase aliases (`q`, `shift`, `enter`, `f13`). Each backend maps `Key` → native code.
 
+Decided details:
+- **Location and coverage:** `Key` lives in `uca-types`. It covers the full W3C UI Events `KeyboardEvent.code` list: writing-system, functional, control-pad, arrow, numpad, function F1–F24, media, browser and IME/international keys. A backend reports the keys it cannot produce as unsupported.
+- **Name matching:** a YAML key name may be the W3C code in any case (`KeyA`, `keya`, `F13`, `f13`) or one of these aliases:
+  - `a`–`z` and `0`–`9`
+  - `enter`, `esc` / `escape`, `space`, `tab`, `backspace`, `delete`
+  - `up` / `down` / `left` / `right`, `home` / `end`, `pageup` / `pagedown`
+  - `shift` / `ctrl` / `alt` / `meta`, and `shiftright` / `ctrlright` / `altright` / `metaright`
+
+  An unknown name is an error with a "Did you mean" suggestion.
+- **Generic modifier aliases** mean the left key everywhere. `shift` is `ShiftLeft` both for output and as a trigger: `key:shift` matches only ShiftLeft.
+
 ## Capability matrix (target)
 
 | Capability | Windows | Linux X11 | Linux Wayland | macOS |

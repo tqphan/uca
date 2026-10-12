@@ -13,7 +13,7 @@ Goal: a mouse/keyboard/switch user can type with a YAML-defined on-screen keyboa
 - [ ] `uca-config`: types, YAML load, JSON Schema generation, validation with line/column errors, cascade, templates, groups, hot reload, last-known-good — `02`, SAFETY-01/04/09
 - [ ] `uca-input`: InputHub, TriggerConditioner, PointPipeline (none/ema/one-euro) — `03`
 - [ ] `uca-engine`: hit-test, dwell machine, point+trigger select, modifiers latch, board stack, Paused, Safe Board — `04`, `09`
-- [ ] `uca-mapping`: pattern DSL parser, binding resolution — `04`
+- [ ] `uca-mapping`: binding resolution and pattern matching; the pattern DSL parser is in `uca-config` (decided, see `04`) — `04`
 - [ ] Action sets and stages: activations with `hold: release | toggle | instant`, start / repeat / stop sequences with deterministic timing, active-set stack and `action_set.*` actions, per-set labels, binding stages and `action_set` context filter, validator rules — `04`, `02`, SAFETY-14
 - [ ] `uca-actions`: executor with pressed-state tracking and activation-owned release — `04`, SAFETY-08
 - [ ] `uca-platform` trait + `FakePlatform`; `uca-platform-windows`: SendInput, LL hooks with consume, monitors/DPI, overlay window flags, AppBar — `07`

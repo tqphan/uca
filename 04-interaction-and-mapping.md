@@ -295,7 +295,7 @@ modifier  := "press" | "release" | "hold(" ms ")" | "double(" ms ")"
 ```
 Examples: `blink hold(600)`, `key:F13 double(400)`, `sequence[face:browInnerUp, face:jawOpen] within(1500)`, `chord[mouse:left+mouse:right]`.
 
-Parser: hand-written or `winnow`; errors give column of failure.
+Parser: hand-written or `winnow`; errors give column of failure. The pattern AST and parser live in `uca-config` (decided), so config validation can check the escape pattern (SAFETY-01). `uca-mapping` only matches parsed patterns.
 
 ## Actions
 
@@ -303,7 +303,7 @@ YAML form: `{ <action-name>: <args> }` or a list. Args may be a scalar shorthand
 
 | Action | Args | Effect |
 | --- | --- | --- |
-| `key.tap` | key name or `{key, mods}` | press+release, applying latched modifiers then clearing non-locked latches |
+| `key.tap` | key name | press+release, applying latched modifiers then clearing non-locked latches. No `mods` argument (decided): for a shortcut such as Ctrl+C, use `key.down: ctrl`, `key.tap: c`, `key.up: ctrl`, or a latched modifier |
 | `key.down` / `key.up` | key | a `key.down` inside an activation is activation-owned: released when the activation ends if still down |
 | `key.hold` / `key.release` / `key.toggle` | key | persistent held-key outputs for games (see `12`); not activation-owned |
 | `action_set.hold` | set id | `start` stage only: the set is active while this activation is open (momentary, like an Fn key) |
@@ -320,7 +320,7 @@ YAML form: `{ <action-name>: <args> }` or a list. Args may be a scalar shorthand
 | `text.type` | string | Unicode text injection, layout-independent |
 | `mouse.click` | `{button: left, count: 1}` | at current OS cursor |
 | `mouse.down` / `mouse.up` | button | |
-| `mouse.move` | `{x, y, relative: bool, monitor}` | |
+| `mouse.move` | `{x, y, relative: bool, monitor, space}` | `space: logical` (default): x/y are `Length` (logical px or `%`) on `monitor` (`primary` \| index \| name; default: the monitor with the pointer). `space: physical`: x/y are virtual-desktop physical px and `monitor` is not allowed. `relative: true`: offset from the cursor in that space's units (decided) |
 | `mouse.scroll` | `{dx, dy}` (notches) | |
 | `pointer.follow` | source id or `off` | |
 | `pointer.locate` | optional `{method: sweep\|grid\|radar\|nudge\|targets, click: left\|…}` | enter SwitchPointer mode; with `click` set, acts as menu-first for this call |

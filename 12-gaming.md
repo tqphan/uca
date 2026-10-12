@@ -16,7 +16,7 @@ The rest of this file lists what gaming needs on top of the other specs.
 - `repeat` stages are user-built macros. Shipped game boards contain no rapid-fire or timing repeats (see "Anti-cheat").
 
 **Gaze and head zones.** A layer with `free` layout (`02`) whose items are marked `zone: true`: large invisible or semi-transparent regions, usually at the screen edges, that hold keys or move the camera while the pointer is inside them. Used for movement (edge zones → WASD) and camera rotation. Each zone needs:
-- `enter_delay_ms`, default 150, so a passing glance does nothing
+- `enter_delay_ms`, default 150, so a passing glance does nothing. It is a `behavior` key (decided), so it cascades from theme, group, board and layer like `dwell_ms`.
 - an optional output that ramps up the longer the pointer stays (for camera speed)
 
 **Mouse-look (relative mouse).** 3D games turn the camera from relative mouse movement, not an absolute cursor position. Action `mouse.look: { source, mode }`:

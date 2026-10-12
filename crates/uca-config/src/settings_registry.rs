@@ -316,13 +316,13 @@ pub static SETTINGS: &[SettingDef] = &[
         "setting-presence-resume-delay-ms",
     ),
     def(
-        "zone.enter_delay_ms",
+        "behavior.enter_delay_ms",
         Millis,
         N(150.0),
         0.0,
         10_000.0,
         None,
-        "setting-zone-enter-delay-ms",
+        "setting-behavior-enter-delay-ms",
     ),
 ];
 

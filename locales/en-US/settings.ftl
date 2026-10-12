@@ -21,4 +21,4 @@ setting-filter-one-euro-beta = How quickly smoothing lets go when the pointer mo
 setting-filter-one-euro-d-cutoff = Smoothing of the speed estimate used by the filter. Rarely needs changing.
 setting-filter-ema-alpha = Pointer smoothing. Lower is smoother but slower to follow; 1 means no smoothing.
 setting-presence-resume-delay-ms = After you are detected again, how long to wait before dwell and scanning resume.
-setting-zone-enter-delay-ms = How long the pointer must be inside a game zone before it acts, so a passing glance does nothing.
+setting-behavior-enter-delay-ms = How long the pointer must be inside a game zone before it acts, so a passing glance does nothing.

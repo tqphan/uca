@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use smol_str::SmolStr;
 
-use crate::geometry::{MonitorId, PhysPoint};
+use crate::geometry::{LogPoint, MonitorId, PhysPoint};
 use crate::ids::SourceId;
 use crate::trigger::TriggerId;
 
@@ -30,6 +30,16 @@ pub struct PointSample {
     /// 0..1
     pub confidence: f32,
     /// User detected; `false` pauses dwell (SAFETY-03).
+    pub presence: bool,
+}
+
+/// A pointer sample after the PointPipeline (03): valid, smoothed and mapped to a monitor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FilteredPoint {
+    pub t: Instant,
+    pub phys: PhysPoint,
+    pub monitor: MonitorId,
+    pub logical: LogPoint,
     pub presence: bool,
 }
 

@@ -38,7 +38,7 @@ When a key/mouse button is bound as a UCA switch, its original OS event must be 
 Stages, configured per source (`profile.inputs.sources.<id>.filter`):
 
 1. **Validity:** drop samples with `confidence < min_confidence` (default 0.3) or outside all monitors.
-2. **Outlier rejection:** drop a sample whose velocity from the previous accepted sample exceeds `max_velocity_px_s` (default 20000) unless 3 consecutive samples agree.
+2. **Outlier rejection:** drop a sample whose velocity from the previous accepted sample exceeds `max_velocity_px_s` (default 20000) unless 3 consecutive samples agree. Decided: rejected samples are kept as candidates. When `outlier_agree_samples` candidates in a row are each within `max_velocity_px_s` of the previous candidate, the jump is real: the latest candidate is accepted and becomes the new reference. A sample that is consistent with the old reference clears the candidates.
 3. **Smoothing:** `none` | `one-euro {min_cutoff, beta, d_cutoff}` (default for gaze: 1.0, 0.007, 1.0) | `ema {alpha}`.
 4. **Fixation detection (gaze sources):** I-DT; dispersion threshold `fixation_px` (default 40 logical px), min duration 100 ms. Output carries `in_fixation: bool`.
 5. **Magnetism (optional):** if `magnet: true` on items and the point is within `magnet_radius` (default 30 logical px) of an item edge, snap to item center for hit-testing only.
@@ -58,6 +58,13 @@ Per trigger id, optional settings from profile (`trigger_settings.<id>`):
 | `min_press_ms` | 0 | Presses shorter than this are discarded (tremor filter) |
 | `acceptance_delay_ms` | 0 | Down must be held this long before it is emitted |
 | `max_rate_hz` | none | Drop presses above this rate |
+
+Decided details:
+- **Debounce is leading-edge.** The first change is passed on at once, and further changes within `debounce_ms` are ignored. When the window ends, if the switch's real state differs from what was passed on, that change is passed on then.
+- **`min_press_ms` reports on release.** Down and Up are held back until the switch is released. If the press lasted at least `min_press_ms`, both are passed on together; otherwise both are dropped.
+- **`acceptance_delay_ms` reports on hold.** Down is passed on once it has been held that long, and Up follows on release.
+- **Both filters set:** release mode wins. With `min_press_ms` above 0, presses are reported on release, with the threshold `max(min_press_ms, acceptance_delay_ms)`.
+- **Escape sees the press first.** The escape matcher sees the debounced signal before either filter (SAFETY-02).
 
 ## Facial expressions (from plugins)
 
@@ -80,7 +87,10 @@ Per trigger id, optional settings from profile (`trigger_settings.<id>`):
 
 ## Acceptance tests
 
-- One-Euro filter output matches reference values (published test vectors) within 1e-6.
+- One-Euro filter output matches reference values within 1e-6. Decided:
+    - **Algorithm:** the filter follows Casiez's reference C++ implementation. The derivative is computed from the last *filtered* value, and the rate comes from the sample timestamps.
+    - **Vectors:** they are produced by an independent Python implementation (`tools/one-euro-vectors.py`) and committed as UCA test data.
+    - **Upstream check:** a dev-only script (`tools/check-one-euro-upstream.py`) downloads the author's `groundTruth.csv` and checks against it at the author's own 1e-4 tolerance. That file has no licence, so it is never committed.
 - Synthetic natural blinks (120 ms) produce no trigger; deliberate blinks (400 ms) produce exactly one Down/Up pair.
 - Hysteresis: score oscillating 0.55–0.65 around `on=0.6, off=0.4` produces one Down, no chatter.
 - Debounce: 5 bounces within 20 ms produce one press.

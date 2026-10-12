@@ -11,7 +11,7 @@
 
 ## Monitors
 
-`Platform::monitors() -> Vec<MonitorInfo>`:
+`Platform::monitors() -> Vec<MonitorInfo>` (`MonitorInfo` lives in `uca-types` next to the geometry types, so `uca-input` can use it; `uca-platform` re-exports it; decided):
 
 ```rust
 pub struct MonitorInfo {

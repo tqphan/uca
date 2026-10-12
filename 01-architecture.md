@@ -53,7 +53,7 @@ Dependency rule: arrows only point down this list. `uca-engine` and `uca-mapping
 | Thread | Owns | Communicates via |
 | --- | --- | --- |
 | Main / UI | `winit` event loop, all native windows, one `egui::Context` per window, `uca-render`, `uca-ui` | receives `EngineSnapshot` (latest-value channel, e.g. `arc-swap` or `watch`); the engine thread wakes the loop with an `EventLoopProxy` user event when a new snapshot is published. UI screens send `Control` / config changes back to the engine over a channel; they never mutate engine state directly. |
-| Input threads (1 per source) | Device reads, OS hooks | send `Signal` on bounded `crossbeam` channel to engine |
+| Input threads (1 per source) | Device reads, OS hooks | send `Signal` to the engine over its bounded `std::sync::mpsc::sync_channel` (decided: one std channel for signals, config and controls; no crossbeam). Capacity 1024. When it is full, a `Point` sample is dropped and counted (logged once a second at `warn`, `11`). Triggers, status, config and controls are never dropped: their senders wait, and hook threads hand off to their adapter thread first so they never block. |
 | Engine thread | InputHub dispatch, PointPipeline, Engine, Mapping | event-driven loop; also wakes on next timer deadline (dwell/scan) |
 | Executor thread | ActionExecutor | receives `Vec<Action>`; serializes OS injection |
 | Plugin host (async, tokio) | IPC with plugin processes | forwards plugin signals into the input channel |
@@ -64,7 +64,7 @@ The engine loop:
 ```rust
 loop {
     let deadline = engine.next_deadline();          // Option<Instant>
-    match rx.recv_deadline(deadline) {
+    match recv_until(&rx, deadline) {               // std mpsc: recv_timeout(deadline - now), or recv() without a deadline
         Ok(Msg::Signal(s))        => engine.on_signal(s, &clock),
         Ok(Msg::Config(c))        => engine.on_config(c),
         Ok(Msg::Control(c))       => engine.on_control(c),   // pause, recalibrate...

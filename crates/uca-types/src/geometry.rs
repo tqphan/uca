@@ -129,6 +129,25 @@ impl MonitorTransform {
     }
 }
 
+/// One monitor, as reported by the platform (05).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MonitorInfo {
+    pub id: MonitorId,
+    pub name: String,
+    pub primary: bool,
+    pub bounds_phys: RectPhys,
+    pub work_area_phys: RectPhys,
+    pub scale_factor: f64,
+    pub refresh_hz: f32,
+}
+
+impl MonitorInfo {
+    /// Physical ↔ logical conversion for this monitor; `None` if its scale is invalid.
+    pub fn transform(&self) -> Option<MonitorTransform> {
+        MonitorTransform::new(self.id, self.bounds_phys.origin(), self.scale_factor)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

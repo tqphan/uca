@@ -12,11 +12,13 @@ pub mod suggest;
 pub mod trigger;
 
 pub use clock::{Clock, FakeClock, SystemClock};
-pub use geometry::{LogPoint, LogPx, MonitorId, MonitorTransform, PhysPoint, PhysPx, RectPhys};
+pub use geometry::{
+    LogPoint, LogPx, MonitorId, MonitorInfo, MonitorTransform, PhysPoint, PhysPx, RectPhys,
+};
 pub use ids::{ItemId, SourceId};
 pub use key::{Key, KeyError};
 pub use signal::{
-    GestureEvent, HeadPoseSample, Phase, PointSample, Signal, SourceStatus, SourceStatusEvent,
-    TriggerEvent,
+    FilteredPoint, GestureEvent, HeadPoseSample, Phase, PointSample, Signal, SourceStatus,
+    SourceStatusEvent, TriggerEvent,
 };
 pub use trigger::{TriggerId, TriggerIdError, TriggerKind};

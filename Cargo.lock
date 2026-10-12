@@ -443,6 +443,12 @@ version = "0.1.0"
 [[package]]
 name = "uca-input"
 version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "tracing",
+ "uca-config",
+ "uca-types",
+]
 
 [[package]]
 name = "uca-mapping"

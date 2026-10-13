@@ -28,7 +28,7 @@ pub enum PlatformError {
 pub type Result<T> = std::result::Result<T, PlatformError>;
 
 /// What the platform can do; missing capabilities are hidden in the UI (AGENTS.md rule 5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
 pub struct Capabilities {
     pub inject_keys: bool,
     pub inject_text: bool,
@@ -177,4 +177,8 @@ pub trait Platform: Send + Sync {
     fn clipboard_chord(&self, op: ClipboardOp) -> Vec<Key>;
     /// The OS UI locale as a BCP-47 tag, the default `ui_language` (17).
     fn ui_locale(&self) -> Option<String>;
+    /// The user's Documents folder, where diagnostics bundles go (11).
+    fn documents_dir(&self) -> Option<PathBuf>;
+    /// The OS name and version for `system.json`, e.g. "Windows 10.0.26100" (11).
+    fn os_version(&self) -> Option<String>;
 }

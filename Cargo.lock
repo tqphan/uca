@@ -4318,6 +4318,7 @@ name = "uca-platform"
 version = "0.1.0"
 dependencies = [
  "raw-window-handle",
+ "serde",
  "thiserror 2.0.21",
  "uca-input",
  "uca-types",

@@ -22,6 +22,8 @@ const ITEM_DEBUG: &str = "session-debug";
 const ITEM_TRACE: &str = "session-trace";
 const ITEM_SENSITIVE: &str = "session-sensitive";
 const ITEM_SESSION: &str = "session";
+const ITEM_INCLUDE_CONFIG: &str = "include-config";
+const ITEM_EXPORT: &str = "export";
 
 /// The debug-session durations offered, in minutes (05, 11).
 pub const SESSION_MINUTES: [u32; 3] = [15, 60, 240];
@@ -50,6 +52,8 @@ pub struct DiagnosticsView {
     pub trace: bool,
     pub sensitive: bool,
     pub active: bool,
+    /// "Include my boards and profile" in the next export (11).
+    pub include_config: bool,
 }
 
 /// What the window shows this frame.
@@ -57,6 +61,8 @@ pub struct SettingsView<'a> {
     pub profile_name: &'a str,
     pub start_board: Option<StartBoardView<'a>>,
     pub diagnostics: DiagnosticsView,
+    /// The last export's result line, already translated (11).
+    pub export_result: Option<&'a str>,
     pub paused: bool,
     /// Engine hover and dwell on this screen's widgets.
     pub dwell: Option<&'a VirtualSnapshot>,
@@ -72,6 +78,9 @@ pub enum SettingsCommand {
     ToggleSensitive,
     /// Start a debug session with the chosen settings, or stop the running one.
     ToggleSession,
+    ToggleIncludeConfig,
+    /// Create a diagnostics bundle (11).
+    Export,
     TogglePause,
     Close,
 }
@@ -203,6 +212,24 @@ fn diagnostics(
         let command = SettingsCommand::ToggleSession;
         frame.widget(ui, view, ITEM_SESSION, &response, pressed, command);
     });
+    ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), MIN_TARGET), row, |ui| {
+        let include = selectable(d.include_config, t!("settings-include-config"));
+        let response = ui.add(include);
+        let command = SettingsCommand::ToggleIncludeConfig;
+        frame.widget(ui, view, ITEM_INCLUDE_CONFIG, &response, pressed, command);
+        let response = ui.add(button(t!("settings-export")));
+        frame.widget(
+            ui,
+            view,
+            ITEM_EXPORT,
+            &response,
+            pressed,
+            SettingsCommand::Export,
+        );
+    });
+    if let Some(line) = view.export_result {
+        ui.label(text(line.to_owned()));
+    }
 }
 
 fn start_board(

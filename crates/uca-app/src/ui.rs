@@ -60,6 +60,8 @@ pub enum UserEvent {
     App(uca_config::action::Action),
     /// `app.yaml` → `debug.area` changed (11).
     DebugArea(uca_config::board::Area),
+    /// A diagnostics export finished: the bundle's path, or why it failed (11).
+    Exported(Result<std::path::PathBuf, String>),
 }
 
 impl From<egui_winit::accesskit_winit::Event> for UserEvent {
@@ -141,6 +143,8 @@ pub struct App {
     cli_record: Option<std::path::PathBuf>,
     /// A signal recording runs (11).
     recording: bool,
+    /// The last export's result line for Settings, translated (11).
+    export_result: Option<String>,
     /// `debug.overlay` / `UCA_DEBUG_OVERLAY=1` (11).
     overlay_on: bool,
     debug_overlay: Option<DebugOverlay>,
@@ -189,11 +193,13 @@ impl App {
             debug_area: runtime.debug_area,
             cli_record: runtime.cli_record,
             recording: false,
+            export_result: None,
             diagnostics: DiagnosticsView {
                 minutes: 60,
                 trace: false,
                 sensitive: false,
                 active: false,
+                include_config: false,
             },
             strip: None,
             overlay_on: std::env::var("UCA_DEBUG_OVERLAY").is_ok_and(|v| v == "1"),
@@ -667,6 +673,7 @@ impl App {
         let snapshot = self.snapshot.as_ref();
         let settings = self.settings.as_mut()?;
         let save_error = settings.save_error.clone();
+        let export_result = self.export_result.clone();
         let view = SettingsView {
             profile_name: &profile.name,
             start_board: self.profile.as_ref().map(|_| StartBoardView {
@@ -678,6 +685,7 @@ impl App {
                 active: self.sessions.active().is_some(),
                 ..self.diagnostics
             },
+            export_result: export_result.as_deref(),
             paused: snapshot.is_some_and(|s| s.mode == Mode::Paused),
             dwell: snapshot
                 .and_then(|s| s.virtual_board.as_ref())
@@ -700,6 +708,10 @@ impl App {
                     self.diagnostics.sensitive = !self.diagnostics.sensitive
                 }
                 SettingsCommand::ToggleSession => self.toggle_session_from_settings(),
+                SettingsCommand::ToggleIncludeConfig => {
+                    self.diagnostics.include_config = !self.diagnostics.include_config
+                }
+                SettingsCommand::Export => self.export(self.diagnostics.include_config),
                 SettingsCommand::TogglePause => self.send(Msg::Control(EngineControl::TogglePause)),
                 SettingsCommand::Close => {
                     self.close_settings();
@@ -821,6 +833,21 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::Crashed => self.quit(event_loop),
             UserEvent::App(action) => self.on_app_action(action),
+            UserEvent::Exported(result) => {
+                self.export_result = Some(match &result {
+                    Ok(path) => {
+                        tracing::info!(target: "uca::app", file = %path.display(), "diagnostics exported");
+                        uca_i18n::t!("settings-export-saved", path = path.display().to_string())
+                    }
+                    Err(reason) => {
+                        tracing::error!(target: "uca::app", %reason, "diagnostics export failed");
+                        uca_i18n::t!("settings-export-failed", reason = reason.clone())
+                    }
+                });
+                if let Some(s) = &self.settings {
+                    s.request_redraw();
+                }
+            }
             UserEvent::DebugArea(area) => {
                 self.debug_area = area;
                 if let Some(d) = &self.debug_overlay {
@@ -926,10 +953,80 @@ impl App {
                 self.overlay_on = !self.overlay_on;
                 tracing::info!(target: "uca::app", on = self.overlay_on, "debug overlay");
             }
+            // The action never includes the boards and profile (11, decided).
+            Action::DebugExport => self.export(false),
             other => {
                 tracing::info!(target: "uca::app", action = ?other, "this debug action is not available yet");
             }
         }
+    }
+
+    /// Builds a diagnostics bundle on its own thread (11); the result comes
+    /// back as `UserEvent::Exported`.
+    fn export(&mut self, include_config: bool) {
+        let Some(out_dir) = self.platform.documents_dir() else {
+            let _ = self
+                .proxy
+                .send_event(UserEvent::Exported(Err("no Documents folder".into())));
+            return;
+        };
+        let config = self
+            .profile
+            .as_ref()
+            .filter(|_| include_config)
+            .map(|p| (p.config_dir.clone(), p.profile_id.clone()));
+        let input = uca_app::diagnostics::BundleInput {
+            out_dir,
+            log_dir: self.platform.log_dir(),
+            readme: readme(config.is_some()),
+            config,
+            system: self.system_json(),
+            now: std::time::SystemTime::now(),
+        };
+        let proxy = self.proxy.clone();
+        let spawned = std::thread::Builder::new()
+            .name("diagnostics".into())
+            .spawn(move || {
+                let result = uca_app::diagnostics::export(&input).map_err(|e| e.to_string());
+                let _ = proxy.send_event(UserEvent::Exported(result));
+            });
+        if let Err(e) = spawned {
+            let _ = self
+                .proxy
+                .send_event(UserEvent::Exported(Err(e.to_string())));
+        }
+    }
+
+    /// `system.json` (11). No plugins exist yet (M2).
+    fn system_json(&self) -> serde_json::Value {
+        let sources: Vec<serde_json::Value> = self
+            .shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .debug
+            .sources
+            .iter()
+            .map(|s| {
+                serde_json::json!({
+                    "source": s.source.0.as_str(),
+                    "rate_hz": s.rate_hz,
+                    "mean_confidence": s.mean_confidence,
+                    "presence_ratio": s.presence_ratio,
+                    "dropped": s.dropped,
+                })
+            })
+            .collect();
+        serde_json::json!({
+            "uca_version": env!("CARGO_PKG_VERSION"),
+            "build": crate::crash::build(),
+            "os": std::env::consts::OS,
+            "os_version": self.platform.os_version(),
+            "arch": std::env::consts::ARCH,
+            "monitors": self.monitors,
+            "capabilities": self.platform.capabilities(),
+            "plugins": [],
+            "sources": sources,
+        })
     }
 
     /// Opens or closes the overlay windows and follows monitor changes (11).
@@ -1078,4 +1175,30 @@ pub fn debug_rect(m: &MonitorInfo, area: uca_config::board::Area) -> uca_types::
         uca_config::board::Area::Work => m.work_area_phys,
         uca_config::board::Area::Full => m.bounds_phys,
     }
+}
+
+/// README.txt for a diagnostics bundle, in the UI language (11).
+fn readme(with_config: bool) -> String {
+    use uca_i18n::{strip_isolation, t};
+    let mut lines = vec![
+        t!("diag-readme-title"),
+        String::new(),
+        t!("diag-readme-intro"),
+        String::new(),
+        t!("diag-readme-logs"),
+        t!("diag-readme-crashes"),
+        t!("diag-readme-recordings"),
+        t!("diag-readme-system"),
+    ];
+    lines.push(if with_config {
+        t!("diag-readme-config")
+    } else {
+        t!("diag-readme-no-config")
+    });
+    lines
+        .iter()
+        .map(|l| strip_isolation(l).to_string())
+        .collect::<Vec<_>>()
+        .join("\r\n")
+        + "\r\n"
 }

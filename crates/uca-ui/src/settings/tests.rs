@@ -19,6 +19,7 @@ struct State {
     with_boards: bool,
     save_error: Option<String>,
     diagnostics: DiagnosticsView,
+    export_result: Option<String>,
     dwell: Option<VirtualSnapshot>,
     /// Virtual items the engine activated, consumed by the next frame.
     pressed: Vec<String>,
@@ -31,9 +32,10 @@ const DIAGNOSTICS: DiagnosticsView = DiagnosticsView {
     trace: false,
     sensitive: false,
     active: false,
+    include_config: false,
 };
 
-const SESSION_ITEMS: [&str; 7] = [
+const SESSION_ITEMS: [&str; 9] = [
     "session-minutes:15",
     "session-minutes:60",
     "session-minutes:240",
@@ -41,6 +43,8 @@ const SESSION_ITEMS: [&str; 7] = [
     "session-trace",
     "session-sensitive",
     "session",
+    "include-config",
+    "export",
 ];
 
 fn boards() -> Vec<BoardChoice> {
@@ -69,6 +73,7 @@ fn harness(paused: bool) -> Harness<'static, State> {
                     save_error: s.save_error.as_deref(),
                 }),
                 diagnostics: s.diagnostics,
+                export_result: s.export_result.as_deref(),
                 paused: s.paused,
                 dwell: s.dwell.as_ref(),
                 indicator: &indicator,
@@ -83,6 +88,7 @@ fn harness(paused: bool) -> Harness<'static, State> {
             with_boards: true,
             save_error: None,
             diagnostics: DIAGNOSTICS,
+            export_result: None,
             dwell: None,
             pressed: Vec::new(),
             commands: Vec::new(),
@@ -118,6 +124,7 @@ fn widgets_are_at_least_48_px() {
                 save_error: None,
             }),
             diagnostics: DIAGNOSTICS,
+            export_result: None,
             paused: false,
             dwell: None,
             indicator: &indicator,
@@ -245,4 +252,25 @@ fn diagnostics_row_gives_commands() {
     h.state_mut().diagnostics.active = true;
     h.run();
     h.get_by_label("Stop debug session");
+}
+
+/// 11: the export controls give their commands; the result line is shown.
+#[test]
+fn export_controls() {
+    let mut h = harness(false);
+    h.run();
+    h.get_by_label("Include my boards and profile").click();
+    h.run();
+    h.get_by_label("Export diagnostics").click();
+    h.run();
+    assert_eq!(
+        h.state().commands,
+        vec![
+            SettingsCommand::ToggleIncludeConfig,
+            SettingsCommand::Export
+        ]
+    );
+    h.state_mut().export_result = Some("Saved to C:\\Docs\\uca.zip".into());
+    h.run();
+    h.get_by_label("Saved to C:\\Docs\\uca.zip");
 }

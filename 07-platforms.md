@@ -79,7 +79,7 @@ Decided details:
 
 **Trait growth (decided):** like config keys and actions, the trait gains methods with the feature that needs them. M1 has output, hooks, monitors, events, overlay, system and `clipboard_chord`. `ui_targets` / `ui_invoke` arrive in M3, `key_label` in M4 and `request_permissions` with macOS.
 
-**Overlay windows (decided):** the overlay methods take a `raw-window-handle` `RawWindowHandle`. The config dir (`02`) comes from `Platform::config_dir()` and the log directory (`11`) from `Platform::log_dir()` (decided), so OS paths stay in platform crates. `OverlayOptions.display_only` (decided) marks windows that only draw (the debug strip and overlay, `11`): same topmost/no-focus flags, but they never count as a board for `overlay_covered_at`.
+**Overlay windows (decided):** the overlay methods take a `raw-window-handle` `RawWindowHandle`. The config dir (`02`) comes from `Platform::config_dir()` and the log directory (`11`) from `Platform::log_dir()` (decided), so OS paths stay in platform crates. `Platform::documents_dir()` and `Platform::os_version()` (decided) serve the diagnostics bundle (`11`). `OverlayOptions.display_only` (decided) marks windows that only draw (the debug strip and overlay, `11`): same topmost/no-focus flags, but they never count as a board for `overlay_covered_at`.
 
 **Windows backend (decided):**
 - **Bindings:** the `windows-sys` crate.

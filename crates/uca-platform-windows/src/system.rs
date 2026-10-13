@@ -238,3 +238,67 @@ mod tests {
         assert_eq!(a(&[""]), "\"\"");
     }
 }
+
+/// The Documents folder through the Known Folder API, so a moved folder (for
+/// example to OneDrive) is honoured (11).
+pub fn documents_dir() -> Option<std::path::PathBuf> {
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::System::Com::CoTaskMemFree;
+    use windows_sys::Win32::UI::Shell::{FOLDERID_Documents, SHGetKnownFolderPath};
+    let mut path: windows_sys::core::PWSTR = std::ptr::null_mut();
+    // SAFETY: `path` receives a string the shell allocates; it is freed below.
+    let hr =
+        unsafe { SHGetKnownFolderPath(&FOLDERID_Documents, 0, std::ptr::null_mut(), &mut path) };
+    let result = if hr >= 0 && !path.is_null() {
+        // SAFETY: a NUL-terminated wide string from the shell.
+        let len = (0..).take_while(|&i| unsafe { *path.add(i) } != 0).count();
+        // SAFETY: `len` characters were just read from `path`.
+        let wide = unsafe { std::slice::from_raw_parts(path, len) };
+        Some(std::path::PathBuf::from(std::ffi::OsString::from_wide(
+            wide,
+        )))
+    } else {
+        None
+    };
+    // SAFETY: freeing the shell's allocation (null is allowed).
+    unsafe { CoTaskMemFree(path.cast()) };
+    result
+}
+
+#[link(name = "ntdll")]
+extern "system" {
+    fn RtlGetVersion(
+        info: *mut windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW,
+    ) -> i32;
+}
+
+/// "Windows <major>.<minor>.<build>" from RtlGetVersion, which, unlike
+/// GetVersionEx, is not capped by the app manifest (11).
+pub fn os_version() -> Option<String> {
+    use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
+    // SAFETY: a zeroed plain-data struct with its size set, as the API needs.
+    let mut info: OSVERSIONINFOW = unsafe { std::mem::zeroed() };
+    info.dwOSVersionInfoSize = std::mem::size_of::<OSVERSIONINFOW>() as u32;
+    // SAFETY: `info` is a valid, sized OSVERSIONINFOW.
+    let status = unsafe { RtlGetVersion(&mut info) };
+    (status == 0).then(|| {
+        format!(
+            "Windows {}.{}.{}",
+            info.dwMajorVersion, info.dwMinorVersion, info.dwBuildNumber
+        )
+    })
+}
+
+#[cfg(test)]
+mod diagnostics_tests {
+    #[test]
+    fn documents_and_version() {
+        let docs = super::documents_dir().expect("a Documents folder");
+        assert!(docs.is_absolute(), "{docs:?}");
+        let v = super::os_version().expect("a version");
+        assert!(
+            v.starts_with("Windows 10.") || v.starts_with("Windows 6."),
+            "{v}"
+        );
+    }
+}

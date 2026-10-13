@@ -143,6 +143,14 @@ Action `debug.export` (also Settings → Diagnostics → Export) creates `uca-di
 
 Nothing is uploaded automatically. UCA has no network telemetry in v1.
 
+Decided:
+- **File:** `uca-diagnostics-<UTC basic>.zip` (e.g. `uca-diagnostics-20261013T182302Z.zip`) in the Documents folder from `Platform::documents_dir()`. Choosing another folder comes later (it needs a folder dialog).
+- **Zip:** written by UCA's own store-only (uncompressed) writer; no zip dependency.
+- **Contents:** `logs/` (log files of the last 3 days, and plugin logs), `crashes/` (all crash files), `recordings/` (`.ucarec` files of the last 3 days), `system.json` (OS version from `Platform::os_version()`), `config/` only when included, and `README.txt` in the UI language through Fluent.
+- **Settings:** under the debug-session row, a toggle "Include my boards and profile" (off, reset at each start) and a button "Export diagnostics"; afterwards a line "Saved to { $path }" or "Could not export: { $reason }".
+- **`debug.export`** never includes config files. Its result is logged; the notice area (crash notices step) will show it too.
+- The bundle is built on its own thread, never on the UI or engine thread.
+
 ## Debug overlay
 
 Toggle with action `debug.overlay` or `UCA_DEBUG_OVERLAY=1`. Draws on top of boards:

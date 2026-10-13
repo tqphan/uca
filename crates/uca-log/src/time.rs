@@ -57,6 +57,14 @@ pub fn basic_utc(t: SystemTime) -> String {
     format!("{y:04}{m:02}{d:02}T{hh:02}{mm:02}{ss:02}Z")
 }
 
+/// UTC year, month, day, hour, minute, second (for zip entry times, 11).
+pub fn utc_fields(t: SystemTime) -> (i64, u32, u32, u32, u32, u32) {
+    let (days, secs, _) = split(t);
+    let (y, m, d) = civil_from_days(days);
+    let secs = u32::try_from(secs).unwrap_or(0);
+    (y, m, d, secs / 3600, secs / 60 % 60, secs % 60)
+}
+
 /// Days since the epoch, seconds into the day, microseconds into the second.
 /// Times before 1970 count as the epoch.
 fn split(t: SystemTime) -> (i64, u64, u32) {

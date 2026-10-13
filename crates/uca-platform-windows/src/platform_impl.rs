@@ -174,6 +174,14 @@ impl Platform for WindowsPlatform {
         let n = unsafe { GetUserDefaultLocaleName(buf.as_mut_ptr(), buf.len() as i32) };
         (n > 1).then(|| String::from_utf16_lossy(&buf[..(n - 1) as usize]))
     }
+
+    fn documents_dir(&self) -> Option<std::path::PathBuf> {
+        system::documents_dir()
+    }
+
+    fn os_version(&self) -> Option<String> {
+        system::os_version()
+    }
 }
 
 #[cfg(test)]

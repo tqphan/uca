@@ -260,6 +260,14 @@ impl Platform for FakePlatform {
     fn ui_locale(&self) -> Option<String> {
         Some("en-US".into())
     }
+
+    fn documents_dir(&self) -> Option<std::path::PathBuf> {
+        None
+    }
+
+    fn os_version(&self) -> Option<String> {
+        Some("Fake 1.0".into())
+    }
 }
 
 #[cfg(test)]

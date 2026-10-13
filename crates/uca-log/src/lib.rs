@@ -11,7 +11,7 @@ mod json;
 pub mod ring;
 pub mod rotate;
 pub mod sensitive;
-mod time;
+pub mod time;
 
 use std::io::Write;
 use std::path::Path;

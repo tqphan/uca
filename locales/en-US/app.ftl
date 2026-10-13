@@ -30,6 +30,10 @@ settings-level-trace = Trace
 settings-sensitive = Sensitive logging (records typed text)
 settings-session-start = Start debug session
 settings-session-stop = Stop debug session
+settings-include-config = Include my boards and profile
+settings-export = Export diagnostics
+settings-export-saved = Saved to { $path }
+settings-export-failed = Could not export: { $reason }
 
 # The debug-session indicator strip (11).
 
@@ -49,3 +53,14 @@ debug-overlay-source = { $source }: { $rate } Hz · confidence { $confidence } �
 debug-overlay-fps = FPS: { $fps }
 debug-overlay-latency = Latency: { $ms } ms
 debug-overlay-latency-none = Latency: —
+
+# README.txt inside a diagnostics bundle (11).
+
+diag-readme-title = UCA diagnostics
+diag-readme-intro = UCA, an AAC app that also gives computer access and game control, made this file so that someone helping you can look into a problem. Nothing was uploaded: you decide whom to send it to.
+diag-readme-logs = logs/ — UCA's log files from the last 3 days. Typed text and typing keys are hidden unless sensitive logging was switched on in a debug session.
+diag-readme-crashes = crashes/ — reports written when UCA crashed.
+diag-readme-recordings = recordings/ — input recordings from debug sessions in the last 3 days.
+diag-readme-system = system.json — UCA's version, the operating system, the monitors and what UCA can do on this computer.
+diag-readme-config = config/ — your boards and profile, included because you chose to.
+diag-readme-no-config = Your boards and profile are not included.

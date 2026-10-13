@@ -4,6 +4,7 @@
 //! UCA application: wires everything, settings UI, tray.
 
 mod block_on;
+mod crash;
 mod icon;
 mod settings_window;
 mod threads;
@@ -26,6 +27,7 @@ use crate::ui::{App, ProxyWaker, UserEvent};
 
 fn main() -> ExitCode {
     let logging = Arc::new(uca_log::install(log_options()));
+    crash::install_hook(logging.ring().clone());
     let code = run(&logging);
     tracing::info!(target: "uca::app", "stopped");
     code
@@ -37,7 +39,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         version = env!("CARGO_PKG_VERSION"),
         os = std::env::consts::OS,
         arch = std::env::consts::ARCH,
-        build = if cfg!(debug_assertions) { "debug" } else { "release" },
+        build = crash::build(),
         "started"
     );
     let Some(platform) = uca_platform_windows::new_platform() else {
@@ -48,10 +50,21 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     let app_file = config_dir.as_deref().and_then(read_app_file);
     let app_logging = app_logging(app_file.as_ref());
     logging.apply_app(&app_logging);
-    match platform.log_dir() {
-        Some(dir) => logging.start_file(&dir, &app_logging),
-        None => tracing::warn!(target: "uca::app", "no log directory; logging to a file is off"),
-    }
+    let log_dir = platform.log_dir();
+    let crash_loop = match &log_dir {
+        Some(dir) => {
+            logging.start_file(dir, &app_logging);
+            crash::set_crash_dir(dir.join("crashes"));
+            let c = crash::CrashLoop::start(dir);
+            c.watch_uptime();
+            Some(c)
+        }
+        None => {
+            tracing::warn!(target: "uca::app", "no log directory; log file, crash files and crash-loop protection are off");
+            None
+        }
+    };
+    let safe_mode = crash_loop.as_ref().is_some_and(|c| c.safe_mode);
     let _app_watcher = config_dir
         .as_deref()
         .and_then(|d| watch_app_file(d, logging.clone()));
@@ -61,7 +74,12 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     );
     uca_i18n::set_ui_language(&language);
 
-    let (config, store) = load_config(config_dir.as_deref());
+    // SAFETY-05: after a crash loop no profile files are loaded or watched.
+    let (config, store) = if safe_mode {
+        (safe_profile(), None)
+    } else {
+        load_config(config_dir.as_deref())
+    };
     let profile = store.as_ref().map(|s| s.paths().clone());
     let Some(config) = config else {
         tracing::error!(target: "uca::app", "the built-in safe profile does not load");
@@ -76,6 +94,10 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         }
     };
     let proxy = event_loop.create_proxy();
+    let crash_proxy = proxy.clone();
+    crash::on_crash(move || {
+        let _ = crash_proxy.send_event(UserEvent::Crashed);
+    });
     let (engine_tx, engine_rx) = mpsc::sync_channel(ENGINE_CHANNEL_CAPACITY);
     let (intent_tx, intent_rx) = mpsc::channel();
     let shared = Arc::new(Mutex::new(Shared::default()));
@@ -132,11 +154,40 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     let mut app = App::new(
         platform, engine_tx, shared, monitors, profile, proxy, threads,
     );
-    if let Err(e) = event_loop.run_app(&mut app) {
-        tracing::error!(target: "uca::app", error = %e, "the event loop failed");
-    }
+    // A panic on the UI thread comes out of `run_app`; shut down as for any crash.
+    let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        event_loop.run_app(&mut app)
+    }));
+    let failed = match ran {
+        Ok(Ok(())) => false,
+        Ok(Err(e)) => {
+            tracing::error!(target: "uca::app", error = %e, "the event loop failed");
+            true
+        }
+        Err(_) => {
+            app.shutdown();
+            true
+        }
+    };
     for s in &mut sources {
         s.stop();
+    }
+    if crash::crashed() {
+        // The SAFETY-05 marker stays: this was an abnormal exit.
+        if crash_loop.as_ref().is_none_or(|c| c.should_restart()) {
+            tracing::info!(target: "uca::app", delay_s = crash::RESTART_DELAY.as_secs(), "restarting after a crash");
+            std::thread::sleep(crash::RESTART_DELAY);
+            restart();
+        } else {
+            tracing::error!(target: "uca::app", "the built-in safe profile crashed soon after starting too; not restarting");
+        }
+        return ExitCode::FAILURE;
+    }
+    if failed {
+        return ExitCode::FAILURE;
+    }
+    if let Some(c) = &crash_loop {
+        c.clean_exit();
     }
     if app.restart {
         restart();
@@ -223,14 +274,18 @@ fn read_app_file(config_dir: &Path) -> Option<uca_config::app::AppFile> {
 
 /// M1 start-up (02, decided): install the defaults on first run, load the one
 /// (or alphabetically first) profile, else the built-in safe profile.
-fn load_config(config_dir: Option<&Path>) -> (Option<Arc<LoadedConfig>>, Option<ConfigStore>) {
-    let safe = || match bundled::safe_profile() {
+fn safe_profile() -> Option<Arc<LoadedConfig>> {
+    match bundled::safe_profile() {
         Ok(c) => Some(c),
         Err(issues) => {
             tracing::error!(target: "uca::config", ?issues, "built-in safe profile rejected");
             None
         }
-    };
+    }
+}
+
+fn load_config(config_dir: Option<&Path>) -> (Option<Arc<LoadedConfig>>, Option<ConfigStore>) {
+    let safe = safe_profile;
     let Some(dir) = config_dir else {
         tracing::warn!(target: "uca::app", "no config directory; using the built-in safe profile");
         return (safe(), None);

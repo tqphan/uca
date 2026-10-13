@@ -4231,6 +4231,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "raw-window-handle",
+ "serde_json",
  "tracing",
  "tray-icon",
  "uca-actions",

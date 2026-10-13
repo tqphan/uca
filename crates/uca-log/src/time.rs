@@ -49,6 +49,14 @@ pub fn rfc3339_micros(t: SystemTime) -> String {
     format!("{y:04}-{m:02}-{d:02}T{hh:02}:{mm:02}:{ss:02}.{micros:06}Z")
 }
 
+/// UTC in basic form for file names, e.g. `20261011T215003Z` (11, decided).
+pub fn basic_utc(t: SystemTime) -> String {
+    let (days, secs, _) = split(t);
+    let (y, m, d) = civil_from_days(days);
+    let (hh, mm, ss) = (secs / 3600, secs / 60 % 60, secs % 60);
+    format!("{y:04}{m:02}{d:02}T{hh:02}{mm:02}{ss:02}Z")
+}
+
 /// Days since the epoch, seconds into the day, microseconds into the second.
 /// Times before 1970 count as the epoch.
 fn split(t: SystemTime) -> (i64, u64, u32) {
@@ -98,6 +106,7 @@ mod tests {
         let t = at(1_791_755_403, 214_512);
         assert_eq!(rfc3339_micros(t), "2026-10-11T21:50:03.214512Z");
         assert_eq!(Day::of(t).format(), "2026-10-11");
+        assert_eq!(basic_utc(t), "20261011T215003Z");
     }
 
     #[test]

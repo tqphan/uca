@@ -38,6 +38,17 @@ impl RingBuffer {
         self.lock().lines.iter().cloned().collect()
     }
 
+    /// Like [`lines`](Self::lines) but `None` instead of waiting: a crash on
+    /// the thread that holds the lock must not wait for itself.
+    pub fn try_lines(&self) -> Option<Vec<String>> {
+        let r = match self.0.try_lock() {
+            Ok(r) => r,
+            Err(std::sync::TryLockError::Poisoned(e)) => e.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return None,
+        };
+        Some(r.lines.iter().cloned().collect())
+    }
+
     pub fn set_capacity(&self, capacity: usize) {
         let mut r = self.lock();
         r.capacity = capacity;

@@ -408,7 +408,7 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
 - **Ranges are wide on purpose:** dwell 100–10 000 ms, repeat delay 0–10 000 ms, repeat interval 30–10 000 ms, scan interval 200–15 000 ms, expression levels 0.01–0.99, so unusual needs fit. Values outside a range are rejected with the range shown.
 - **History:** every change is saved to the profile and captured by the automatic backups (`16`), so a bad change can be undone.
 
-**Not user-adjustable** (fixed safety values, `09` and `14`): the HID bridge firmware watchdog (300 ms), plugin heartbeat timeouts, crash-loop detection, and the requirement that an escape route exists. The escape *pattern* itself is user-configurable (SAFETY-01).
+**Not user-adjustable** (fixed safety values, `09` and `14`): the HID bridge firmware watchdog (300 ms), plugin heartbeat timeouts, crash-loop detection (60 s) and the restart delay after a panic (5 s), and the requirement that an escape route exists. The escape *pattern* itself is user-configurable (SAFETY-01).
 
 ## Validation and loading
 

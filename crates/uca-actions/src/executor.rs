@@ -173,7 +173,19 @@ impl Executor {
         let r = self.output.release_all();
         self.report("release all", r);
     }
+}
 
+/// SAFETY-08 when the executor's own thread panics: unwinding drops it, and
+/// everything it pressed is released. A normal exit calls `release_all` itself.
+impl Drop for Executor {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.release_all();
+        }
+    }
+}
+
+impl Executor {
     fn chord(&mut self, keys: &[Key]) {
         for k in keys {
             self.send(Pressable::Key(*k), KeyDir::Down);

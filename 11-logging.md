@@ -125,8 +125,9 @@ A debug session raises logging temporarily so a carer or the user can reproduce 
 ## Crash flight recorder
 
 - Install a panic hook and, on Windows, an unhandled-exception filter (`SetUnhandledExceptionFilter`), plus a minidump via the `minidumper`/`crash-handler` crates in a small out-of-process crash monitor.
-- On crash write `crashes/crash-<timestamp>.json` containing: version, build, OS, panic message, backtrace, thread name, and the ring buffer contents (already redacted).
+- On crash write `crashes/crash-<timestamp>.json` containing: version, build, OS, panic message, backtrace, thread name, and the ring buffer contents (already redacted). The folder is `crashes/` in the log directory and the timestamp is UTC in basic form, e.g. `crash-20261013T182302Z.json` (decided).
 - Then follow SAFETY-08 (release pressed inputs) and SAFETY-05 (crash-loop protection).
+- **Restart after a panic (decided):** a panic in any UCA thread ends UCA: crash file, SAFETY-08 releases, normal shutdown (windows, hooks, threads). UCA then waits 5 s (fixed safety value) and starts a new instance with the same arguments. With SAFETY-05 this gives: first early crash → normal restart; second early crash → the restart uses the built-in safe profile; if a run on the safe profile chosen by SAFETY-05 also crashes within 60 s of start, UCA does not restart again and logs why.
 - On next start, if a new crash file exists, show a one-line notice offering to export diagnostics.
 
 ## Diagnostics bundle

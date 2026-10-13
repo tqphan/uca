@@ -5,6 +5,7 @@
 //! `uca-app` installs: JSON log files with rotation, console, ring buffer,
 //! redaction and filter precedence with live reload.
 
+pub mod crash;
 pub mod filter;
 mod json;
 pub mod ring;

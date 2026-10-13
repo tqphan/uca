@@ -49,6 +49,8 @@ pub enum UserEvent {
     Monitors(Vec<MonitorInfo>),
     Menu(MenuEvent),
     AccessKit(egui_winit::accesskit_winit::Event),
+    /// A thread panicked: shut down so `main` can restart UCA (11).
+    Crashed,
 }
 
 impl From<egui_winit::accesskit_winit::Event> for UserEvent {
@@ -677,9 +679,18 @@ impl App {
         }
     }
 
+    fn quit(&mut self, event_loop: &ActiveEventLoop) {
+        self.shutdown();
+        event_loop.exit();
+    }
+
     /// Releases everything before exiting (SAFETY-08): the engine sends
     /// `ReleaseAll`, the executor releases and ends, and both are joined.
-    fn quit(&mut self, event_loop: &ActiveEventLoop) {
+    /// Also called after a panic on the UI thread; a second call does nothing.
+    pub fn shutdown(&mut self) {
+        if self.threads.is_empty() {
+            return;
+        }
         self.close_settings();
         self.send(Msg::Quit);
         for t in self.threads.drain(..) {
@@ -692,7 +703,6 @@ impl App {
                 }
             }
         }
-        event_loop.exit();
     }
 }
 
@@ -732,6 +742,7 @@ impl ApplicationHandler<UserEvent> for App {
                 self.restart = true;
                 self.quit(event_loop);
             }
+            UserEvent::Crashed => self.quit(event_loop),
             UserEvent::Control(Control::Recalibrate) => {
                 // M1 has no calibrated pointer sources; the mouse needs none.
                 tracing::info!(target: "uca::app", "nothing to recalibrate for the current pointer source");

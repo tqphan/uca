@@ -281,3 +281,22 @@ fn typed_text_and_keys_are_redacted_in_logs() {
     assert!(all.contains(r#""key":"<redacted key>""#), "{all}");
     assert!(all.contains(r#""key":"Enter""#), "{all}");
 }
+
+/// SAFETY-08: a panic on the executor's thread still releases what it pressed.
+#[test]
+fn a_panic_releases_what_was_pressed() {
+    let (mut e, out, _) = rig();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+        e.handle(&exec(1, vec![Action::KeyDown(Key::KeyA)]));
+        panic!("forced");
+    }));
+    assert!(result.is_err());
+    assert_eq!(
+        out.take(),
+        vec![
+            OutEvent::Key(Key::KeyA, Down),
+            OutEvent::Key(Key::KeyA, Up),
+            OutEvent::ReleaseAll
+        ]
+    );
+}

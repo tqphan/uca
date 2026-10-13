@@ -88,7 +88,7 @@ fonts:
 
 `font.family` must name a declared family (or the built-in `default`); `font.weight` uses the nearest declared weight. Unknown family → warning, falls back to `default`. The built-in theme ships an open-licence, highly legible font so boards look the same on every OS.
 
-**Bundled fonts (decided):** UCA ships three fonts, all SIL OFL 1.1: **Noto Sans**, **Atkinson Hyperlegible** and **Lexend**. The built-in `default` family is Noto Sans. Users choose another in Settings or through a theme's `font.family`; installed fonts remain usable with `system`.
+**Bundled fonts (decided):** UCA ships three fonts, all SIL OFL 1.1: **Noto Sans**, **Atkinson Hyperlegible** and **Lexend**. The built-in `default` family is Noto Sans. Noto Sans Symbols 2 and Noto Sans Math (OFL, Noto project) are bundled as fallbacks behind every family, so arrows and key symbols render (decided). Users choose another in Settings or through a theme's `font.family`; installed fonts remain usable with `system`.
 
 ## Behavior
 

@@ -213,3 +213,45 @@ fn safe_board_en_xa() {
         &clock,
     );
 }
+
+/// The shipped default theme and keyboard (10 M1 default assets).
+#[test]
+fn asset_qwerty() {
+    let p = ProfilePaths {
+        config_dir: PathBuf::from("cfg"),
+        profile_id: "t".into(),
+    };
+    let mut s = Sources::default();
+    s.set(&p, &p.profile_file(), Some("schema: uca/1\nprofile:\n  name: t\n  start_board: qwerty\n  safety: { escape: \"key:* hold(3000)\" }\n".into()));
+    s.set(
+        &p,
+        &p.boards_dir().join("qwerty.yaml"),
+        Some(include_str!("../../../assets/boards/qwerty.yaml").into()),
+    );
+    s.set(&p, &p.boards_dir().join("mouse.yaml"), Some("schema: uca/1\nboard: { id: mouse }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: back, action: { board.back: } } ] } ]\n".into()));
+    s.set(
+        &p,
+        &p.shared_themes_dir().join("default.yaml"),
+        Some(include_str!("../../../assets/themes/default.yaml").into()),
+    );
+    let config = match ConfigStore::from_sources(p, s).1 {
+        ConfigUpdate::Applied(c) => c,
+        ConfigUpdate::Rejected(i) => panic!("{i:#?}"),
+    };
+    assert!(config.warnings.is_empty(), "{:#?}", config.warnings);
+    let clock = FakeClock::new();
+    let e = Engine::new(config.clone(), vec![monitor(1280.0, 720.0)]);
+    let mut snap = e.snapshot(&clock);
+    // Only the board area (bottom 40 %): shift the board to the top for the image.
+    if let Some(b) = snap.board.as_mut() {
+        let dy = b.rect.y;
+        b.rect.y -= dy;
+        for l in &mut b.layers {
+            l.rect.y -= dy;
+            for i in &mut l.items {
+                i.rect.y -= dy;
+            }
+        }
+    }
+    render("asset_qwerty", &config, snap, (1280.0, 288.0), &clock);
+}

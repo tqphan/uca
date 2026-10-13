@@ -55,6 +55,18 @@ const BUNDLED: &[Bundled] = &[
     },
 ];
 
+/// Symbol fallbacks behind every family (arrows, key symbols), Noto project, OFL-1.1.
+const SYMBOL_FALLBACKS: &[(&str, &[u8])] = &[
+    (
+        "Noto Sans Symbols 2",
+        include_bytes!("../../../assets/fonts/noto-sans-symbols-2/NotoSansSymbols2-Regular.ttf"),
+    ),
+    (
+        "Noto Sans Math",
+        include_bytes!("../../../assets/fonts/noto-sans-math/NotoSansMath-Regular.ttf"),
+    ),
+];
+
 /// The bundled family names.
 pub fn bundled_families() -> Vec<&'static str> {
     let mut f: Vec<&str> = BUNDLED.iter().map(|b| b.family).collect();
@@ -75,11 +87,20 @@ pub fn font_definitions() -> FontDefinitions {
         .get(&FontFamily::Proportional)
         .cloned()
         .unwrap_or_default();
+    for (name, bytes) in SYMBOL_FALLBACKS {
+        defs.font_data
+            .insert((*name).to_owned(), Arc::new(FontData::from_static(bytes)));
+    }
+    let symbols: Vec<String> = SYMBOL_FALLBACKS
+        .iter()
+        .map(|(n, _)| (*n).to_owned())
+        .collect();
     for b in BUNDLED {
         let k = key(b.family, b.weight);
         defs.font_data
             .insert(k.clone(), Arc::new(FontData::from_static(b.bytes)));
         let mut chain = vec![k.clone()];
+        chain.extend(symbols.iter().cloned());
         chain.extend(fallback.iter().cloned());
         defs.families.insert(FontFamily::Name(k.into()), chain);
     }
@@ -87,6 +108,10 @@ pub fn font_definitions() -> FontDefinitions {
     let default = key(DEFAULT_FAMILY, 400);
     if let Some(list) = defs.families.get_mut(&FontFamily::Proportional) {
         list.insert(0, default);
+        // Symbols for egui's own text too.
+        for (i, s) in symbols.iter().enumerate() {
+            list.insert(1 + i, s.clone());
+        }
     }
     defs
 }

@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: The UCA contributors
+# SPDX-License-Identifier: CC-BY-SA-4.0
+
+# On-screen keyboard (10 M1).
+schema: uca/1
+board:
+  id: qwerty
+  title: Keyboard
+  anchor: bottom
+  reserve_space: true
+  click_through: outside-items
+  theme: default
+  size: { width: 100%, height: 40% }
+  background: $board
+templates:
+  repeat-key:
+    extends: key
+    behavior: { repeat_delay_ms: 500, repeat_interval_ms: 100 }
+layers:
+  - id: keys
+    layout: { type: grid, columns: 11, gap: 6 }
+    padding: 8
+    items:
+      - { id: d1, extends: key, group: numbers, label: "1", label_shift: "!", action: { key.tap: "1" } }
+      - { id: d2, extends: key, group: numbers, label: "2", label_shift: "@", action: { key.tap: "2" } }
+      - { id: d3, extends: key, group: numbers, label: "3", label_shift: "#", action: { key.tap: "3" } }
+      - { id: d4, extends: key, group: numbers, label: "4", label_shift: "$", action: { key.tap: "4" } }
+      - { id: d5, extends: key, group: numbers, label: "5", label_shift: "%", action: { key.tap: "5" } }
+      - { id: d6, extends: key, group: numbers, label: "6", label_shift: "^", action: { key.tap: "6" } }
+      - { id: d7, extends: key, group: numbers, label: "7", label_shift: "&", action: { key.tap: "7" } }
+      - { id: d8, extends: key, group: numbers, label: "8", label_shift: "*", action: { key.tap: "8" } }
+      - { id: d9, extends: key, group: numbers, label: "9", label_shift: "(", action: { key.tap: "9" } }
+      - { id: d0, extends: key, group: numbers, label: "0", label_shift: ")", action: { key.tap: "0" } }
+      - { id: backspace, extends: repeat-key, group: functions, label: "⌫", actions: { start: { key.tap: backspace }, repeat: start } }
+      - { id: q, extends: key, group: letters, label: "q", label_shift: "Q", action: { key.tap: q } }
+      - { id: w, extends: key, group: letters, label: "w", label_shift: "W", action: { key.tap: w } }
+      - { id: e, extends: key, group: letters, label: "e", label_shift: "E", action: { key.tap: e } }
+      - { id: r, extends: key, group: letters, label: "r", label_shift: "R", action: { key.tap: r } }
+      - { id: t, extends: key, group: letters, label: "t", label_shift: "T", action: { key.tap: t } }
+      - { id: y, extends: key, group: letters, label: "y", label_shift: "Y", action: { key.tap: y } }
+      - { id: u, extends: key, group: letters, label: "u", label_shift: "U", action: { key.tap: u } }
+      - { id: i, extends: key, group: letters, label: "i", label_shift: "I", action: { key.tap: i } }
+      - { id: o, extends: key, group: letters, label: "o", label_shift: "O", action: { key.tap: o } }
+      - { id: p, extends: key, group: letters, label: "p", label_shift: "P", action: { key.tap: p } }
+      - { id: enter, extends: key, group: functions, label: "↵", action: { key.tap: enter } }
+      - { id: a, extends: key, group: letters, label: "a", label_shift: "A", action: { key.tap: a } }
+      - { id: s, extends: key, group: letters, label: "s", label_shift: "S", action: { key.tap: s } }
+      - { id: d, extends: key, group: letters, label: "d", label_shift: "D", action: { key.tap: d } }
+      - { id: f, extends: key, group: letters, label: "f", label_shift: "F", action: { key.tap: f } }
+      - { id: g, extends: key, group: letters, label: "g", label_shift: "G", action: { key.tap: g } }
+      - { id: h, extends: key, group: letters, label: "h", label_shift: "H", action: { key.tap: h } }
+      - { id: j, extends: key, group: letters, label: "j", label_shift: "J", action: { key.tap: j } }
+      - { id: k, extends: key, group: letters, label: "k", label_shift: "K", action: { key.tap: k } }
+      - { id: l, extends: key, group: letters, label: "l", label_shift: "L", action: { key.tap: l } }
+      - { id: apostrophe, extends: key, group: punctuations, label: "'", label_shift: "\"", action: { key.tap: quote } }
+      - { id: tab, extends: key, group: functions, label: "⇥", action: { key.tap: tab } }
+      - { id: shift, extends: key, group: modifiers, label: "⇧", action: { key.latch: shift } }
+      - { id: z, extends: key, group: letters, label: "z", label_shift: "Z", action: { key.tap: z } }
+      - { id: x, extends: key, group: letters, label: "x", label_shift: "X", action: { key.tap: x } }
+      - { id: c, extends: key, group: letters, label: "c", label_shift: "C", action: { key.tap: c } }
+      - { id: v, extends: key, group: letters, label: "v", label_shift: "V", action: { key.tap: v } }
+      - { id: b, extends: key, group: letters, label: "b", label_shift: "B", action: { key.tap: b } }
+      - { id: n, extends: key, group: letters, label: "n", label_shift: "N", action: { key.tap: n } }
+      - { id: m, extends: key, group: letters, label: "m", label_shift: "M", action: { key.tap: m } }
+      - { id: comma, extends: key, group: punctuations, label: ",", label_shift: "<", action: { key.tap: comma } }
+      - { id: period, extends: key, group: punctuations, label: ".", label_shift: ">", action: { key.tap: period } }
+      - { id: question, extends: key, group: punctuations, label: "/", label_shift: "?", action: { key.tap: slash } }
+      - { id: ctrl, extends: key, group: modifiers, label: "Ctrl", action: { key.latch: ctrl } }
+      - { id: alt, extends: key, group: modifiers, label: "Alt", action: { key.latch: alt } }
+      - { id: space, extends: key, group: functions, label: "␣", span: { cols: 4, rows: 1 }, action: { key.tap: space } }
+      - { id: left, extends: repeat-key, group: functions, label: "←", actions: { start: { key.tap: left }, repeat: start } }
+      - { id: right, extends: repeat-key, group: functions, label: "→", actions: { start: { key.tap: right }, repeat: start } }
+      - { id: up, extends: repeat-key, group: functions, label: "↑", actions: { start: { key.tap: up }, repeat: start } }
+      - { id: down, extends: repeat-key, group: functions, label: "↓", actions: { start: { key.tap: down }, repeat: start } }
+      - { id: mouse, extends: key, group: others, label: "Mouse", action: { board.open: mouse } }

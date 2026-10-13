@@ -168,6 +168,8 @@ pub struct MonitorInfo {
     pub name: String,
     pub primary: bool,
     pub bounds_phys: RectPhys,
+    /// The monitor minus the taskbar and other app bars, but never minus UCA's
+    /// own reserved strips (02 `area`).
     pub work_area_phys: RectPhys,
     pub scale_factor: f64,
     pub refresh_hz: f32,

@@ -120,6 +120,7 @@ board:
   anchor: bottom            # top|bottom|left|right|center|free — dock behaviour
   reserve_space: true       # Windows AppBar-style: shrink work area so apps aren't covered
   click_through: outside-items  # none | outside-items | all
+  area: work                # full | work — what a reserving board is laid out in
   theme: default
   show_action_sets: true    # indicator of active non-default action sets (05)
   position: { x: 0, y: 60% }
@@ -140,13 +141,18 @@ layers:      [ Layer ]
   - `free` places it at `position`.
 
   `position` is used only with `anchor: free`; the validator warns if it is set otherwise. The example above therefore means: on the bottom edge, full width, 40 % high.
-- **`%` on a board** is a percentage of the monitor's full bounds, taskbar included.
+- **`%` on a board** is a percentage of the monitor's full bounds, taskbar included, except for a reserving board with `area: work` (below).
 - **Defaults:** a board without `anchor` is `center`, and a board without `monitor` uses the `primary` monitor.
 - **`click_through` (decided):** a board without it is `none`: the whole board rectangle catches clicks.
 - **`reserve_space` (decided):**
   - A board without it reserves space when its anchor is `top`, `bottom`, `left` or `right`, and never when it is `center` or `free`.
   - `reserve_space: true` with anchor `center` or `free` has no edge to reserve. The validator warns, the board still loads, and nothing is reserved.
-  - The reserved strip is the board's thickness along that edge of the monitor's full bounds. The window stays exactly at the board's layout rect, even where that overlaps the taskbar; the shell's adjusted position is not used, so drawing and hit-testing always match.
+  - The reserved strip is the board's thickness along that edge of its layout area (below). The window stays exactly at the board's layout rect; the shell's adjusted position is not used, so drawing and hit-testing always match.
+- **`area` (decided):** whether a board that reserves space may cover the taskbar.
+  - `work` (the default): the board's `%` sizes, anchor and position are measured on the monitor's work area (the taskbar and other app bars excluded), so the taskbar stays visible.
+  - `full`: they are measured on the monitor's full bounds, so the board may cover the taskbar.
+  - The work area used here never excludes UCA's own reserved strips, or a board would push itself away from the edge.
+  - `area` only applies to boards that reserve space. Set on any other board, the validator warns, the board still loads, and the full bounds are used.
 - **Default sizes:**
   - A board without `size` covers 100 % × 100 % of its monitor.
   - A layer without `size` fills its board's content box (inside the board's padding).

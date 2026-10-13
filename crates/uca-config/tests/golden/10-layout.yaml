@@ -25,6 +25,7 @@ schema: uca/1
 board:
   id: centred
   reserve_space: true
+  area: full
 layers:
   - id: g
     layout: { type: grid, columns: 1 }

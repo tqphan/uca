@@ -142,7 +142,8 @@ pub trait Platform: Send + Sync {
     fn show_overlay(&self, w: RawWindowHandle, visible: bool) -> Result<()>;
     /// Lets mouse clicks pass through the whole window (used outside items, 05).
     fn set_click_through(&self, w: RawWindowHandle, through: bool) -> Result<()>;
-    /// Reserves a `size_phys` strip at `edge` of the monitor's full bounds so apps
+    /// Reserves a `size_phys` strip at `edge` of `monitor` (the board's layout
+    /// area: full bounds or work area, 02) so apps
     /// aren't covered. `w` is not moved: it stays at the board's layout rect (02, decided).
     fn reserve_edge(
         &self,

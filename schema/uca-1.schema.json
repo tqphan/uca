@@ -969,6 +969,21 @@
         "path"
       ]
     },
+    "Area": {
+      "description": "`area: full | work` (02, decided).",
+      "oneOf": [
+        {
+          "description": "The monitor's full bounds: the board may cover the taskbar.",
+          "type": "string",
+          "const": "full"
+        },
+        {
+          "description": "The monitor's work area: the taskbar stays visible.",
+          "type": "string",
+          "const": "work"
+        }
+      ]
+    },
     "Behavior": {
       "description": "Behavior (02). Numbers are checked against the settings registry.",
       "type": "object",
@@ -1135,6 +1150,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Anchor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "area": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Area"
             },
             {
               "type": "null"

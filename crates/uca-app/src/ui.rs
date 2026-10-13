@@ -15,7 +15,7 @@ use raw_window_handle::HasWindowHandle;
 use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::{TrayIcon, TrayIconBuilder};
 use uca_config::action::Mode;
-use uca_config::board::{Anchor, ClickThrough};
+use uca_config::board::{Anchor, Area, ClickThrough};
 use uca_config::store::LoadedConfig;
 use uca_engine::safe_board::{safe_board, SAFE_BOARD_ID};
 use uca_engine::{BoardSnapshot, Control, EngineControl, EngineSnapshot};
@@ -324,15 +324,16 @@ impl App {
         let _ = o
             .window
             .request_inner_size(PhysicalSize::new(w as u32, h as u32));
-        if let Some(edge) = reserve {
+        if let Some((edge, area)) = reserve {
+            let along = match area {
+                Area::Full => monitor.bounds_phys,
+                Area::Work => monitor.work_area_phys,
+            };
             let size = match edge {
                 Edge::Top | Edge::Bottom => h,
                 Edge::Left | Edge::Right => w,
             };
-            match self
-                .platform
-                .reserve_edge(handle, edge, monitor.bounds_phys, size as u32)
-            {
+            match self.platform.reserve_edge(handle, edge, along, size as u32) {
                 Ok(()) => o.reserved = true,
                 Err(e) => {
                     tracing::warn!(target: "uca::app", error = %e, "cannot reserve screen space")
@@ -345,8 +346,8 @@ impl App {
         o.through = None;
     }
 
-    /// The edge a board reserves, if any (02, decided).
-    fn reserve_edge(&self, board_id: &str) -> Option<Edge> {
+    /// The edge a board reserves and the area it is laid out in, if any (02, decided).
+    fn reserve_edge(&self, board_id: &str) -> Option<(Edge, Area)> {
         let file = if board_id == SAFE_BOARD_ID {
             safe_board()
         } else {
@@ -360,13 +361,14 @@ impl App {
         if !file.board.reserves_space() {
             return None;
         }
-        match file.board.anchor_or_default() {
-            Anchor::Top => Some(Edge::Top),
-            Anchor::Bottom => Some(Edge::Bottom),
-            Anchor::Left => Some(Edge::Left),
-            Anchor::Right => Some(Edge::Right),
-            Anchor::Center | Anchor::Free => None,
-        }
+        let edge = match file.board.anchor_or_default() {
+            Anchor::Top => Edge::Top,
+            Anchor::Bottom => Edge::Bottom,
+            Anchor::Left => Edge::Left,
+            Anchor::Right => Edge::Right,
+            Anchor::Center | Anchor::Free => return None,
+        };
+        Some((edge, file.board.layout_area()))
     }
 
     fn click_through_of(&self, board_id: &str) -> ClickThrough {

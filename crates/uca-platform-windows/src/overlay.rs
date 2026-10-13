@@ -4,6 +4,8 @@
 //! Board overlay windows (05, 07): topmost, never activated, not in the taskbar
 //! or Alt+Tab, optional click-through, and AppBar space reservation.
 
+use std::sync::Mutex;
+
 use uca_platform::{Edge, OverlayOptions, PlatformError, RawWindowHandle, RectPhys, Result};
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::UI::Shell::{
@@ -82,6 +84,44 @@ pub fn click_through(w: RawWindowHandle, through: bool) -> Result<()> {
     Ok(())
 }
 
+/// UCA's own reserved strips, by window, so the reported work area can leave
+/// them out (02 `area`): a board laid out in the work area must not push
+/// itself away from the edge.
+static OWN_STRIPS: Mutex<Vec<(usize, Edge, RECT)>> = Mutex::new(Vec::new());
+
+fn set_own_strip(h: HWND, strip: Option<(Edge, RECT)>) {
+    let mut own = OWN_STRIPS.lock().unwrap_or_else(|e| e.into_inner());
+    own.retain(|(w, ..)| *w != h as usize);
+    if let Some((edge, r)) = strip {
+        own.push((h as usize, edge, r));
+    }
+}
+
+/// `work` with UCA's own strips on `monitor` added back.
+pub fn without_own_strips(monitor: RECT, mut work: RECT) -> RECT {
+    let own = OWN_STRIPS.lock().unwrap_or_else(|e| e.into_inner());
+    for (_, edge, r) in own.iter() {
+        let on_monitor = r.left < monitor.right
+            && r.right > monitor.left
+            && r.top < monitor.bottom
+            && r.bottom > monitor.top;
+        if !on_monitor {
+            continue;
+        }
+        // The shell moved the work area's edge to the strip's inner side.
+        match edge {
+            Edge::Bottom if (work.bottom - r.top).abs() <= 1 => {
+                work.bottom = work.bottom.max(r.bottom)
+            }
+            Edge::Top if (work.top - r.bottom).abs() <= 1 => work.top = work.top.min(r.top),
+            Edge::Left if (work.left - r.right).abs() <= 1 => work.left = work.left.min(r.left),
+            Edge::Right if (work.right - r.left).abs() <= 1 => work.right = work.right.max(r.right),
+            _ => {}
+        }
+    }
+    work
+}
+
 fn rect(r: RectPhys) -> RECT {
     RECT {
         left: r.x.round() as i32,
@@ -121,6 +161,7 @@ pub fn reserve_edge(w: RawWindowHandle, edge: Edge, monitor: RectPhys, size: u32
         Edge::Right => r.left = r.right - size,
     }
     d.rc = r;
+    set_own_strip(h, Some((edge, r)));
     // SAFETY: reserves the rectangle for our own app bar.
     unsafe { SHAppBarMessage(ABM_SETPOS, &mut d) };
     Ok(())
@@ -131,5 +172,6 @@ pub fn release_edge(w: RawWindowHandle) -> Result<()> {
     let mut d = appbar(h);
     // SAFETY: unregistering our own app bar.
     unsafe { SHAppBarMessage(ABM_REMOVE, &mut d) };
+    set_own_strip(h, None);
     Ok(())
 }

@@ -64,6 +64,7 @@ with_base! {
         pub anchor: Option<Anchor>,
         pub reserve_space: Option<bool>,
         pub click_through: Option<ClickThrough>,
+        pub area: Option<Area>,
         pub theme: Option<String>,
         pub show_action_sets: Option<bool>,
     }
@@ -123,6 +124,26 @@ impl Board {
     pub fn reserves_space(&self) -> bool {
         self.anchor_or_default().is_edge() && self.reserve_space != Some(false)
     }
+
+    /// What the board is laid out in (02, decided): `work` by default for a
+    /// reserving board; always `full` for any other.
+    pub fn layout_area(&self) -> Area {
+        if self.reserves_space() {
+            self.area.unwrap_or(Area::Work)
+        } else {
+            Area::Full
+        }
+    }
+}
+
+/// `area: full | work` (02, decided).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum Area {
+    /// The monitor's full bounds: the board may cover the taskbar.
+    Full,
+    /// The monitor's work area: the taskbar stays visible.
+    Work,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]

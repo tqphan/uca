@@ -129,6 +129,7 @@ pub enum ProblemKind {
     FreeItemWithoutSize,
     PositionIgnored,
     ReserveWithoutEdge,
+    AreaIgnored,
     GridUnitOutsideGrid,
     GridOverflow {
         layer: String,
@@ -177,6 +178,7 @@ impl ProblemKind {
             FreeItemWithoutSize => "config-free-item-without-size",
             PositionIgnored => "config-position-ignored",
             ReserveWithoutEdge => "config-reserve-without-edge",
+            AreaIgnored => "config-area-ignored",
             GridUnitOutsideGrid => "config-grid-unit-outside-grid",
             GridOverflow { .. } => "config-grid-overflow",
             SingleAlsoFires { .. } => "config-single-also-fires",
@@ -219,7 +221,8 @@ impl ProblemKind {
             CellOverlap { other } => vec![("other", other.clone())],
             NoWayOut { board } => vec![("board", board.clone())],
             UnknownFont { family } => vec![("family", family.clone())],
-            FreeItemWithoutSize | PositionIgnored | ReserveWithoutEdge | GridUnitOutsideGrid => {
+            FreeItemWithoutSize | PositionIgnored | ReserveWithoutEdge | AreaIgnored
+            | GridUnitOutsideGrid => {
                 vec![]
             }
             GridOverflow { layer } => vec![("layer", layer.clone())],
@@ -320,6 +323,10 @@ impl fmt::Display for ProblemKind {
             ReserveWithoutEdge => write!(
                 f,
                 "reserve_space needs an edge anchor (top, bottom, left or right); nothing is reserved"
+            ),
+            AreaIgnored => write!(
+                f,
+                "area is only used by boards that reserve space; the full bounds are used"
             ),
             GridUnitOutsideGrid => write!(f, "the grid unit can only be used inside a grid layer"),
             SingleAlsoFires { pattern } => write!(
@@ -784,6 +791,9 @@ impl<'a> Validator<'a> {
         }
         if b.reserve_space == Some(true) && !b.anchor.is_some_and(|a| a.is_edge()) {
             self.warn("board.reserve_space", ProblemKind::ReserveWithoutEdge);
+        }
+        if b.area.is_some() && !b.reserves_space() {
+            self.warn("board.area", ProblemKind::AreaIgnored);
         }
         if lengths_of(BaseLengths::from(b), &b.states).any(|l| matches!(l, Length::Grid(_))) {
             self.error("board", ProblemKind::GridUnitOutsideGrid);
@@ -1546,6 +1556,7 @@ mod tests {
             FreeItemWithoutSize,
             PositionIgnored,
             ReserveWithoutEdge,
+            AreaIgnored,
             GridUnitOutsideGrid,
             GridOverflow { layer: s() },
             SingleAlsoFires { pattern: s() },

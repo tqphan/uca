@@ -81,7 +81,10 @@ pub fn monitors() -> Vec<MonitorInfo> {
                 name: wide_to_string(&info.szDevice),
                 primary: info.monitorInfo.dwFlags & MONITORINFOF_PRIMARY != 0,
                 bounds_phys: rect(info.monitorInfo.rcMonitor),
-                work_area_phys: rect(info.monitorInfo.rcWork),
+                work_area_phys: rect(crate::overlay::without_own_strips(
+                    info.monitorInfo.rcMonitor,
+                    info.monitorInfo.rcWork,
+                )),
                 scale_factor: scale,
                 refresh_hz: refresh,
             })

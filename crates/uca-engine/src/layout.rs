@@ -5,7 +5,7 @@
 //! (02 "Board placement", "Layer layouts", "Layout details").
 
 use uca_config::action::MonitorRef;
-use uca_config::board::{Anchor, Board, BoardFile, BoardMonitor, Item, Layer, LayoutKind};
+use uca_config::board::{Anchor, Area, Board, BoardFile, BoardMonitor, Item, Layer, LayoutKind};
 use uca_config::values::{Four, Length, Position, Size};
 use uca_types::{MonitorId, MonitorInfo, RectLog};
 
@@ -116,11 +116,18 @@ pub fn layout_board(file: &BoardFile, monitor: &MonitorInfo) -> BoardLayout {
     } else {
         1.0
     };
+    // Monitor-relative logical px; a reserving board with `area: work` keeps
+    // clear of the taskbar (02, decided).
+    let bounds = monitor.bounds_phys;
+    let area = match b.layout_area() {
+        Area::Full => bounds,
+        Area::Work => monitor.work_area_phys,
+    };
     let screen = RectLog::new(
-        0.0,
-        0.0,
-        monitor.bounds_phys.width / scale,
-        monitor.bounds_phys.height / scale,
+        (area.x - bounds.x) / scale,
+        (area.y - bounds.y) / scale,
+        area.width / scale,
+        area.height / scale,
     );
 
     let (w, h) = size_of(b.size, screen, None);
@@ -357,7 +364,9 @@ mod tests {
 
     #[test]
     fn board_anchor_and_size() {
-        let b = board("board: { id: b, anchor: bottom, size: { width: 100%, height: 40% } }\n");
+        let b = board(
+            "board: { id: b, anchor: bottom, area: full, size: { width: 100%, height: 40% } }\n",
+        );
         let l = layout_board(&b, &monitor(1.0));
         assert_eq!(l.rect, RectLog::new(0.0, 648.0, 1920.0, 432.0));
         let b = board("board: { id: b, size: { width: 960, height: 540 } }\n");
@@ -376,6 +385,25 @@ mod tests {
             layout_board(&b, &monitor(2.0)).rect,
             RectLog::new(0.0, 0.0, 1920.0, 1080.0),
             "default fills"
+        );
+    }
+
+    #[test]
+    fn reserving_boards_use_the_work_area_by_default() {
+        // The fixture scales its pixels, so the work area is 1920 x 1040 logical px.
+        let b = board("board: { id: b, anchor: bottom, size: { width: 100%, height: 40% } }\n");
+        let (w, h) = (1920.0, 1040.0);
+        assert_eq!(
+            layout_board(&b, &monitor(1.5)).rect,
+            RectLog::new(0.0, h - h * 0.4, w, h * 0.4)
+        );
+        let b = board(
+            "board: { id: b, anchor: bottom, reserve_space: false, size: { width: 100%, height: 40% } }\n",
+        );
+        assert_eq!(
+            layout_board(&b, &monitor(1.0)).rect,
+            RectLog::new(0.0, 648.0, 1920.0, 432.0),
+            "a board that does not reserve uses the full bounds"
         );
     }
 

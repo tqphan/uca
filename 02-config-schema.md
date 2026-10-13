@@ -84,6 +84,8 @@ fonts:
 
 `font.family` must name a declared family (or the built-in `default`); `font.weight` uses the nearest declared weight. Unknown family → warning, falls back to `default`. The built-in theme ships an open-licence, highly legible font so boards look the same on every OS.
 
+**Bundled fonts (decided):** UCA ships three fonts, all SIL OFL 1.1: **Noto Sans**, **Atkinson Hyperlegible** and **Lexend**. The built-in `default` family is Noto Sans. Users choose another in Settings or through a theme's `font.family`; installed fonts remain usable with `system`.
+
 ## Behavior
 
 ```yaml
@@ -374,6 +376,7 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
   | `filter.ema.alpha` | 0.5 | 0.01–1 |
   | `presence.resume_delay_ms` | 500 | 0–10 000 ms (YAML: `profile.inputs.presence.resume_delay_ms`) |
   | `behavior.enter_delay_ms` | 150 | 0–10 000 ms (zone items only, `12`; cascades like the other `behavior` keys) |
+  | `behavior.active_flash_ms` | 150 | 0–2 000 ms (visual feedback, `05`; 0 = no flash; cascades like the other `behavior` keys) |
 
 - **Levels:** each can be set at profile, board, layer, group or item level wherever the cascade allows (`behavior`, above), so a user can, for example, use a longer dwell on just the Backspace key.
 - **Adjusting in Settings:** grouped by input method, with a **live preview** (e.g. a test target showing dwell timing, a live score bar with the on/off levels for each expression). Every value has a **reset to default** and **reset to assessment value**.

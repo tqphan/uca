@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use serde::de::{Deserialize, Deserializer};
 
 use crate::board::{Group, Item};
-use crate::values::{Color, FontWeight, Id};
+use crate::values::{Color, DwellIndicator, FontWeight, Id};
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -24,6 +24,7 @@ pub struct ThemeFile {
     pub groups: BTreeMap<String, Group>,
     #[serde(default)]
     pub templates: BTreeMap<String, Item>,
+    pub dwell_indicator: Option<DwellIndicator>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -973,6 +973,12 @@
       "description": "Behavior (02). Numbers are checked against the settings registry.",
       "type": "object",
       "properties": {
+        "active_flash_ms": {
+          "description": "Setting `behavior.active_flash_ms` (ms)",
+          "type": "integer",
+          "maximum": 2000.0,
+          "minimum": 0.0
+        },
         "confirm": {
           "type": [
             "boolean",
@@ -1169,6 +1175,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/ClickThrough"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dwell_indicator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DwellIndicator"
             },
             {
               "type": "null"
@@ -1527,6 +1543,52 @@
         "trace"
       ]
     },
+    "DwellIndicator": {
+      "description": "How dwell progress is shown (05); cascades like `font`.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DwellIndicatorKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "width": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "DwellIndicatorKind": {
+      "type": "string",
+      "enum": [
+        "ring",
+        "fill",
+        "bar",
+        "shrink"
+      ]
+    },
     "Filter": {
       "description": "Point pipeline settings for one source (03 \"PointPipeline\").",
       "type": "object",
@@ -1676,6 +1738,16 @@
             }
           ]
         },
+        "dwell_indicator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DwellIndicator"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "style": {
           "$ref": "#/$defs/Style"
         }
@@ -1819,6 +1891,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Cell"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dwell_indicator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DwellIndicator"
             },
             {
               "type": "null"
@@ -2022,6 +2104,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Border"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dwell_indicator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DwellIndicator"
             },
             {
               "type": "null"
@@ -2689,6 +2781,16 @@
     "ThemeFile": {
       "type": "object",
       "properties": {
+        "dwell_indicator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DwellIndicator"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "fonts": {
           "description": "Family name → weight → source.",
           "type": "object",

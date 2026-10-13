@@ -14,8 +14,8 @@ use crate::board::{ActionSetEntry, Board, BoardFile, Group, Item, Layer};
 use crate::settings_registry::{self, SettingValue};
 use crate::theme::ThemeFile;
 use crate::values::{
-    Align, Behavior, Border, BorderStyle, Color, Font, Four, Groups, Hold, Length, Opacity, Shadow,
-    State, States, Style,
+    Align, Behavior, Border, BorderStyle, Color, DwellIndicator, DwellIndicatorKind, Font, Four,
+    Groups, Hold, Length, Opacity, Shadow, State, States, Style,
 };
 
 /// The group an item belongs to when it names none (02).
@@ -101,6 +101,15 @@ impl Merge for Behavior {
         replace(&mut self.confirm, &o.confirm);
         replace(&mut self.confirm_window_ms, &o.confirm_window_ms);
         replace(&mut self.enter_delay_ms, &o.enter_delay_ms);
+        replace(&mut self.active_flash_ms, &o.active_flash_ms);
+    }
+}
+
+impl Merge for DwellIndicator {
+    fn merge_from(&mut self, o: &Self) {
+        replace(&mut self.kind, &o.kind);
+        replace(&mut self.color, &o.color);
+        replace(&mut self.width, &o.width);
     }
 }
 
@@ -116,6 +125,7 @@ impl Merge for Group {
     fn merge_from(&mut self, o: &Self) {
         self.style.merge_from(&o.style);
         deep(&mut self.behavior, &o.behavior);
+        deep(&mut self.dwell_indicator, &o.dwell_indicator);
     }
 }
 
@@ -155,6 +165,7 @@ impl Merge for Item {
         deep(&mut self.font, &o.font);
         deep(&mut self.shadow, &o.shadow);
         deep(&mut self.behavior, &o.behavior);
+        deep(&mut self.dwell_indicator, &o.dwell_indicator);
         self.states.merge_from(&o.states);
         replace(&mut self.group, &o.group);
         replace(&mut self.extends, &o.extends);
@@ -241,6 +252,14 @@ pub struct ResolvedBehavior {
     pub confirm: bool,
     pub confirm_window_ms: f64,
     pub enter_delay_ms: f64,
+    pub active_flash_ms: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedDwellIndicator {
+    pub kind: DwellIndicatorKind,
+    pub color: Rgba,
+    pub width: Length,
 }
 
 /// Built-in style defaults (02 cascade level 1).
@@ -267,6 +286,15 @@ pub fn builtin_style() -> Style {
     }
 }
 
+/// Built-in dwell indicator (05): a ring, #ffcc00, 6 logical px.
+pub fn builtin_dwell_indicator() -> DwellIndicator {
+    DwellIndicator {
+        kind: Some(DwellIndicatorKind::Ring),
+        color: Some(Color::Rgba([0xff, 0xcc, 0x00, 255])),
+        width: Some(Length::Px(6.0)),
+    }
+}
+
 /// Built-in behavior defaults: registry defaults, `hold: release`, `confirm: false`.
 pub fn builtin_behavior() -> Behavior {
     let default = |key: &str| settings_registry::get(key).ok().map(|d| d.default);
@@ -280,6 +308,7 @@ pub fn builtin_behavior() -> Behavior {
         confirm: Some(false),
         confirm_window_ms: default("behavior.confirm_window_ms"),
         enter_delay_ms: default("behavior.enter_delay_ms"),
+        active_flash_ms: default("behavior.active_flash_ms"),
     }
 }
 
@@ -306,6 +335,7 @@ pub struct ResolvedItem {
     /// The item with its template chain merged in (labels, actions, …).
     pub item: Item,
     pub behavior: ResolvedBehavior,
+    pub dwell_indicator: ResolvedDwellIndicator,
     base: Style,
     states: States,
     parent_opacity: f64,
@@ -403,12 +433,18 @@ impl<'a> Cascade<'a> {
         let mut style = builtin_style();
         let mut behavior = builtin_behavior();
         let mut states = States::new();
+        let mut indicator = builtin_dwell_indicator();
+        deep_into(
+            &mut indicator,
+            self.theme.and_then(|t| t.dwell_indicator.as_ref()),
+        );
         // Level 3: template chain.
         style.merge_from(&own_style(&template));
         if let Some(b) = &template.behavior {
             behavior.merge_from(b);
         }
         states.merge_from(&template.states);
+        deep_into(&mut indicator, template.dwell_indicator.as_ref());
         // Level 4: groups in listed order; the last wins.
         let groups = effective
             .group
@@ -421,14 +457,16 @@ impl<'a> Cascade<'a> {
                 if let Some(b) = &g.behavior {
                     behavior.merge_from(b);
                 }
+                deep_into(&mut indicator, g.dwell_indicator.as_ref());
             }
         }
         // Levels 5–6: board and layer inheritable keys (font, behavior).
-        for (font, b) in [
-            (&board.font, &board.behavior),
-            (&layer.font, &layer.behavior),
+        for (font, b, ind) in [
+            (&board.font, &board.behavior, &board.dwell_indicator),
+            (&layer.font, &layer.behavior, &layer.dwell_indicator),
         ] {
             deep(&mut style.font, font);
+            deep_into(&mut indicator, ind.as_ref());
             if let Some(b) = b {
                 behavior.merge_from(b);
             }
@@ -439,16 +477,35 @@ impl<'a> Cascade<'a> {
             behavior.merge_from(b);
         }
         states.merge_from(&item.states);
+        deep_into(&mut indicator, item.dwell_indicator.as_ref());
 
         let parent_opacity = opacity(&board.opacity) * opacity(&layer.opacity);
+        let vars = self.vars();
+        let color = |c: &Option<Color>| match c {
+            Some(Color::Rgba(rgba)) => *rgba,
+            Some(Color::Var(name)) => vars.get(name).copied().unwrap_or([0xff, 0xcc, 0x00, 255]),
+            None => [0xff, 0xcc, 0x00, 255],
+        };
+        let dwell_indicator = ResolvedDwellIndicator {
+            kind: indicator.kind.unwrap_or(DwellIndicatorKind::Ring),
+            color: color(&indicator.color),
+            width: indicator.width.unwrap_or(Length::Px(6.0)),
+        };
         ResolvedItem {
             item: effective,
             behavior: resolve_behavior(&behavior),
+            dwell_indicator,
             base: style,
             states,
             parent_opacity,
-            vars: self.vars(),
+            vars,
         }
+    }
+}
+
+fn deep_into(base: &mut DwellIndicator, over: Option<&DwellIndicator>) {
+    if let Some(o) = over {
+        base.merge_from(o);
     }
 }
 
@@ -556,6 +613,7 @@ fn resolve_behavior(b: &Behavior) -> ResolvedBehavior {
         confirm: b.confirm.unwrap_or(false),
         confirm_window_ms: number(b.confirm_window_ms, "behavior.confirm_window_ms"),
         enter_delay_ms: number(b.enter_delay_ms, "behavior.enter_delay_ms"),
+        active_flash_ms: number(b.active_flash_ms, "behavior.active_flash_ms"),
     }
 }
 
@@ -571,6 +629,7 @@ fn unresolve_behavior(r: &ResolvedBehavior) -> Behavior {
         confirm: Some(r.confirm),
         confirm_window_ms: n(r.confirm_window_ms),
         enter_delay_ms: n(r.enter_delay_ms),
+        active_flash_ms: n(r.active_flash_ms),
     }
 }
 
@@ -746,6 +805,45 @@ layers:
                 blur: Length::Px(0.0),
                 color: [0, 0, 0, 255]
             })
+        );
+    }
+
+    #[test]
+    fn dwell_indicator_and_flash_cascade() {
+        let theme = parse_theme(
+            "schema: uca/1
+vars: { hi: \"#00ff00\" }
+dwell_indicator: { color: $hi }
+",
+            Path::new("t.yaml"),
+        )
+        .expect("theme");
+        let board = parse_board(
+            "schema: uca/1
+board: { id: b, theme: t, dwell_indicator: { width: 10 }, behavior: { active_flash_ms: 400 } }
+layers: [ { id: l, layout: { type: row }, items: [ { id: x, dwell_indicator: { kind: bar } }, { id: y } ] } ]
+",
+            Path::new("b.yaml"),
+        )
+        .expect("board");
+        let cascade = Cascade::new(&board, Some(&theme));
+        let layer = &board.layers[0];
+        let x = cascade.item(layer, &layer.items[0]);
+        assert_eq!(
+            x.dwell_indicator,
+            ResolvedDwellIndicator {
+                kind: DwellIndicatorKind::Bar,
+                color: [0, 255, 0, 255],
+                width: Length::Px(10.0),
+            }
+        );
+        assert_eq!(x.behavior.active_flash_ms, 400.0);
+        let plain = Cascade::new(&board, None).item(layer, &layer.items[1]);
+        assert_eq!(plain.dwell_indicator.kind, DwellIndicatorKind::Ring);
+        assert_eq!(
+            plain.dwell_indicator.color,
+            [0xff, 0xcc, 0x00, 255],
+            "built-in"
         );
     }
 

@@ -67,6 +67,7 @@ setting_fns! {
     d_cutoff => "filter.one_euro.d_cutoff",
     alpha => "filter.ema.alpha",
     resume_delay_ms => "presence.resume_delay_ms",
+    active_flash_ms => "behavior.active_flash_ms",
 }
 
 #[cfg(test)]

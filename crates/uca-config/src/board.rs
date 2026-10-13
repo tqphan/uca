@@ -10,8 +10,8 @@ use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
 
 use crate::action::{ActionSeq, KeyArg, Mode, MonitorRef, MonitorRefArg, Repeat};
 use crate::values::{
-    is_id, Behavior, Border, Color, Font, Four, Groups, Id, Length, Opacity, Position, Shadow,
-    Size, States, Style,
+    is_id, Behavior, Border, Color, DwellIndicator, Font, Four, Groups, Id, Length, Opacity,
+    Position, Shadow, Size, States, Style,
 };
 
 /// Adds the base properties shared by board, layer and item (02) to a struct.
@@ -29,6 +29,7 @@ macro_rules! with_base {
             pub font: Option<Font>,
             pub shadow: Option<Shadow>,
             pub behavior: Option<Behavior>,
+            pub dwell_indicator: Option<DwellIndicator>,
             #[serde(default)]
             pub states: States,
             pub group: Option<Groups>,
@@ -302,6 +303,7 @@ pub struct Group {
     #[serde(default)]
     pub style: Style,
     pub behavior: Option<Behavior>,
+    pub dwell_indicator: Option<DwellIndicator>,
 }
 
 /// `when: <pattern> [in: <context>] do: <actions>` or with stages (04 "Bindings").

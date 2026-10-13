@@ -324,6 +324,15 @@ pub static SETTINGS: &[SettingDef] = &[
         None,
         "setting-behavior-enter-delay-ms",
     ),
+    def(
+        "behavior.active_flash_ms",
+        Millis,
+        N(150.0),
+        0.0,
+        2_000.0,
+        None,
+        "setting-behavior-active-flash-ms",
+    ),
 ];
 
 pub fn get(key: &str) -> Result<&'static SettingDef, SettingError> {

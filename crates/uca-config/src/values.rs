@@ -318,6 +318,27 @@ pub struct Behavior {
     #[serde(default, deserialize_with = "setting::enter_delay_ms")]
     #[schemars(schema_with = "crate::setting::schema::enter_delay_ms")]
     pub enter_delay_ms: Option<SettingValue>,
+    #[serde(default, deserialize_with = "setting::active_flash_ms")]
+    #[schemars(schema_with = "crate::setting::schema::active_flash_ms")]
+    pub active_flash_ms: Option<SettingValue>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum DwellIndicatorKind {
+    Ring,
+    Fill,
+    Bar,
+    Shrink,
+}
+
+/// How dwell progress is shown (05); cascades like `font`.
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DwellIndicator {
+    pub kind: Option<DwellIndicatorKind>,
+    pub color: Option<Color>,
+    pub width: Option<Length>,
 }
 
 #[derive(

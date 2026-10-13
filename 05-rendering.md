@@ -57,7 +57,8 @@ Platform emits `MonitorsChanged` on hot-plug, resolution or scale change → ren
     - No system fonts by default: themes register font files (see `02`); system fonts are found with `fontdb`.
     - Font weight: each weight is a separate registered font, so `weight` selects the nearest registered file for that family.
     - Right-to-left and mixed-direction text: shaping works on egui ≥ 0.36, but bidi ordering and RTL caret placement are not yet in egui. `uca-render` applies a run-based bidi workaround, and RTL editing avoids `TextEdit`. See `17`.
-- **Version.** egui ≥ 0.36 (needed for `harfrust` text shaping, `17`). One `egui` / `egui-winit` / `egui-wgpu` version pinned in the workspace `Cargo.toml`; upgrades are a separate task with snapshot tests re-run.
+- **Version.** egui ≥ 0.36 (needed for `harfrust` text shaping, `17`). One `egui` / `egui-winit` / `egui-wgpu` version pinned in the workspace `Cargo.toml`; upgrades are a separate task with snapshot tests re-run. Decided: exactly `=0.36.2` for `egui`, `egui-winit`, `egui-wgpu`, `egui_glow` and `egui_kittest`.
+- **Tray icon (decided):** the `tray-icon` crate.
 
 ## Frame scheduling
 
@@ -77,6 +78,15 @@ Item states drive style overrides from config (`states:` in `02`). Required buil
 | `scan-focus` | thick high-contrast outline (≥ 4 logical px), configurable color |
 | `latched` | modifier key, or item with an open `hold: toggle` activation, shows inverted style; locked = plus underline |
 | `disabled` | 40 % opacity (also items with no entry in any active action set) |
+
+Decided details:
+- **Dwell indicator:** configured with `dwell_indicator: { kind: ring | fill | bar | shrink, color, width }` on a board, layer, item, group or theme. It cascades and is inherited like `font`. The default is `ring`, `#ffcc00`, 6 logical px.
+- **Built-in state visuals**, used where the theme's `states:` don't set them:
+    - hover: the border colour is 40 % brighter (towards white)
+    - latched: background and font colour are swapped
+    - locked: as latched, plus a 3 px underline under the label
+    - disabled: opacity × 0.4
+    - active: flashes for `behavior.active_flash_ms`, a registry setting set in `behavior` (default 150, range 0–2 000 ms, 0 = no flash), or for the whole activation if it lasts longer
 
 **Action sets.** Items draw the label, icon and tooltip of their resolved action set (`04`). While any set other than `default` is active, each board shows a small indicator listing the active sets with their `label` and `color` (`board.show_action_sets`, default true).
 

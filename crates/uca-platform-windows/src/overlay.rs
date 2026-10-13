@@ -1,0 +1,141 @@
+// SPDX-FileCopyrightText: The UCA contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+//! Board overlay windows (05, 07): topmost, never activated, not in the taskbar
+//! or Alt+Tab, optional click-through, and AppBar space reservation.
+
+use uca_platform::{Edge, OverlayOptions, PlatformError, RawWindowHandle, RectPhys, Result};
+use windows_sys::Win32::Foundation::{HWND, RECT};
+use windows_sys::Win32::UI::Shell::{
+    SHAppBarMessage, ABE_BOTTOM, ABE_LEFT, ABE_RIGHT, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE,
+    ABM_SETPOS, APPBARDATA,
+};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
+    HWND_TOPMOST, LWA_ALPHA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    WS_EX_TRANSPARENT,
+};
+
+fn hwnd(w: RawWindowHandle) -> Result<HWND> {
+    match w {
+        RawWindowHandle::Win32(h) => Ok(h.hwnd.get() as HWND),
+        _ => Err(PlatformError::Unsupported("not a Win32 window")),
+    }
+}
+
+fn update_ex_style(h: HWND, set: u32, clear: u32) {
+    // SAFETY: style changes on a window handle owned by this process.
+    unsafe {
+        let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as u32;
+        let new = (ex | set) & !clear;
+        if new != ex {
+            SetWindowLongPtrW(h, GWL_EXSTYLE, new as isize);
+        }
+    }
+}
+
+pub fn configure(w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
+    let h = hwnd(w)?;
+    let mut set = WS_EX_TOOLWINDOW;
+    if opts.no_focus {
+        set |= WS_EX_NOACTIVATE;
+    }
+    if opts.topmost {
+        set |= WS_EX_TOPMOST;
+    }
+    update_ex_style(h, set, WS_EX_APPWINDOW);
+    if opts.topmost {
+        // SAFETY: reorders our own window without moving, sizing or activating it.
+        unsafe {
+            SetWindowPos(
+                h,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            );
+        }
+    }
+    Ok(())
+}
+
+pub fn click_through(w: RawWindowHandle, through: bool) -> Result<()> {
+    let h = hwnd(w)?;
+    if through {
+        update_ex_style(h, WS_EX_LAYERED | WS_EX_TRANSPARENT, 0);
+        // A layered window needs attributes to stay visible.
+        // SAFETY: fully opaque alpha on our own window.
+        unsafe { SetLayeredWindowAttributes(h, 0, 255, LWA_ALPHA) };
+    } else {
+        update_ex_style(h, 0, WS_EX_TRANSPARENT);
+    }
+    Ok(())
+}
+
+fn rect(r: RectPhys) -> RECT {
+    RECT {
+        left: r.x.round() as i32,
+        top: r.y.round() as i32,
+        right: (r.x + r.width).round() as i32,
+        bottom: (r.y + r.height).round() as i32,
+    }
+}
+
+fn appbar(h: HWND) -> APPBARDATA {
+    // SAFETY: APPBARDATA is plain data; cbSize and hWnd are set before use.
+    let mut d: APPBARDATA = unsafe { std::mem::zeroed() };
+    d.cbSize = std::mem::size_of::<APPBARDATA>() as u32;
+    d.hWnd = h;
+    d
+}
+
+pub fn reserve_edge(w: RawWindowHandle, edge: Edge, monitor: RectPhys, size: u32) -> Result<()> {
+    let h = hwnd(w)?;
+    let mut d = appbar(h);
+    // SAFETY: registering our own window as an app bar; repeated ABM_NEW is harmless.
+    unsafe { SHAppBarMessage(ABM_NEW, &mut d) };
+    let size = size as i32;
+    let mut r = rect(monitor);
+    d.uEdge = match edge {
+        Edge::Top => ABE_TOP,
+        Edge::Bottom => ABE_BOTTOM,
+        Edge::Left => ABE_LEFT,
+        Edge::Right => ABE_RIGHT,
+    };
+    d.rc = r;
+    // SAFETY: the shell adjusts `d.rc` to a free position on the edge.
+    unsafe { SHAppBarMessage(ABM_QUERYPOS, &mut d) };
+    r = d.rc;
+    match edge {
+        Edge::Top => r.bottom = r.top + size,
+        Edge::Bottom => r.top = r.bottom - size,
+        Edge::Left => r.right = r.left + size,
+        Edge::Right => r.left = r.right - size,
+    }
+    d.rc = r;
+    // SAFETY: reserves the rectangle and moves our window into it.
+    unsafe {
+        SHAppBarMessage(ABM_SETPOS, &mut d);
+        SetWindowPos(
+            h,
+            HWND_TOPMOST,
+            d.rc.left,
+            d.rc.top,
+            d.rc.right - d.rc.left,
+            d.rc.bottom - d.rc.top,
+            SWP_NOACTIVATE,
+        );
+    }
+    Ok(())
+}
+
+pub fn release_edge(w: RawWindowHandle) -> Result<()> {
+    let h = hwnd(w)?;
+    let mut d = appbar(h);
+    // SAFETY: unregistering our own app bar.
+    unsafe { SHAppBarMessage(ABM_REMOVE, &mut d) };
+    Ok(())
+}

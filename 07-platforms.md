@@ -79,6 +79,8 @@ Decided details:
 
 **Trait growth (decided):** like config keys and actions, the trait gains methods with the feature that needs them. M1 has output, hooks, monitors, events, overlay, system and `clipboard_chord`. `ui_targets` / `ui_invoke` arrive in M3, `key_label` in M4 and `request_permissions` with macOS.
 
+**Overlay windows (decided):** the overlay methods take a `raw-window-handle` `RawWindowHandle`. The config dir (`02`) comes from `Platform::config_dir()`, so OS paths stay in platform crates.
+
 **Windows backend (decided):**
 - **Bindings:** the `windows-sys` crate.
 - **Absolute pointer moves:** `SendInput` with `MOUSEEVENTF_MOVE | ABSOLUTE | VIRTUALDESK`, normalised over the virtual desktop and tagged as UCA's own input (SAFETY-07).

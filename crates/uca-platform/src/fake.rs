@@ -8,8 +8,9 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    Capabilities, ClipboardOp, HookCallback, HookDecision, HookEvent, HookHandle, Key, KeyDir,
-    MonitorInfo, MouseButton, PhysPoint, Platform, PlatformEvent, Result, WindowQuery,
+    Capabilities, ClipboardOp, Edge, HookCallback, HookDecision, HookEvent, HookHandle, Key,
+    KeyDir, MonitorInfo, MouseButton, OverlayOptions, PhysPoint, Platform, PlatformEvent,
+    RawWindowHandle, RectPhys, Result, WindowQuery,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +23,10 @@ pub enum FakeCall {
     Scroll(f32, f32),
     Launch(String, Vec<String>),
     Focus(WindowQuery),
+    Overlay(OverlayOptions),
+    ClickThrough(bool),
+    ReserveEdge(Edge, u32),
+    ReleaseEdge,
 }
 
 #[derive(Default)]
@@ -186,6 +191,32 @@ impl Platform for FakePlatform {
     fn hook_mouse(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>> {
         self.lock().mouse_hooks.push(cb);
         Ok(Box::new(FakeHook))
+    }
+
+    fn configure_overlay(&self, _w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
+        self.record(FakeCall::Overlay(opts))
+    }
+
+    fn set_click_through(&self, _w: RawWindowHandle, through: bool) -> Result<()> {
+        self.record(FakeCall::ClickThrough(through))
+    }
+
+    fn reserve_edge(
+        &self,
+        _w: RawWindowHandle,
+        edge: Edge,
+        _monitor: RectPhys,
+        size_phys: u32,
+    ) -> Result<()> {
+        self.record(FakeCall::ReserveEdge(edge, size_phys))
+    }
+
+    fn release_edge(&self, _w: RawWindowHandle) -> Result<()> {
+        self.record(FakeCall::ReleaseEdge)
+    }
+
+    fn config_dir(&self) -> Option<std::path::PathBuf> {
+        None
     }
 
     fn launch(&self, path: &str, args: &[String]) -> Result<()> {

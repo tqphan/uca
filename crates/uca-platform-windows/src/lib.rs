@@ -10,14 +10,16 @@ mod hooks;
 mod inject;
 mod keys;
 mod monitors;
+mod overlay;
 mod system;
 
 use std::sync::mpsc::Sender;
 use std::sync::Mutex;
 
 use uca_platform::{
-    Capabilities, ClipboardOp, HookCallback, HookHandle, Key, KeyDir, MonitorInfo, MouseButton,
-    PhysPoint, Platform, PlatformEvent, Result, WindowQuery,
+    Capabilities, ClipboardOp, Edge, HookCallback, HookHandle, Key, KeyDir, MonitorInfo,
+    MouseButton, OverlayOptions, PhysPoint, Platform, PlatformEvent, RawWindowHandle, RectPhys,
+    Result, WindowQuery,
 };
 use windows_sys::Win32::Foundation::POINT;
 use windows_sys::Win32::Globalization::GetUserDefaultLocaleName;
@@ -110,6 +112,33 @@ impl Platform for WindowsPlatform {
 
     fn hook_mouse(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>> {
         hooks::mouse(cb)
+    }
+
+    fn configure_overlay(&self, w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
+        overlay::configure(w, opts)
+    }
+
+    fn set_click_through(&self, w: RawWindowHandle, through: bool) -> Result<()> {
+        overlay::click_through(w, through)
+    }
+
+    fn reserve_edge(
+        &self,
+        w: RawWindowHandle,
+        edge: Edge,
+        monitor: RectPhys,
+        size_phys: u32,
+    ) -> Result<()> {
+        overlay::reserve_edge(w, edge, monitor, size_phys)
+    }
+
+    fn release_edge(&self, w: RawWindowHandle) -> Result<()> {
+        overlay::release_edge(w)
+    }
+
+    fn config_dir(&self) -> Option<std::path::PathBuf> {
+        // %APPDATA%\UCA (02 "Files").
+        std::env::var_os("APPDATA").map(|d| std::path::PathBuf::from(d).join("UCA"))
     }
 
     fn launch(&self, path: &str, args: &[String]) -> Result<()> {

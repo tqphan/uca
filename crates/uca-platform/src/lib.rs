@@ -7,9 +7,12 @@
 //! The trait grows with features (07 "Trait growth"): the overlay methods
 //! arrive with the UI stack, `ui_targets` in M3, `key_label` in M4.
 
+use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
-pub use uca_types::{Key, KeyDir, MonitorInfo, MouseButton, Phase, PhysPoint, TriggerId};
+pub use raw_window_handle::RawWindowHandle;
+
+pub use uca_types::{Key, KeyDir, MonitorInfo, MouseButton, Phase, PhysPoint, RectPhys, TriggerId};
 
 pub mod fake;
 pub mod sources;
@@ -90,6 +93,23 @@ pub enum WindowQuery {
     Next,
 }
 
+/// Window properties for board overlays (05, 07).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OverlayOptions {
+    pub topmost: bool,
+    /// Never takes focus, so typing goes to the app behind (05).
+    pub no_focus: bool,
+}
+
+/// A monitor edge for space reservation (AppBar on Windows).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Edge {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClipboardOp {
     Copy,
@@ -116,7 +136,23 @@ pub trait Platform: Send + Sync {
     fn hook_keyboard(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>>;
     fn hook_mouse(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>>;
 
+    // Overlay windows (05)
+    fn configure_overlay(&self, w: RawWindowHandle, opts: OverlayOptions) -> Result<()>;
+    /// Lets mouse clicks pass through the whole window (used outside items, 05).
+    fn set_click_through(&self, w: RawWindowHandle, through: bool) -> Result<()>;
+    /// Reserves `size_phys` pixels at `edge` of `monitor` so apps aren't covered; moves `w` there.
+    fn reserve_edge(
+        &self,
+        w: RawWindowHandle,
+        edge: Edge,
+        monitor: RectPhys,
+        size_phys: u32,
+    ) -> Result<()>;
+    fn release_edge(&self, w: RawWindowHandle) -> Result<()>;
+
     // System
+    /// Where config lives (02 "Files"); `None` if the OS gives no place.
+    fn config_dir(&self) -> Option<PathBuf>;
     fn launch(&self, path: &str, args: &[String]) -> Result<()>;
     fn focus_window(&self, q: &WindowQuery) -> Result<()>;
     fn foreground_app(&self) -> Option<String>;

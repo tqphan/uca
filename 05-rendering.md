@@ -58,7 +58,10 @@ Platform emits `MonitorsChanged` on hot-plug, resolution or scale change → ren
     - Font weight: each weight is a separate registered font, so `weight` selects the nearest registered file for that family.
     - Right-to-left and mixed-direction text: shaping works on egui ≥ 0.36, but bidi ordering and RTL caret placement are not yet in egui. `uca-render` applies a run-based bidi workaround, and RTL editing avoids `TextEdit`. See `17`.
 - **Version.** egui ≥ 0.36 (needed for `harfrust` text shaping, `17`). One `egui` / `egui-winit` / `egui-wgpu` version pinned in the workspace `Cargo.toml`; upgrades are a separate task with snapshot tests re-run. Decided: exactly `=0.36.2` for `egui`, `egui-winit`, `egui-wgpu`, `egui_glow` and `egui_kittest`.
+- **Async setup (decided):** egui-wgpu's async setup is driven by a small `block_on` of UCA's own (std only); no async runtime dependency.
 - **Tray icon (decided):** the `tray-icon` crate.
+    - **Menu (M1):** Settings, Pause/Resume, Safe Board and Quit, with labels through Fluent. Quit releases everything first (SAFETY-08).
+    - **Image:** a 32 × 32 mark drawn in code until a designed logo exists: a rounded blue (#3b82f6) square with a white “U”.
 
 ## Frame scheduling
 

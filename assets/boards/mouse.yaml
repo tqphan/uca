@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: The UCA contributors
+# SPDX-License-Identifier: CC-BY-SA-4.0
+
+# Mouse control by steps (10 M1).
+# Moves the cursor in steps and clicks where it is; pointer mode replaces this in M2.
+schema: uca/1
+board:
+  id: mouse
+  title: Mouse
+  anchor: bottom
+  reserve_space: true
+  click_through: outside-items
+  theme: default
+  size: { width: 100%, height: 40% }
+  background: $board
+templates:
+  step:
+    extends: key
+    group: functions
+    behavior: { repeat_delay_ms: 500, repeat_interval_ms: 100 }
+layers:
+  - id: controls
+    layout: { type: grid, columns: 9, rows: 3, gap: 6 }
+    padding: 8
+    items:
+      # Large steps (100 logical px)
+      - { id: big-up, extends: step, cell: { col: 1, row: 0 }, label: "⇑", actions: { start: { mouse.move: { x: 0, y: -100, relative: true } }, repeat: start } }
+      - { id: big-left, extends: step, cell: { col: 0, row: 1 }, label: "⇐", actions: { start: { mouse.move: { x: -100, y: 0, relative: true } }, repeat: start } }
+      - { id: big-right, extends: step, cell: { col: 2, row: 1 }, label: "⇒", actions: { start: { mouse.move: { x: 100, y: 0, relative: true } }, repeat: start } }
+      - { id: big-down, extends: step, cell: { col: 1, row: 2 }, label: "⇓", actions: { start: { mouse.move: { x: 0, y: 100, relative: true } }, repeat: start } }
+      # Small steps (10 logical px)
+      - { id: up, extends: step, cell: { col: 4, row: 0 }, label: "↑", actions: { start: { mouse.move: { x: 0, y: -10, relative: true } }, repeat: start } }
+      - { id: left, extends: step, cell: { col: 3, row: 1 }, label: "←", actions: { start: { mouse.move: { x: -10, y: 0, relative: true } }, repeat: start } }
+      - { id: right, extends: step, cell: { col: 5, row: 1 }, label: "→", actions: { start: { mouse.move: { x: 10, y: 0, relative: true } }, repeat: start } }
+      - { id: down, extends: step, cell: { col: 4, row: 2 }, label: "↓", actions: { start: { mouse.move: { x: 0, y: 10, relative: true } }, repeat: start } }
+      # Clicks at the cursor
+      - { id: left-click, extends: key, group: others, cell: { col: 6, row: 0 }, label: "Left", font: { size: 26% }, action: { mouse.click: left } }
+      - { id: right-click, extends: key, group: others, cell: { col: 6, row: 1 }, label: "Right", font: { size: 26% }, action: { mouse.click: right } }
+      - { id: double-click, extends: key, group: others, cell: { col: 6, row: 2 }, label: "Double", font: { size: 26% }, action: { mouse.click: { button: left, count: 2 } } }
+      # Scroll and middle click
+      - { id: scroll-up, extends: step, cell: { col: 7, row: 0 }, label: "Scroll ↑", font: { size: 26% }, actions: { start: { mouse.scroll: { dy: 1 } }, repeat: start } }
+      - { id: middle-click, extends: key, group: others, cell: { col: 7, row: 1 }, label: "Middle", font: { size: 26% }, action: { mouse.click: middle } }
+      - { id: scroll-down, extends: step, cell: { col: 7, row: 2 }, label: "Scroll ↓", font: { size: 26% }, actions: { start: { mouse.scroll: { dy: -1 } }, repeat: start } }
+      # Back to the keyboard
+      - { id: keyboard, extends: key, group: others, cell: { col: 8, row: 0 }, span: { cols: 1, rows: 3 }, label: "Keyboard", font: { size: 9% }, action: { board.back: } }

@@ -217,32 +217,65 @@ fn safe_board_en_xa() {
 /// The shipped default theme and keyboard (10 M1 default assets).
 #[test]
 fn asset_qwerty() {
+    render_asset("qwerty");
+}
+
+/// The shipped mouse board (10 M1 default assets).
+#[test]
+fn asset_mouse() {
+    render_asset("mouse");
+}
+
+/// Every shipped board and theme, loaded together without errors or warnings.
+fn asset_config(start: &str) -> Arc<LoadedConfig> {
     let p = ProfilePaths {
         config_dir: PathBuf::from("cfg"),
         profile_id: "t".into(),
     };
     let mut s = Sources::default();
-    s.set(&p, &p.profile_file(), Some("schema: uca/1\nprofile:\n  name: t\n  start_board: qwerty\n  safety: { escape: \"key:* hold(3000)\" }\n".into()));
-    s.set(
-        &p,
-        &p.boards_dir().join("qwerty.yaml"),
-        Some(include_str!("../../../assets/boards/qwerty.yaml").into()),
+    let profile = format!(
+        "schema: uca/1
+profile:
+  name: t
+  start_board: {start}
+  safety: {{ escape: \"key:* hold(3000)\" }}
+"
     );
-    s.set(&p, &p.boards_dir().join("mouse.yaml"), Some("schema: uca/1\nboard: { id: mouse }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: back, action: { board.back: } } ] } ]\n".into()));
+    s.set(&p, &p.profile_file(), Some(profile));
+    let boards = [
+        (
+            "qwerty.yaml",
+            include_str!("../../../assets/boards/qwerty.yaml"),
+        ),
+        (
+            "mouse.yaml",
+            include_str!("../../../assets/boards/mouse.yaml"),
+        ),
+    ];
+    for (name, text) in boards {
+        s.set(&p, &p.boards_dir().join(name), Some(text.into()));
+    }
+    let theme = include_str!("../../../assets/themes/default.yaml");
     s.set(
         &p,
         &p.shared_themes_dir().join("default.yaml"),
-        Some(include_str!("../../../assets/themes/default.yaml").into()),
+        Some(theme.into()),
     );
     let config = match ConfigStore::from_sources(p, s).1 {
         ConfigUpdate::Applied(c) => c,
         ConfigUpdate::Rejected(i) => panic!("{i:#?}"),
     };
     assert!(config.warnings.is_empty(), "{:#?}", config.warnings);
+    config
+}
+
+/// Renders a shipped board (bottom 40 % of a 1280 × 720 monitor).
+fn render_asset(start: &str) {
+    let config = asset_config(start);
     let clock = FakeClock::new();
     let e = Engine::new(config.clone(), vec![monitor(1280.0, 720.0)]);
     let mut snap = e.snapshot(&clock);
-    // Only the board area (bottom 40 %): shift the board to the top for the image.
+    // Only the board area: shift the board to the top for the image.
     if let Some(b) = snap.board.as_mut() {
         let dy = b.rect.y;
         b.rect.y -= dy;
@@ -253,5 +286,11 @@ fn asset_qwerty() {
             }
         }
     }
-    render("asset_qwerty", &config, snap, (1280.0, 288.0), &clock);
+    render(
+        &format!("asset_{start}"),
+        &config,
+        snap,
+        (1280.0, 288.0),
+        &clock,
+    );
 }

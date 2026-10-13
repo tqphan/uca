@@ -161,11 +161,13 @@ pub fn paint_item(painter: &Painter, snapshot: &ItemSnapshot, look: &ItemLook<'_
         };
         let text = uca_i18n::strip_isolation(&look.label);
         let text_color = color(s.font.color, s.opacity);
-        let galley_rect = painter.text(pos, align, text, font, text_color);
+        // Labels never spill onto neighbouring items.
+        let clipped = painter.with_clip_rect(inner.intersect(painter.clip_rect()));
+        let galley_rect = clipped.text(pos, align, text, font, text_color);
         if snapshot.latch == Some(Latch::Locked) && !look.resolved.styles_state(State::Latched) {
             // Locked: latched look plus a 3 px underline (05).
             let y = galley_rect.bottom() + 2.0;
-            painter.line_segment(
+            clipped.line_segment(
                 [
                     Pos2::new(galley_rect.left(), y),
                     Pos2::new(galley_rect.right(), y),

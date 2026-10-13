@@ -1245,6 +1245,12 @@
         "id": {
           "$ref": "#/$defs/Id"
         },
+        "ignore_covered": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "monitor": {
           "anyOf": [
             {

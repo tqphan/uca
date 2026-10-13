@@ -114,6 +114,7 @@ impl PointPipeline {
             monitor: monitor.id,
             logical: transform.to_logical(pos),
             presence: s.presence,
+            covered: false,
         })
     }
 

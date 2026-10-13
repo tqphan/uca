@@ -404,6 +404,9 @@ impl Engine {
         if p.monitor != shown.layout.monitor {
             return None;
         }
+        if p.covered && shown.file.board.ignore_covered_or_default() {
+            return None;
+        }
         let board = shown.file.board.id.0.clone();
         for (li, layer) in shown.layout.layers.iter().enumerate().rev() {
             if !self.layer_is_visible(&board, li) {

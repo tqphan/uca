@@ -74,6 +74,7 @@ pub fn safe_board() -> BoardFile {
             reserve_space: None,
             click_through: None,
             area: None,
+            ignore_covered: None,
             theme: None,
             show_action_sets: None,
         },

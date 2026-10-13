@@ -38,9 +38,13 @@ pub trait UiWaker: Send + 'static {
     fn control(&self, c: Control);
 }
 
-fn engine_input(o: HubOutput) -> EngineInput {
+/// Marks points that another window covers on a board (02 `ignore_covered`).
+fn engine_input(o: HubOutput, platform: &dyn Platform) -> EngineInput {
     match o {
-        HubOutput::Point(p) => EngineInput::Point(p),
+        HubOutput::Point(mut p) => {
+            p.covered = platform.overlay_covered_at(p.phys);
+            EngineInput::Point(p)
+        }
         HubOutput::Escape(e) => EngineInput::Escape(e),
         HubOutput::Trigger(t) => EngineInput::Trigger(t),
         HubOutput::Gesture(g) => EngineInput::Gesture(g),
@@ -49,16 +53,29 @@ fn engine_input(o: HubOutput) -> EngineInput {
     }
 }
 
+/// What the engine thread talks to.
+pub struct EngineLinks {
+    pub platform: Arc<dyn Platform>,
+    pub rx: Receiver<Msg>,
+    pub intents: Sender<Intent>,
+    pub shared: Arc<Mutex<Shared>>,
+    pub consume: ConsumeSet,
+}
+
 /// The engine loop (01): signals, config, controls and timers in one place.
 pub fn run_engine(
     config: Arc<LoadedConfig>,
     monitors: Vec<MonitorInfo>,
-    rx: Receiver<Msg>,
-    intents: Sender<Intent>,
-    shared: Arc<Mutex<Shared>>,
-    consume: ConsumeSet,
+    links: EngineLinks,
     waker: impl UiWaker,
 ) {
+    let EngineLinks {
+        platform,
+        rx,
+        intents,
+        shared,
+        consume,
+    } = links;
     let clock = SystemClock;
     let mut monitors = monitors;
     let mut hub = InputHub::new(&config.profile.profile.inputs, monitors.clone());
@@ -78,7 +95,7 @@ pub fn run_engine(
         match msg {
             Ok(Msg::Signal(s)) => {
                 for out in hub.on_signal(s) {
-                    engine.on_signal(engine_input(out), &clock);
+                    engine.on_signal(engine_input(out, platform.as_ref()), &clock);
                 }
             }
             Ok(Msg::Config(ConfigUpdate::Applied(c))) => {
@@ -100,7 +117,7 @@ pub fn run_engine(
             Ok(Msg::Quit) | Err(RecvTimeoutError::Disconnected) => break,
             Err(RecvTimeoutError::Timeout) => {
                 for out in hub.on_tick(clock.now()) {
-                    engine.on_signal(engine_input(out), &clock);
+                    engine.on_signal(engine_input(out, platform.as_ref()), &clock);
                 }
                 engine.on_tick(&clock);
             }

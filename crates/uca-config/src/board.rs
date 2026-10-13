@@ -65,6 +65,7 @@ with_base! {
         pub reserve_space: Option<bool>,
         pub click_through: Option<ClickThrough>,
         pub area: Option<Area>,
+        pub ignore_covered: Option<bool>,
         pub theme: Option<String>,
         pub show_action_sets: Option<bool>,
     }
@@ -123,6 +124,11 @@ impl Board {
     /// anchor, and by default there.
     pub fn reserves_space(&self) -> bool {
         self.anchor_or_default().is_edge() && self.reserve_space != Some(false)
+    }
+
+    /// `ignore_covered`, `true` when absent (02, decided).
+    pub fn ignore_covered_or_default(&self) -> bool {
+        self.ignore_covered.unwrap_or(true)
     }
 
     /// What the board is laid out in (02, decided): `work` by default for a

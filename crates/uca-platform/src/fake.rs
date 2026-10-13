@@ -184,6 +184,10 @@ impl Platform for FakePlatform {
         self.lock().cursor
     }
 
+    fn overlay_covered_at(&self, _p: PhysPoint) -> bool {
+        false
+    }
+
     fn hook_keyboard(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>> {
         self.lock().keyboard_hooks.push(cb);
         Ok(Box::new(FakeHook))

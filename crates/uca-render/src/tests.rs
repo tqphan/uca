@@ -90,6 +90,7 @@ fn point(clock: &FakeClock, x: f64, y: f64) -> EngineInput {
             y: LogPx(y),
         },
         presence: true,
+        covered: false,
     })
 }
 

@@ -121,6 +121,7 @@ board:
   reserve_space: true       # Windows AppBar-style: shrink work area so apps aren't covered
   click_through: outside-items  # none | outside-items | all
   area: work                # full | work — what a reserving board is laid out in
+  ignore_covered: true      # points where another window covers the board don't hover or dwell
   theme: default
   show_action_sets: true    # indicator of active non-default action sets (05)
   position: { x: 0, y: 60% }
@@ -153,6 +154,10 @@ layers:      [ Layer ]
   - `full`: they are measured on the monitor's full bounds, so the board may cover the taskbar.
   - The work area used here never excludes UCA's own reserved strips, or a board would push itself away from the edge.
   - `area` only applies to boards that reserve space. Set on any other board, the validator warns, the board still loads, and the full bounds are used.
+- **`ignore_covered` (decided):** a board without it is `true`.
+  - With `true`, a pointer sample over a part of the board that another window covers (a tray or context menu, a popup, another always-on-top window) counts as off the board: it doesn't hover, dwell or activate anything. This applies to every pointer source (mouse, gaze, head).
+  - With `false`, the board reacts wherever the pointer is, even under other windows.
+  - The platform reports whether a window is above the board window at the point; windows that let clicks through are not counted.
 - **Default sizes:**
   - A board without `size` covers 100 % × 100 % of its monitor.
   - A layer without `size` fills its board's content box (inside the board's padding).

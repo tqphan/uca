@@ -131,6 +131,9 @@ pub trait Platform: Send + Sync {
     fn mouse_button(&self, b: MouseButton, dir: KeyDir) -> Result<()>;
     fn mouse_scroll(&self, dx: f32, dy: f32) -> Result<()>;
     fn cursor_pos(&self) -> Option<PhysPoint>;
+    /// Whether another window lies above a UCA overlay at `p` (02 `ignore_covered`).
+    /// `false` where no overlay is. Windows that let clicks through don't count.
+    fn overlay_covered_at(&self, p: PhysPoint) -> bool;
 
     // Global input hooks (switches)
     fn hook_keyboard(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>>;

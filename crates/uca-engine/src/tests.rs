@@ -112,6 +112,8 @@ struct Rig {
     clock: FakeClock,
     /// (ms since start, intent)
     log: Vec<(u64, Intent)>,
+    /// Points are sent as covered by another window.
+    covered: bool,
 }
 
 impl Rig {
@@ -124,6 +126,7 @@ impl Rig {
             e: Engine::new(config(main), vec![monitor()]),
             clock: FakeClock::new(),
             log: Vec::new(),
+            covered: false,
         }
     }
 
@@ -179,6 +182,7 @@ impl Rig {
                 y: LogPx(50.0),
             },
             presence: present,
+            covered: self.covered,
         };
         self.input(ms, EngineInput::Point(p));
     }
@@ -266,6 +270,31 @@ fn dwell_timing() {
     r.on(600, 0);
     r.run_to(2000);
     assert_eq!(r.taps(), vec![tap(900, "KeyA")]);
+}
+
+/// 02 `ignore_covered`: a covered point is off the board unless the board says `false`.
+#[test]
+fn covered_points_do_not_dwell() {
+    let mut r = Rig::new();
+    r.on(0, 0);
+    r.covered = true;
+    r.on(100, 0);
+    r.run_to(2000);
+    assert_eq!(
+        r.taps(),
+        vec![],
+        "covered from 100 ms on: the dwell is left"
+    );
+
+    let main = MAIN.replace(
+        "board: { id: main,",
+        "board: { id: main, ignore_covered: false,",
+    );
+    let mut r = Rig::with(&main);
+    r.covered = true;
+    r.on(0, 0);
+    r.run_to(2000);
+    assert_eq!(r.taps(), vec![tap(800, "KeyA")]);
 }
 
 #[test]
@@ -599,6 +628,7 @@ fn safe_board_items() {
             y: LogPx(800.0),
         },
         presence: true,
+        covered: false,
     };
     r.input(3100, EngineInput::Point(p));
     r.trigger(3200, "key:F13", Phase::Down, false);

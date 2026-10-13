@@ -41,6 +41,9 @@ pub struct FilteredPoint {
     pub monitor: MonitorId,
     pub logical: LogPoint,
     pub presence: bool,
+    /// Another window covers a UCA board at this point (02 `ignore_covered`).
+    /// Set by the app from the platform; the pipeline leaves it `false`.
+    pub covered: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

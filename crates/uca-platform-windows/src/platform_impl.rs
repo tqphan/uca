@@ -103,6 +103,10 @@ impl Platform for WindowsPlatform {
         hooks::mouse(cb)
     }
 
+    fn overlay_covered_at(&self, p: uca_types::PhysPoint) -> bool {
+        overlay::covered_at(p)
+    }
+
     fn configure_overlay(&self, w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
         overlay::configure(w, opts)
     }

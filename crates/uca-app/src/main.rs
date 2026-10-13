@@ -72,18 +72,18 @@ fn main() -> ExitCode {
     let (engine_shared, engine_consume, engine_monitors) =
         (shared.clone(), consume.clone(), monitors.clone());
     let waker = ProxyWaker(proxy.clone());
+    let engine_platform = platform.clone();
     match std::thread::Builder::new()
         .name("engine".into())
         .spawn(move || {
-            threads::run_engine(
-                config,
-                engine_monitors,
-                engine_rx,
-                intent_tx,
-                engine_shared,
-                engine_consume,
-                waker,
-            )
+            let links = threads::EngineLinks {
+                platform: engine_platform,
+                rx: engine_rx,
+                intents: intent_tx,
+                shared: engine_shared,
+                consume: engine_consume,
+            };
+            threads::run_engine(config, engine_monitors, links, waker)
         }) {
         Ok(t) => threads.push(t),
         Err(e) => {

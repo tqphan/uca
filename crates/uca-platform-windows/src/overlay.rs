@@ -7,16 +7,20 @@
 use std::sync::Mutex;
 
 use uca_platform::{Edge, OverlayOptions, PlatformError, RawWindowHandle, RectPhys, Result};
-use windows_sys::Win32::Foundation::{HWND, RECT};
+use uca_types::PhysPoint;
+use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
+use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
+use windows_sys::Win32::Graphics::Gdi::PtInRect;
 use windows_sys::Win32::UI::Shell::{
     SHAppBarMessage, ABE_BOTTOM, ABE_LEFT, ABE_RIGHT, ABE_TOP, ABM_NEW, ABM_REMOVE, ABM_SETPOS,
     APPBARDATA,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow,
-    GWL_EXSTYLE, HWND_TOPMOST, LWA_ALPHA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SW_HIDE, SW_SHOWNOACTIVATE, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+    GetWindow, GetWindowLongPtrW, GetWindowRect, IsWindowVisible, SetLayeredWindowAttributes,
+    SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GW_HWNDPREV, HWND_TOPMOST, LWA_ALPHA,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE,
+    WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    WS_EX_TRANSPARENT,
 };
 
 fn hwnd(w: RawWindowHandle) -> Result<HWND> {
@@ -37,8 +41,82 @@ fn update_ex_style(h: HWND, set: u32, clear: u32) {
     }
 }
 
+/// UCA's overlay windows, for [`covered_at`].
+static OVERLAYS: Mutex<Vec<usize>> = Mutex::new(Vec::new());
+
+fn ex_style(h: HWND) -> u32 {
+    // SAFETY: reading a style of a window handle; a stale handle returns 0.
+    unsafe { GetWindowLongPtrW(h, GWL_EXSTYLE) as u32 }
+}
+
+fn window_rect(h: HWND) -> Option<RECT> {
+    let mut r = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    // SAFETY: out-pointer to a local.
+    (unsafe { GetWindowRect(h, &mut r) } != 0).then_some(r)
+}
+
+/// Shown on screen: visible and not cloaked by DWM (hidden UWP windows are).
+fn on_screen(h: HWND) -> bool {
+    let mut cloaked: u32 = 0;
+    // SAFETY: plain queries; the out-pointer is a local of the size passed.
+    unsafe {
+        IsWindowVisible(h) != 0
+            && (DwmGetWindowAttribute(
+                h,
+                DWMWA_CLOAKED as u32,
+                (&mut cloaked as *mut u32).cast(),
+                std::mem::size_of::<u32>() as u32,
+            ) != 0
+                || cloaked == 0)
+    }
+}
+
+pub fn covered_at(p: PhysPoint) -> bool {
+    let pt = POINT {
+        x: p.x.round() as i32,
+        y: p.y.round() as i32,
+    };
+    let overlays = OVERLAYS.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    overlays.iter().any(|&o| {
+        let o = o as HWND;
+        // SAFETY: point test on a rect we own.
+        let under =
+            on_screen(o) && window_rect(o).is_some_and(|r| unsafe { PtInRect(&r, pt) } != 0);
+        if !under {
+            return false;
+        }
+        // Walk the windows above the overlay in z-order.
+        // SAFETY: z-order queries; a null handle ends the walk.
+        let mut w = unsafe { GetWindow(o, GW_HWNDPREV) };
+        while !w.is_null() {
+            let counts = !overlays.contains(&(w as usize))
+                && ex_style(w) & WS_EX_TRANSPARENT == 0
+                && on_screen(w)
+                // SAFETY: point test on a local rect.
+                && window_rect(w).is_some_and(|r| unsafe { PtInRect(&r, pt) } != 0);
+            if counts {
+                return true;
+            }
+            // SAFETY: as above.
+            w = unsafe { GetWindow(w, GW_HWNDPREV) };
+        }
+        false
+    })
+}
+
 pub fn configure(w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
     let h = hwnd(w)?;
+    {
+        let mut overlays = OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
+        if !overlays.contains(&(h as usize)) {
+            overlays.push(h as usize);
+        }
+    }
     let mut set = WS_EX_TOOLWINDOW;
     if opts.no_focus {
         set |= WS_EX_NOACTIVATE;

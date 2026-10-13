@@ -6,6 +6,7 @@
 pub mod fonts;
 pub mod model;
 pub mod paint;
+pub mod surface;
 
 pub use model::BoardModel;
 pub use paint::{paint_board, paint_item, ItemLook};

@@ -18,7 +18,7 @@ use uca_types::{
 };
 
 use crate::fonts::font_definitions;
-use crate::{paint_board, BoardModel};
+use crate::BoardModel;
 
 const PROFILE: &str = r#"schema: uca/1
 profile:
@@ -29,7 +29,7 @@ profile:
 "#;
 
 const MAIN: &str = r##"schema: uca/1
-board: { id: main, anchor: free, size: { width: 600, height: 120 }, theme: default }
+board: { id: main, anchor: free, size: { width: 600, height: 120 }, theme: default, background: "#0b1220", border: { width: 2, color: $accent, radius: 12 } }
 layers:
   - id: l
     layout: { type: row, gap: 8 }
@@ -130,8 +130,7 @@ fn render_in(
     let latched = snap.latched.clone();
     let mut harness = Harness::builder().with_size(size).build_ui(move |ui| {
         let mut model = model.lock().unwrap_or_else(|e| e.into_inner());
-        let looks = model.looks(&board, &latched, now);
-        paint_board(ui.painter(), &board, &looks);
+        model.paint(ui.painter(), &board, &latched, now);
     });
     harness.ctx.set_fonts(font_definitions());
     // Fonts apply from the next frame on.

@@ -80,6 +80,7 @@ Item states drive style overrides from config (`states:` in `02`). Required buil
 | `disabled` | 40 % opacity (also items with no entry in any active action set) |
 
 Decided details:
+- **Board and layer surfaces:** boards and layers draw their own `background`, `border` and `shadow` only when their YAML sets them, under their items. They have no built-in defaults, unlike items, so with nothing set the overlay is see-through apart from the items.
 - **Dwell indicator:** configured with `dwell_indicator: { kind: ring | fill | bar | shrink, color, width }` on a board, layer, item, group or theme. It cascades and is inherited like `font`. The default is `ring`, `#ffcc00`, 6 logical px.
 - **Built-in state visuals**, used where the theme's `states:` don't set them:
     - hover: the border colour is 40 % brighter (towards white)

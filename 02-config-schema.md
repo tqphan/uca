@@ -20,6 +20,10 @@ Config dir: Windows `%APPDATA%\UCA`, Linux `$XDG_CONFIG_HOME/uca`, macOS `~/Libr
 
 One computer can hold several user profiles, for example for schools, clinics or therapists trying set-ups.
 - **Profile id:** `[a-z0-9_-]+`. The profile has a display name and an optional picture.
+- **M1 start-up (decided, until multiple profiles arrive in M2):**
+    - With exactly one folder in `profiles/`, UCA loads it.
+    - With several, it loads the first in alphabetical order and shows a notice that choosing a profile arrives in M2.
+    - With none, or if the chosen profile is invalid, it loads the built-in safe profile (SAFETY-04) and shows a notice.
 - **Start-up never blocks on a picker.**
     - UCA opens the **last-used profile** (`app.yaml` → `last_profile`). With only one profile, it opens that one.
     - If the last profile is missing or invalid, UCA opens the next valid profile and shows a notice. If there is none, it opens the built-in safe profile (SAFETY-04).

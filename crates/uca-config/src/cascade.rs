@@ -379,6 +379,14 @@ impl<'a> Cascade<'a> {
         }
     }
 
+    /// A colour with theme variables resolved; `None` for an unknown variable.
+    pub fn color(&self, c: &Color) -> Option<Rgba> {
+        match c {
+            Color::Rgba(rgba) => Some(*rgba),
+            Color::Var(name) => self.vars().get(name).copied(),
+        }
+    }
+
     /// The merged template chain of `extends`, root first; cycles stop the chain.
     fn template_chain(&self, extends: Option<&str>) -> Item {
         let mut chain = Vec::new();

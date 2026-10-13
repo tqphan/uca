@@ -15,10 +15,13 @@ use uca_engine::{BoardSnapshot, ItemSnapshot, Latch};
 use uca_types::Key;
 
 use crate::paint::ItemLook;
+use crate::surface::Surface;
 
 pub struct BoardModel {
     pub board_id: String,
     resolved: Vec<Vec<ResolvedItem>>,
+    board_surface: Surface,
+    layer_surfaces: Vec<Surface>,
     /// When each item last became active, for the flash (05).
     active_since: BTreeMap<(usize, usize), Instant>,
     /// Items that were active at the last frame.
@@ -44,6 +47,27 @@ impl BoardModel {
             .and_then(|t| config.themes.get(t))
             .map(|(_, t)| t);
         let cascade = Cascade::new(&file, theme);
+        let b = &file.board;
+        let board_surface = Surface::new(
+            &cascade,
+            b.background.as_ref(),
+            b.border.as_ref(),
+            b.shadow.as_ref(),
+            b.opacity,
+        );
+        let layer_surfaces = file
+            .layers
+            .iter()
+            .map(|l| {
+                Surface::new(
+                    &cascade,
+                    l.background.as_ref(),
+                    l.border.as_ref(),
+                    l.shadow.as_ref(),
+                    l.opacity,
+                )
+            })
+            .collect();
         let resolved = file
             .layers
             .iter()
@@ -52,6 +76,8 @@ impl BoardModel {
         Some(Self {
             board_id: board_id.to_owned(),
             resolved,
+            board_surface,
+            layer_surfaces,
             active_since: BTreeMap::new(),
             was_active: BTreeMap::new(),
         })
@@ -134,6 +160,30 @@ impl BoardModel {
                     .collect()
             })
             .collect()
+    }
+
+    /// Paints the board: its surface, each visible layer's surface, then the items.
+    pub fn paint(
+        &mut self,
+        painter: &egui::Painter,
+        board: &BoardSnapshot,
+        latched: &[(Key, Latch)],
+        now: Instant,
+    ) {
+        let rect = |r: uca_types::RectLog| {
+            egui::Rect::from_min_size(
+                egui::pos2(r.x as f32, r.y as f32),
+                egui::vec2(r.width as f32, r.height as f32),
+            )
+        };
+        self.board_surface.paint(painter, rect(board.rect));
+        for (layer, surface) in board.layers.iter().zip(&self.layer_surfaces) {
+            if layer.visible {
+                surface.paint(painter, rect(layer.rect));
+            }
+        }
+        let looks = self.looks(board, latched, now);
+        crate::paint::paint_board(painter, board, &looks);
     }
 
     /// Whether a flash is still running (the window keeps repainting, 05).

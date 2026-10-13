@@ -202,11 +202,16 @@ fn frame_deadline(
 }
 
 /// The executor loop: device actions in order, releases on exit (SAFETY-08).
-pub fn run_executor(platform: Arc<dyn Platform>, rx: Receiver<Intent>) {
+/// `debug.*` actions go to `app_action` (11).
+pub fn run_executor(
+    platform: Arc<dyn Platform>,
+    rx: Receiver<Intent>,
+    app_action: impl Fn(uca_config::action::Action),
+) {
     let mut executor = Executor::new(Box::new(SoftwareOutput::new(platform.clone())), platform);
     for intent in rx {
-        for app_action in executor.handle(&intent) {
-            tracing::debug!(target: "uca::app", ?app_action, "debug actions arrive with the logging task");
+        for a in executor.handle(&intent) {
+            app_action(a);
         }
     }
     executor.release_all();

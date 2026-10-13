@@ -7,10 +7,12 @@
 //! the screen with the engine as a virtual board: dwell and `select` then work
 //! on it like on board items (05 "Settings window").
 
+pub mod debug_strip;
 pub mod settings;
 
 pub use settings::{
-    BoardChoice, SettingsCommand, SettingsFrame, SettingsView, StartBoardView, SETTINGS_BOARD_ID,
+    BoardChoice, DiagnosticsView, SettingsCommand, SettingsFrame, SettingsView, StartBoardView,
+    SETTINGS_BOARD_ID,
 };
 
 /// Smallest hit target of a `uca-ui` widget, in logical px (05).

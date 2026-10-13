@@ -5,6 +5,8 @@
 
 mod block_on;
 mod crash;
+mod debug_session;
+mod debug_strip;
 mod icon;
 mod settings_window;
 mod threads;
@@ -106,10 +108,14 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
 
     let mut threads = Vec::new();
     let exec_platform = platform.clone();
+    let exec_proxy = proxy.clone();
     match std::thread::Builder::new()
         .name("executor".into())
-        .spawn(move || threads::run_executor(exec_platform, intent_rx))
-    {
+        .spawn(move || {
+            threads::run_executor(exec_platform, intent_rx, |a| {
+                let _ = exec_proxy.send_event(UserEvent::App(a));
+            })
+        }) {
         Ok(t) => threads.push(t),
         Err(e) => {
             tracing::error!(target: "uca::app", error = %e, "cannot start the executor thread");
@@ -151,8 +157,13 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     let _watcher = store.and_then(|s| start_watcher(s, engine_tx.clone()));
     forward_platform_events(platform.as_ref(), engine_tx.clone(), proxy.clone());
 
+    let runtime = ui::AppRuntime {
+        threads,
+        logging: logging.clone(),
+        cli_session: debug_session_arg(),
+    };
     let mut app = App::new(
-        platform, engine_tx, shared, monitors, profile, proxy, threads,
+        platform, engine_tx, shared, monitors, profile, proxy, runtime,
     );
     // A panic on the UI thread comes out of `run_app`; shut down as for any crash.
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -207,6 +218,24 @@ fn log_options() -> uca_log::Options {
         }
     }
     options
+}
+
+/// `--debug-session <minutes>` (11); a missing or invalid value is ignored.
+fn debug_session_arg() -> Option<u32> {
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        if a == "--debug-session" {
+            let minutes = args
+                .next()
+                .and_then(|m| m.parse::<u32>().ok())
+                .filter(|&m| m > 0);
+            if minutes.is_none() {
+                tracing::warn!(target: "uca::app", "--debug-session needs a number of minutes; ignored");
+            }
+            return minutes;
+        }
+    }
+    None
 }
 
 fn app_logging(app: Option<&uca_config::app::AppFile>) -> uca_log::AppLogging {

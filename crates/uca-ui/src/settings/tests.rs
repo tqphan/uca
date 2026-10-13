@@ -18,12 +18,30 @@ struct State {
     /// A profile on disk: the start-board row is shown.
     with_boards: bool,
     save_error: Option<String>,
+    diagnostics: DiagnosticsView,
     dwell: Option<VirtualSnapshot>,
     /// Virtual items the engine activated, consumed by the next frame.
     pressed: Vec<String>,
     commands: Vec<SettingsCommand>,
     widgets: Vec<String>,
 }
+
+const DIAGNOSTICS: DiagnosticsView = DiagnosticsView {
+    minutes: 60,
+    trace: false,
+    sensitive: false,
+    active: false,
+};
+
+const SESSION_ITEMS: [&str; 7] = [
+    "session-minutes:15",
+    "session-minutes:60",
+    "session-minutes:240",
+    "session-debug",
+    "session-trace",
+    "session-sensitive",
+    "session",
+];
 
 fn boards() -> Vec<BoardChoice> {
     vec![
@@ -50,6 +68,7 @@ fn harness(paused: bool) -> Harness<'static, State> {
                     current: "qwerty",
                     save_error: s.save_error.as_deref(),
                 }),
+                diagnostics: s.diagnostics,
                 paused: s.paused,
                 dwell: s.dwell.as_ref(),
                 indicator: &indicator,
@@ -63,6 +82,7 @@ fn harness(paused: bool) -> Harness<'static, State> {
             paused,
             with_boards: true,
             save_error: None,
+            diagnostics: DIAGNOSTICS,
             dwell: None,
             pressed: Vec::new(),
             commands: Vec::new(),
@@ -78,10 +98,10 @@ fn every_interactive_widget_is_registered() {
     h.run();
     let buttons = h.query_all_by_role(Role::Button).count();
     assert_eq!(h.state().widgets.len(), buttons);
-    assert_eq!(
-        h.state().widgets,
-        vec!["board:qwerty", "board:mouse", "pause", "close"]
-    );
+    let mut expected = vec!["board:qwerty", "board:mouse"];
+    expected.extend(SESSION_ITEMS);
+    expected.extend(["pause", "close"]);
+    assert_eq!(h.state().widgets, expected);
 }
 
 #[test]
@@ -97,6 +117,7 @@ fn widgets_are_at_least_48_px() {
                 current: "qwerty",
                 save_error: None,
             }),
+            diagnostics: DIAGNOSTICS,
             paused: false,
             dwell: None,
             indicator: &indicator,
@@ -188,6 +209,40 @@ fn no_start_board_row_without_a_profile() {
     let mut h = harness(false);
     h.state_mut().with_boards = false;
     h.run();
-    assert_eq!(h.state().widgets, vec!["pause", "close"]);
+    let mut expected = SESSION_ITEMS.to_vec();
+    expected.extend(["pause", "close"]);
+    assert_eq!(h.state().widgets, expected);
     assert!(h.query_by_label("Start board").is_none());
+}
+
+/// 05, 11: the Diagnostics row gives its commands, by mouse and by the engine.
+#[test]
+fn diagnostics_row_gives_commands() {
+    let mut h = harness(false);
+    h.run();
+    for label in [
+        "15 min",
+        "Trace",
+        "Sensitive logging (records typed text)",
+        "Start debug session",
+    ] {
+        h.get_by_label(label).click();
+        h.run();
+    }
+    h.state_mut().pressed = vec!["session-minutes:240".into(), "session-debug".into()];
+    h.run();
+    assert_eq!(
+        h.state().commands,
+        vec![
+            SettingsCommand::SessionMinutes(15),
+            SettingsCommand::SessionTrace(true),
+            SettingsCommand::ToggleSensitive,
+            SettingsCommand::ToggleSession,
+            SettingsCommand::SessionMinutes(240),
+            SettingsCommand::SessionTrace(false),
+        ]
+    );
+    h.state_mut().diagnostics.active = true;
+    h.run();
+    h.get_by_label("Stop debug session");
 }

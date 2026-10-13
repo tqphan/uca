@@ -121,6 +121,8 @@ A debug session raises logging temporarily so a carer or the user can reproduce 
 - Default: level `debug` for all `uca::*` targets, 60 minutes, then automatically reverts. Options: duration (15/60/240 min), level (`debug`/`trace`), sensitive logging (off by default).
 - Start and end are logged at `info` together with the settings used.
 - A small "Debug logging on" indicator is shown while active.
+- **Decided:** `debug.session` toggles: while a session runs, it stops it (its arguments only apply when starting). A session's filter is `info,uca=<level>`; it applies through the precedence above. `--debug-session <minutes>` starts one at start-up with level `debug` and sensitive logging off.
+- **Indicator strip (decided):** a small click-through, always-on-top window of its own at the top centre of the board's monitor, 8 logical px from the top edge, 14 logical px text. It reads "Debug logging on · { $minutes } min left" (updated once a minute) on a dark grey pill with white text. With sensitive logging a second line "Sensitive logging is on — typed text is recorded" sits on an amber (#f59e0b) pill with black text. It never takes input.
 
 ## Crash flight recorder
 

@@ -260,7 +260,7 @@ mod tests {
         let p: Arc<dyn uca_platform::Platform> = Arc::new(platform.clone());
         let executor = std::thread::Builder::new()
             .name("executor".into())
-            .spawn(move || crate::threads::run_executor(p, rx))
+            .spawn(move || crate::threads::run_executor(p, rx, |_| {}))
             .unwrap();
         let engine = std::thread::Builder::new()
             .name("engine".into())

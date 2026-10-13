@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The M1 Settings window content (05 "Settings window"): the profile name,
-//! the start board, Pause/Resume and Close.
+//! the start board, Diagnostics, Pause/Resume and Close.
 
 use egui::{Align, Button, Layout, Rect, RichText, Ui, Vec2};
 use uca_config::cascade::ResolvedDwellIndicator;
@@ -17,6 +17,14 @@ pub const SETTINGS_BOARD_ID: &str = "settings";
 const ITEM_PAUSE: &str = "pause";
 const ITEM_CLOSE: &str = "close";
 const BOARD_PREFIX: &str = "board:";
+const ITEM_MINUTES_PREFIX: &str = "session-minutes:";
+const ITEM_DEBUG: &str = "session-debug";
+const ITEM_TRACE: &str = "session-trace";
+const ITEM_SENSITIVE: &str = "session-sensitive";
+const ITEM_SESSION: &str = "session";
+
+/// The debug-session durations offered, in minutes (05, 11).
+pub const SESSION_MINUTES: [u32; 3] = [15, 60, 240];
 
 /// A board the user can pick as the start board.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,10 +42,21 @@ pub struct StartBoardView<'a> {
     pub save_error: Option<&'a str>,
 }
 
+/// The Diagnostics row (05, 11): the choices for the next debug session and
+/// whether one is running.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiagnosticsView {
+    pub minutes: u32,
+    pub trace: bool,
+    pub sensitive: bool,
+    pub active: bool,
+}
+
 /// What the window shows this frame.
 pub struct SettingsView<'a> {
     pub profile_name: &'a str,
     pub start_board: Option<StartBoardView<'a>>,
+    pub diagnostics: DiagnosticsView,
     pub paused: bool,
     /// Engine hover and dwell on this screen's widgets.
     pub dwell: Option<&'a VirtualSnapshot>,
@@ -48,6 +67,11 @@ pub struct SettingsView<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SettingsCommand {
     SetStartBoard(String),
+    SessionMinutes(u32),
+    SessionTrace(bool),
+    ToggleSensitive,
+    /// Start a debug session with the chosen settings, or stop the running one.
+    ToggleSession,
     TogglePause,
     Close,
 }
@@ -112,6 +136,8 @@ pub fn show(ui: &mut Ui, view: &SettingsView<'_>, pressed: &[String]) -> Setting
             start_board(ui, view, start, row, pressed, &mut frame);
             ui.add_space(MIN_TARGET / 4.0);
         }
+        diagnostics(ui, view, row, pressed, &mut frame);
+        ui.add_space(MIN_TARGET / 4.0);
         // A row only as tall as its widgets, as `horizontal_wrapped` does.
         ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), MIN_TARGET), row, |ui| {
             let pause = if view.paused {
@@ -128,6 +154,55 @@ pub fn show(ui: &mut Ui, view: &SettingsView<'_>, pressed: &[String]) -> Setting
         });
     });
     frame
+}
+
+fn diagnostics(
+    ui: &mut Ui,
+    view: &SettingsView<'_>,
+    row: Layout,
+    pressed: &[String],
+    frame: &mut SettingsFrame,
+) {
+    let d = view.diagnostics;
+    ui.label(text(t!("settings-diagnostics")).strong());
+    ui.label(text(t!("settings-debug-session")));
+    let selectable = |selected: bool, label: String| {
+        Button::selectable(selected, text(label)).min_size(Vec2::splat(MIN_TARGET))
+    };
+    ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), MIN_TARGET), row, |ui| {
+        for minutes in SESSION_MINUTES {
+            let label = match minutes {
+                15 => t!("settings-session-15"),
+                60 => t!("settings-session-60"),
+                _ => t!("settings-session-240"),
+            };
+            let response = ui.add(selectable(d.minutes == minutes, label));
+            let id = format!("{ITEM_MINUTES_PREFIX}{minutes}");
+            let command = SettingsCommand::SessionMinutes(minutes);
+            frame.widget(ui, view, &id, &response, pressed, command);
+        }
+    });
+    ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), MIN_TARGET), row, |ui| {
+        let response = ui.add(selectable(!d.trace, t!("settings-level-debug")));
+        let command = SettingsCommand::SessionTrace(false);
+        frame.widget(ui, view, ITEM_DEBUG, &response, pressed, command);
+        let response = ui.add(selectable(d.trace, t!("settings-level-trace")));
+        let command = SettingsCommand::SessionTrace(true);
+        frame.widget(ui, view, ITEM_TRACE, &response, pressed, command);
+        let response = ui.add(selectable(d.sensitive, t!("settings-sensitive")));
+        let command = SettingsCommand::ToggleSensitive;
+        frame.widget(ui, view, ITEM_SENSITIVE, &response, pressed, command);
+    });
+    ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), MIN_TARGET), row, |ui| {
+        let label = if d.active {
+            t!("settings-session-stop")
+        } else {
+            t!("settings-session-start")
+        };
+        let response = ui.add(button(label));
+        let command = SettingsCommand::ToggleSession;
+        frame.widget(ui, view, ITEM_SESSION, &response, pressed, command);
+    });
 }
 
 fn start_board(

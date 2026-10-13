@@ -25,14 +25,18 @@ use uca_i18n::t;
 use uca_platform::{Edge, OverlayOptions, Platform};
 use uca_render::BoardModel;
 use uca_types::{LogPoint, LogPx, MonitorId, MonitorInfo, RectLog};
-use uca_ui::{BoardChoice, SettingsCommand, SettingsView, StartBoardView, SETTINGS_BOARD_ID};
+use uca_ui::{
+    BoardChoice, DiagnosticsView, SettingsCommand, SettingsView, StartBoardView, SETTINGS_BOARD_ID,
+};
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::window::{Window, WindowId, WindowLevel};
 
 use crate::block_on::block_on;
+use crate::debug_session::Sessions;
+use crate::debug_strip::{DebugStrip, StripState};
 use crate::settings_window::SettingsWindow;
 use crate::threads::{Msg, Shared, UiWaker};
 
@@ -51,6 +55,8 @@ pub enum UserEvent {
     AccessKit(egui_winit::accesskit_winit::Event),
     /// A thread panicked: shut down so `main` can restart UCA (11).
     Crashed,
+    /// A `debug.*` action from a board or binding (11).
+    App(uca_config::action::Action),
 }
 
 impl From<egui_winit::accesskit_winit::Event> for UserEvent {
@@ -119,6 +125,20 @@ pub struct App {
     threads: Vec<JoinHandle<()>>,
     /// Start a new instance after shutdown (Safe Board "Restart", 09).
     pub restart: bool,
+    logging: Arc<uca_log::Logging>,
+    sessions: Sessions,
+    /// `--debug-session <minutes>`, started once the loop runs (11).
+    cli_session: Option<u32>,
+    /// The Settings choices for the next debug session (05).
+    diagnostics: DiagnosticsView,
+    strip: Option<DebugStrip>,
+}
+
+/// The app's threads, and what it needs for logging and debug sessions.
+pub struct AppRuntime {
+    pub threads: Vec<JoinHandle<()>>,
+    pub logging: Arc<uca_log::Logging>,
+    pub cli_session: Option<u32>,
 }
 
 impl App {
@@ -129,7 +149,7 @@ impl App {
         monitors: Vec<MonitorInfo>,
         profile: Option<ProfilePaths>,
         proxy: EventLoopProxy<UserEvent>,
-        threads: Vec<JoinHandle<()>>,
+        runtime: AppRuntime,
     ) -> Self {
         Self {
             platform,
@@ -143,8 +163,18 @@ impl App {
             profile,
             tray: None,
             proxy,
-            threads,
+            threads: runtime.threads,
             restart: false,
+            logging: runtime.logging,
+            sessions: Sessions::default(),
+            cli_session: runtime.cli_session,
+            diagnostics: DiagnosticsView {
+                minutes: 60,
+                trace: false,
+                sensitive: false,
+                active: false,
+            },
+            strip: None,
         }
     }
 
@@ -610,6 +640,10 @@ impl App {
                 current: &profile.start_board.0,
                 save_error: save_error.as_deref(),
             }),
+            diagnostics: DiagnosticsView {
+                active: self.sessions.active().is_some(),
+                ..self.diagnostics
+            },
             paused: snapshot.is_some_and(|s| s.mode == Mode::Paused),
             dwell: snapshot
                 .and_then(|s| s.virtual_board.as_ref())
@@ -626,6 +660,12 @@ impl App {
                     }
                 }
                 SettingsCommand::SetStartBoard(id) => self.save_start_board(&id),
+                SettingsCommand::SessionMinutes(m) => self.diagnostics.minutes = m,
+                SettingsCommand::SessionTrace(trace) => self.diagnostics.trace = trace,
+                SettingsCommand::ToggleSensitive => {
+                    self.diagnostics.sensitive = !self.diagnostics.sensitive
+                }
+                SettingsCommand::ToggleSession => self.toggle_session_from_settings(),
                 SettingsCommand::TogglePause => self.send(Msg::Control(EngineControl::TogglePause)),
                 SettingsCommand::Close => {
                     self.close_settings();
@@ -691,6 +731,8 @@ impl App {
         if self.threads.is_empty() {
             return;
         }
+        self.sessions.stop("exit", self.logging.as_ref());
+        self.strip = None;
         self.close_settings();
         self.send(Msg::Quit);
         for t in self.threads.drain(..) {
@@ -743,6 +785,7 @@ impl ApplicationHandler<UserEvent> for App {
                 self.quit(event_loop);
             }
             UserEvent::Crashed => self.quit(event_loop),
+            UserEvent::App(action) => self.on_app_action(action),
             UserEvent::Control(Control::Recalibrate) => {
                 // M1 has no calibrated pointer sources; the mouse needs none.
                 tracing::info!(target: "uca::app", "nothing to recalibrate for the current pointer source");
@@ -766,7 +809,24 @@ impl ApplicationHandler<UserEvent> for App {
         }
     }
 
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(minutes) = self.cli_session.take() {
+            let settings = uca_config::action::DebugSession {
+                minutes,
+                level: uca_config::action::DebugLevel::Debug,
+                sensitive: false,
+            };
+            self.sessions
+                .start(settings, Instant::now(), self.logging.as_ref());
+        }
+        self.update_debug_strip(event_loop);
+    }
+
     fn window_event(&mut self, _event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        if let Some(strip) = self.strip.as_mut().filter(|s| s.id() == id) {
+            strip.on_window_event(&event);
+            return;
+        }
         if self.settings.as_ref().is_some_and(|s| s.id() == id) {
             self.settings_event(&event);
             return;
@@ -797,6 +857,75 @@ impl ApplicationHandler<UserEvent> for App {
 }
 
 impl App {
+    /// `debug.*` actions (11). Only `debug.session` exists so far.
+    fn on_app_action(&mut self, action: uca_config::action::Action) {
+        use uca_config::action::Action;
+        match action {
+            Action::DebugSession(settings) => {
+                self.sessions
+                    .toggle(settings, Instant::now(), self.logging.as_ref());
+            }
+            other => {
+                tracing::info!(target: "uca::app", action = ?other, "this debug action is not available yet");
+            }
+        }
+    }
+
+    fn toggle_session_from_settings(&mut self) {
+        use uca_config::action::{DebugLevel, DebugSession};
+        let d = self.diagnostics;
+        let settings = DebugSession {
+            minutes: d.minutes,
+            level: if d.trace {
+                DebugLevel::Trace
+            } else {
+                DebugLevel::Debug
+            },
+            sensitive: d.sensitive,
+        };
+        self.sessions
+            .toggle(settings, Instant::now(), self.logging.as_ref());
+    }
+
+    /// Ends an expired session, keeps the indicator and Settings current, and
+    /// wakes the loop when the minutes shown change (11).
+    fn update_debug_strip(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        self.sessions.tick(now, self.logging.as_ref());
+        let active = self.sessions.active().is_some();
+        if active != self.diagnostics.active {
+            self.diagnostics.active = active;
+            if let Some(s) = &self.settings {
+                s.request_redraw();
+            }
+        }
+        let shown = self
+            .sessions
+            .active()
+            .copied()
+            .zip(self.sessions.minutes_left(now))
+            .zip(self.board_monitor());
+        match shown {
+            Some(((a, minutes_left), monitor)) => {
+                if self.strip.is_none() {
+                    self.strip = DebugStrip::open(event_loop, self.platform.as_ref());
+                }
+                if let Some(strip) = &mut self.strip {
+                    strip.update(StripState {
+                        minutes_left,
+                        sensitive: a.settings.sensitive,
+                        monitor,
+                    });
+                }
+            }
+            None => self.strip = None,
+        }
+        event_loop.set_control_flow(match self.sessions.next_wake(now) {
+            Some(t) => ControlFlow::WaitUntil(t),
+            None => ControlFlow::Wait,
+        });
+    }
+
     fn settings_event(&mut self, event: &WindowEvent) {
         if let WindowEvent::RedrawRequested = event {
             self.paint_settings();

@@ -132,8 +132,13 @@ pub trait Platform: Send + Sync {
     fn mouse_scroll(&self, dx: f32, dy: f32) -> Result<()>;
     fn cursor_pos(&self) -> Option<PhysPoint>;
     /// Whether another window lies above a UCA overlay at `p` (02 `ignore_covered`).
-    /// `false` where no overlay is. Windows that let clicks through don't count.
+    /// Where no overlay is: `false`, or while windows are tracked
+    /// ([`Platform::track_covered`]), whether `p` misses every tracked window
+    /// that is visible there. Windows that let clicks through don't count.
     fn overlay_covered_at(&self, p: PhysPoint) -> bool;
+    /// Tracks an ordinary UCA window whose widgets the engine hit-tests (the
+    /// Settings window, 05) in [`Platform::overlay_covered_at`], or stops.
+    fn track_covered(&self, w: RawWindowHandle, track: bool) -> Result<()>;
 
     // Global input hooks (switches)
     fn hook_keyboard(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>>;

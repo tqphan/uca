@@ -41,7 +41,8 @@ pub struct FilteredPoint {
     pub monitor: MonitorId,
     pub logical: LogPoint,
     pub presence: bool,
-    /// Another window covers a UCA board at this point (02 `ignore_covered`).
+    /// Another window covers a UCA board at this point (02 `ignore_covered`), or,
+    /// off the boards, the point misses the Settings window where it is visible (05).
     /// Set by the app from the platform; the pipeline leaves it `false`.
     pub covered: bool,
 }

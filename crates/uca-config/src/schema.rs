@@ -240,6 +240,8 @@ impl JsonSchema for Action {
             ("pause", none.clone()),
             ("resume", none.clone()),
             ("recalibrate", none.clone()),
+            ("settings.open", none.clone()),
+            ("settings.close", none.clone()),
             (
                 "delay",
                 json!({ "type": "integer", "minimum": 0, "description": "Milliseconds." }),

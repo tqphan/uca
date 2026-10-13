@@ -188,6 +188,10 @@ impl Platform for FakePlatform {
         false
     }
 
+    fn track_covered(&self, _w: RawWindowHandle, _track: bool) -> Result<()> {
+        Ok(())
+    }
+
     fn hook_keyboard(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>> {
         self.lock().keyboard_hooks.push(cb);
         Ok(Box::new(FakeHook))

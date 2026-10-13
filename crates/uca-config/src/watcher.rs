@@ -161,4 +161,30 @@ mod tests {
         std::fs::write(&main, "schema: uca/1\nboard: { id: main\n").expect("break");
         assert!(matches!(wait(&rx), ConfigUpdate::Rejected(_)));
     }
+
+    /// A targeted save (temporary file, then rename) reloads like an edit (02, 05).
+    #[test]
+    fn a_saved_start_board_reloads() {
+        let tmp = TempDir::new("watch-save");
+        let paths = ProfilePaths {
+            config_dir: tmp.0.clone(),
+            profile_id: "alex".into(),
+        };
+        std::fs::create_dir_all(paths.boards_dir()).expect("dirs");
+        std::fs::write(paths.profile_file(), PROFILE).expect("profile");
+        std::fs::write(paths.boards_dir().join("main.yaml"), MAIN).expect("board");
+        let other = MAIN.replace("id: main", "id: other");
+        std::fs::write(paths.boards_dir().join("other.yaml"), other).expect("board");
+
+        let (store, first) = ConfigStore::load(paths.clone());
+        assert!(matches!(first, ConfigUpdate::Applied(_)), "{first:?}");
+        let (tx, rx) = mpsc::channel();
+        let _watcher = watch(store, tx).expect("watch");
+
+        crate::save::save_start_board(&paths, "other").expect("save");
+        let ConfigUpdate::Applied(live) = wait(&rx) else {
+            panic!("the save should apply");
+        };
+        assert_eq!(live.profile.profile.start_board.0, "other");
+    }
 }

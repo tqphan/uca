@@ -9,7 +9,7 @@ use std::f32::consts::{FRAC_PI_2, TAU};
 
 use egui::epaint::{CornerRadius, PathShape, PathStroke, RectShape, Shadow, StrokeKind};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke, Vec2};
-use uca_config::cascade::{ResolvedItem, ResolvedStyle, Rgba};
+use uca_config::cascade::{ResolvedDwellIndicator, ResolvedItem, ResolvedStyle, Rgba};
 use uca_config::values::{Align, BorderStyle, DwellIndicatorKind, Length, State};
 use uca_engine::{BoardSnapshot, ItemSnapshot, Latch};
 
@@ -182,20 +182,20 @@ pub fn paint_item(painter: &Painter, snapshot: &ItemSnapshot, look: &ItemLook<'_
             painter,
             rect,
             progress.clamp(0.0, 1.0),
-            look.resolved,
+            &look.resolved.dwell_indicator,
             s.opacity,
         );
     }
 }
 
-fn paint_dwell(
+/// Paints the dwell indicator over `rect` (05); also used for `uca-ui` widgets.
+pub fn paint_dwell(
     painter: &Painter,
     rect: Rect,
     progress: f32,
-    resolved: &ResolvedItem,
+    ind: &ResolvedDwellIndicator,
     opacity: f64,
 ) {
-    let ind = &resolved.dwell_indicator;
     let c = color(ind.color, opacity);
     let width = len(ind.width, rect.width()).max(1.0);
     match ind.kind {

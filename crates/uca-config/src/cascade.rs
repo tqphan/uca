@@ -407,28 +407,7 @@ impl<'a> Cascade<'a> {
     }
 
     fn vars(&self) -> BTreeMap<String, Rgba> {
-        let Some(theme) = self.theme else {
-            return BTreeMap::new();
-        };
-        let mut out = BTreeMap::new();
-        for name in theme.vars.keys() {
-            let mut seen = Vec::new();
-            let mut color = Color::Var(name.0.clone());
-            while let Color::Var(n) = &color {
-                if seen.contains(n) {
-                    break;
-                }
-                seen.push(n.clone());
-                match theme.vars.get(&crate::values::Id(n.clone())) {
-                    Some(c) => color = c.clone(),
-                    None => break,
-                }
-            }
-            if let Color::Rgba(rgba) = color {
-                out.insert(name.0.clone(), rgba);
-            }
-        }
-        out
+        self.theme.map(theme_vars).unwrap_or_default()
     }
 
     pub fn item(&self, layer: &Layer, item: &Item) -> ResolvedItem {
@@ -489,16 +468,7 @@ impl<'a> Cascade<'a> {
 
         let parent_opacity = opacity(&board.opacity) * opacity(&layer.opacity);
         let vars = self.vars();
-        let color = |c: &Option<Color>| match c {
-            Some(Color::Rgba(rgba)) => *rgba,
-            Some(Color::Var(name)) => vars.get(name).copied().unwrap_or([0xff, 0xcc, 0x00, 255]),
-            None => [0xff, 0xcc, 0x00, 255],
-        };
-        let dwell_indicator = ResolvedDwellIndicator {
-            kind: indicator.kind.unwrap_or(DwellIndicatorKind::Ring),
-            color: color(&indicator.color),
-            width: indicator.width.unwrap_or(Length::Px(6.0)),
-        };
+        let dwell_indicator = resolve_indicator(&indicator, &vars);
         ResolvedItem {
             item: effective,
             behavior: resolve_behavior(&behavior),
@@ -508,6 +478,60 @@ impl<'a> Cascade<'a> {
             parent_opacity,
             vars,
         }
+    }
+}
+
+/// The theme's colour variables with `$name` chains followed (cycles drop out).
+fn theme_vars(theme: &ThemeFile) -> BTreeMap<String, Rgba> {
+    let mut out = BTreeMap::new();
+    for name in theme.vars.keys() {
+        let mut seen = Vec::new();
+        let mut color = Color::Var(name.0.clone());
+        while let Color::Var(n) = &color {
+            if seen.contains(n) {
+                break;
+            }
+            seen.push(n.clone());
+            match theme.vars.get(&crate::values::Id(n.clone())) {
+                Some(c) => color = c.clone(),
+                None => break,
+            }
+        }
+        if let Color::Rgba(rgba) = color {
+            out.insert(name.0.clone(), rgba);
+        }
+    }
+    out
+}
+
+/// The dwell indicator of everything but board items: built-in, then the
+/// theme (`uca-ui` screens, 05 "Settings window").
+pub fn theme_dwell_indicator(theme: Option<&ThemeFile>) -> ResolvedDwellIndicator {
+    let mut indicator = builtin_dwell_indicator();
+    deep_into(
+        &mut indicator,
+        theme.and_then(|t| t.dwell_indicator.as_ref()),
+    );
+    let vars = match theme {
+        Some(t) => theme_vars(t),
+        None => BTreeMap::new(),
+    };
+    resolve_indicator(&indicator, &vars)
+}
+
+fn resolve_indicator(
+    indicator: &DwellIndicator,
+    vars: &BTreeMap<String, Rgba>,
+) -> ResolvedDwellIndicator {
+    let color = |c: &Option<Color>| match c {
+        Some(Color::Rgba(rgba)) => *rgba,
+        Some(Color::Var(name)) => vars.get(name).copied().unwrap_or([0xff, 0xcc, 0x00, 255]),
+        None => [0xff, 0xcc, 0x00, 255],
+    };
+    ResolvedDwellIndicator {
+        kind: indicator.kind.unwrap_or(DwellIndicatorKind::Ring),
+        color: color(&indicator.color),
+        width: indicator.width.unwrap_or(Length::Px(6.0)),
     }
 }
 

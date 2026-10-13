@@ -107,7 +107,7 @@ impl Executor {
                 self.release_all();
                 Vec::new()
             }
-            Intent::Control(_) => Vec::new(),
+            Intent::Control(_) | Intent::Virtual { .. } => Vec::new(),
         }
     }
 

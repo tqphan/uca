@@ -9,7 +9,9 @@ use std::time::{Duration, Instant};
 
 use uca_actions::{Executor, SoftwareOutput};
 use uca_config::store::{ConfigUpdate, LoadedConfig};
-use uca_engine::{Control, Engine, EngineControl, EngineInput, EngineSnapshot, Intent};
+use uca_engine::{
+    Control, Engine, EngineControl, EngineInput, EngineSnapshot, Intent, VirtualBoard,
+};
 use uca_input::{HubOutput, InputHub};
 use uca_platform::sources::ConsumeSet;
 use uca_platform::Platform;
@@ -22,6 +24,8 @@ pub enum Msg {
     Config(ConfigUpdate),
     Monitors(Vec<MonitorInfo>),
     Control(EngineControl),
+    /// The Settings window's widgets, or `None` when it closes (05).
+    Virtual(Option<VirtualBoard>),
     Quit,
 }
 
@@ -36,6 +40,8 @@ pub struct Shared {
 pub trait UiWaker: Send + 'static {
     fn snapshot(&self);
     fn control(&self, c: Control);
+    /// A virtual board item was activated (05 "Settings window").
+    fn virtual_item(&self, board: String, item: String);
 }
 
 /// Marks points that another window covers on a board (02 `ignore_covered`).
@@ -114,6 +120,7 @@ pub fn run_engine(
                 engine.set_monitors(monitors.clone());
             }
             Ok(Msg::Control(c)) => engine.control(c, &clock),
+            Ok(Msg::Virtual(board)) => engine.set_virtual_board(board, &clock),
             Ok(Msg::Quit) | Err(RecvTimeoutError::Disconnected) => break,
             Err(RecvTimeoutError::Timeout) => {
                 for out in hub.on_tick(clock.now()) {
@@ -123,10 +130,14 @@ pub fn run_engine(
             }
         }
         for intent in engine.drain_intents() {
-            if let Intent::Control(c) = intent {
-                waker.control(c);
-            } else if intents.send(intent).is_err() {
-                return;
+            match intent {
+                Intent::Control(c) => waker.control(c),
+                Intent::Virtual { board, item } => waker.virtual_item(board, item),
+                intent => {
+                    if intents.send(intent).is_err() {
+                        return;
+                    }
+                }
             }
         }
         frame = publish(&engine, &shared, new_config, &clock, &waker, &monitors);
@@ -166,20 +177,28 @@ fn publish(
 }
 
 /// While a dwell indicator moves, the snapshot is republished once per frame of
-/// the board's monitor (05 "Frame scheduling").
+/// the monitor it is on (05 "Frame scheduling").
 fn frame_deadline(
     snap: &EngineSnapshot,
     monitors: &[MonitorInfo],
     now: Instant,
 ) -> Option<Instant> {
-    let board = snap.board.as_ref()?;
-    let dwelling = board
-        .layers
-        .iter()
-        .flat_map(|l| &l.items)
-        .any(|i| i.dwell_progress.is_some());
-    let hz = monitors.iter().find(|m| m.id == board.monitor)?.refresh_hz;
-    (dwelling && hz > 0.0).then(|| now + Duration::from_secs_f32(1.0 / hz))
+    let on_board = snap.board.as_ref().and_then(|b| {
+        b.layers
+            .iter()
+            .flat_map(|l| &l.items)
+            .any(|i| i.dwell_progress.is_some())
+            .then_some(b.monitor)
+    });
+    let on_virtual = snap.virtual_board.as_ref().and_then(|v| {
+        v.items
+            .iter()
+            .any(|i| i.dwell_progress.is_some())
+            .then_some(v.monitor)
+    });
+    let monitor = on_board.or(on_virtual)?;
+    let hz = monitors.iter().find(|m| m.id == monitor)?.refresh_hz;
+    (hz > 0.0).then(|| now + Duration::from_secs_f32(1.0 / hz))
 }
 
 /// The executor loop: device actions in order, releases on exit (SAFETY-08).

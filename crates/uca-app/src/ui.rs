@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: The UCA contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! The UI thread (01, 05): the winit event loop, the board overlay window and
-//! the tray menu. It only reads engine snapshots; it never drives logic.
+//! The UI thread (01, 05): the winit event loop, the board overlay window, the
+//! Settings window and the tray menu. It only reads engine snapshots; it never
+//! drives logic.
 
 use std::num::NonZeroU32;
 use std::sync::mpsc::SyncSender;
@@ -16,13 +17,15 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::{TrayIcon, TrayIconBuilder};
 use uca_config::action::Mode;
 use uca_config::board::{Anchor, Area, ClickThrough};
-use uca_config::store::LoadedConfig;
+use uca_config::cascade::theme_dwell_indicator;
+use uca_config::store::{LoadedConfig, ProfilePaths};
 use uca_engine::safe_board::{safe_board, SAFE_BOARD_ID};
 use uca_engine::{BoardSnapshot, Control, EngineControl, EngineSnapshot};
 use uca_i18n::t;
 use uca_platform::{Edge, OverlayOptions, Platform};
 use uca_render::BoardModel;
 use uca_types::{LogPoint, LogPx, MonitorId, MonitorInfo, RectLog};
+use uca_ui::{BoardChoice, SettingsCommand, SettingsView, StartBoardView, SETTINGS_BOARD_ID};
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::WindowEvent;
@@ -30,6 +33,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 use winit::window::{Window, WindowId, WindowLevel};
 
 use crate::block_on::block_on;
+use crate::settings_window::SettingsWindow;
 use crate::threads::{Msg, Shared, UiWaker};
 
 /// What wakes the UI thread.
@@ -37,8 +41,20 @@ use crate::threads::{Msg, Shared, UiWaker};
 pub enum UserEvent {
     Snapshot,
     Control(Control),
+    /// A virtual board item was activated (05 "Settings window").
+    Virtual {
+        board: String,
+        item: String,
+    },
     Monitors(Vec<MonitorInfo>),
     Menu(MenuEvent),
+    AccessKit(egui_winit::accesskit_winit::Event),
+}
+
+impl From<egui_winit::accesskit_winit::Event> for UserEvent {
+    fn from(e: egui_winit::accesskit_winit::Event) -> Self {
+        UserEvent::AccessKit(e)
+    }
 }
 
 pub struct ProxyWaker(pub EventLoopProxy<UserEvent>);
@@ -50,6 +66,10 @@ impl UiWaker for ProxyWaker {
 
     fn control(&self, c: Control) {
         let _ = self.0.send_event(UserEvent::Control(c));
+    }
+
+    fn virtual_item(&self, board: String, item: String) {
+        let _ = self.0.send_event(UserEvent::Virtual { board, item });
     }
 }
 
@@ -74,6 +94,7 @@ struct Overlay {
 
 struct Tray {
     _icon: TrayIcon,
+    settings: MenuItem,
     pause: MenuItem,
     safe_board: MenuItem,
     quit: MenuItem,
@@ -88,6 +109,9 @@ pub struct App {
     config: Option<Arc<LoadedConfig>>,
     snapshot: Option<EngineSnapshot>,
     overlay: Option<Overlay>,
+    settings: Option<SettingsWindow>,
+    /// Where the profile lives; `None` without a profile on disk (05).
+    profile: Option<ProfilePaths>,
     tray: Option<Tray>,
     proxy: EventLoopProxy<UserEvent>,
     threads: Vec<JoinHandle<()>>,
@@ -101,6 +125,7 @@ impl App {
         engine_tx: SyncSender<Msg>,
         shared: Arc<Mutex<Shared>>,
         monitors: Vec<MonitorInfo>,
+        profile: Option<ProfilePaths>,
         proxy: EventLoopProxy<UserEvent>,
         threads: Vec<JoinHandle<()>>,
     ) -> Self {
@@ -112,6 +137,8 @@ impl App {
             config: None,
             snapshot: None,
             overlay: None,
+            settings: None,
+            profile,
             tray: None,
             proxy,
             threads,
@@ -177,11 +204,12 @@ impl App {
     }
 
     fn create_tray(&mut self) {
+        let settings = MenuItem::new(t!("tray-settings"), true, None);
         let pause = MenuItem::new(t!("tray-pause"), true, None);
         let safe_board = MenuItem::new(t!("tray-safe-board"), true, None);
         let quit = MenuItem::new(t!("tray-quit"), true, None);
         let menu = Menu::new();
-        if let Err(e) = menu.append_items(&[&pause, &safe_board, &quit]) {
+        if let Err(e) = menu.append_items(&[&settings, &pause, &safe_board, &quit]) {
             tracing::error!(target: "uca::app", error = %e, "cannot build the tray menu");
             return;
         }
@@ -209,6 +237,7 @@ impl App {
             Ok(icon) => {
                 self.tray = Some(Tray {
                     _icon: icon,
+                    settings,
                     pause,
                     safe_board,
                     quit,
@@ -250,6 +279,17 @@ impl App {
                 .snapshot
                 .as_ref()
                 .is_none_or(|old| old.board != snapshot.board || old.latched != snapshot.latched);
+        let settings_redraw = config_changed
+            || self.snapshot.as_ref().is_none_or(|old| {
+                old.virtual_board != snapshot.virtual_board
+                    || old.mode != snapshot.mode
+                    || old.board.as_ref().map(|b| &b.id) != snapshot.board.as_ref().map(|b| &b.id)
+            });
+        if settings_redraw {
+            if let Some(s) = &self.settings {
+                s.request_redraw();
+            }
+        }
         self.snapshot = Some(snapshot);
         if config_changed {
             if let Some(o) = &mut self.overlay {
@@ -483,9 +523,146 @@ impl App {
         }
     }
 
+    /// The monitor of the board on screen, else the primary (05 "Settings window").
+    fn board_monitor(&self) -> Option<MonitorInfo> {
+        let id = self
+            .snapshot
+            .as_ref()
+            .and_then(|s| s.board.as_ref())
+            .map(|b| b.monitor);
+        self.monitors
+            .iter()
+            .find(|m| Some(m.id) == id)
+            .or_else(|| self.monitors.iter().find(|m| m.primary))
+            .or(self.monitors.first())
+            .cloned()
+    }
+
+    /// Opens Settings, or brings it to the front when it is open (05).
+    fn open_settings(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(s) = &self.settings {
+            s.raise();
+            return;
+        }
+        let monitor = self.board_monitor();
+        let Some(window) = SettingsWindow::open(
+            event_loop,
+            self.proxy.clone(),
+            monitor.as_ref(),
+            self.platform.as_ref(),
+        ) else {
+            return;
+        };
+        self.settings = Some(window);
+        // Laid out once while hidden: the content decides the window's size.
+        if let Some(content) = self.paint_settings() {
+            if let Some(s) = &mut self.settings {
+                s.show_first(content, monitor.as_ref());
+            }
+        }
+    }
+
+    fn close_settings(&mut self) {
+        if let Some(s) = self.settings.take() {
+            s.close(self.platform.as_ref());
+            self.send(Msg::Virtual(None));
+        }
+    }
+
+    /// The dwell indicator of the board on screen's theme (05 "Settings window").
+    fn settings_indicator(&self) -> uca_config::cascade::ResolvedDwellIndicator {
+        let board = self.snapshot.as_ref().and_then(|s| s.board.as_ref());
+        let theme = board.and_then(|b| {
+            let config = self.config.as_ref()?;
+            let file = config.boards.values().find(|f| f.board.id.0 == b.id)?;
+            let name = file.board.theme.as_ref()?;
+            config.themes.get(name).map(|(_, t)| t)
+        });
+        theme_dwell_indicator(theme)
+    }
+
+    /// Draws Settings and applies what the user asked for. Returns the content size.
+    fn paint_settings(&mut self) -> Option<egui::Vec2> {
+        let config = self.config.clone()?;
+        let profile = &config.profile.profile;
+        let boards: Vec<BoardChoice> = config
+            .boards
+            .values()
+            .map(|f| BoardChoice {
+                id: f.board.id.0.clone(),
+                label: f
+                    .board
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| f.board.id.0.clone()),
+            })
+            .collect();
+        let indicator = self.settings_indicator();
+        let snapshot = self.snapshot.as_ref();
+        let settings = self.settings.as_mut()?;
+        let save_error = settings.save_error.clone();
+        let view = SettingsView {
+            profile_name: &profile.name,
+            start_board: self.profile.as_ref().map(|_| StartBoardView {
+                boards: &boards,
+                current: &profile.start_board.0,
+                save_error: save_error.as_deref(),
+            }),
+            paused: snapshot.is_some_and(|s| s.mode == Mode::Paused),
+            dwell: snapshot
+                .and_then(|s| s.virtual_board.as_ref())
+                .filter(|v| v.id == SETTINGS_BOARD_ID),
+            indicator: &indicator,
+        };
+        let (commands, content) = settings.paint(&view);
+        let current = profile.start_board.0.clone();
+        for command in commands {
+            match command {
+                SettingsCommand::SetStartBoard(id) if id == current => {
+                    if let Some(s) = &mut self.settings {
+                        s.save_error = None;
+                    }
+                }
+                SettingsCommand::SetStartBoard(id) => self.save_start_board(&id),
+                SettingsCommand::TogglePause => self.send(Msg::Control(EngineControl::TogglePause)),
+                SettingsCommand::Close => {
+                    self.close_settings();
+                    return None;
+                }
+            }
+        }
+        self.register_settings();
+        Some(content)
+    }
+
+    /// Saves `profile.start_board`; the watcher then reloads the profile (05, 02).
+    fn save_start_board(&mut self, id: &str) {
+        let Some(paths) = &self.profile else { return };
+        let result = uca_config::save::save_start_board(paths, id);
+        if let Err(e) = &result {
+            tracing::warn!(target: "uca::app", error = %e, "start board not saved");
+        }
+        if let Some(s) = &mut self.settings {
+            s.save_error = result
+                .err()
+                .map(|e| uca_i18n::translate_args(e.message_id(), &e.args()));
+            s.request_redraw();
+        }
+    }
+
+    /// Tells the engine where the Settings widgets are, when that changed.
+    fn register_settings(&mut self) {
+        let Some(s) = &mut self.settings else { return };
+        if let Some(board) = s.registration(&self.monitors) {
+            self.send(Msg::Virtual(board));
+        }
+    }
+
     fn on_menu(&mut self, e: MenuEvent, event_loop: &ActiveEventLoop) {
         let Some(tray) = &self.tray else { return };
-        if e.id() == tray.pause.id() {
+        if e.id() == tray.settings.id() {
+            self.open_settings(event_loop);
+        } else if e.id() == tray.pause.id() {
             self.send(Msg::Control(EngineControl::TogglePause));
         } else if e.id() == tray.safe_board.id() {
             self.send(Msg::Control(EngineControl::OpenSafeBoard));
@@ -503,6 +680,7 @@ impl App {
     /// Releases everything before exiting (SAFETY-08): the engine sends
     /// `ReleaseAll`, the executor releases and ends, and both are joined.
     fn quit(&mut self, event_loop: &ActiveEventLoop) {
+        self.close_settings();
         self.send(Msg::Quit);
         for t in self.threads.drain(..) {
             let _ = t.join();
@@ -558,10 +736,30 @@ impl ApplicationHandler<UserEvent> for App {
                 // M1 has no calibrated pointer sources; the mouse needs none.
                 tracing::info!(target: "uca::app", "nothing to recalibrate for the current pointer source");
             }
+            UserEvent::Control(Control::OpenSettings) => self.open_settings(event_loop),
+            UserEvent::Control(Control::CloseSettings) => self.close_settings(),
+            UserEvent::Virtual { board, item } => {
+                if let Some(s) = self
+                    .settings
+                    .as_mut()
+                    .filter(|_| board == SETTINGS_BOARD_ID)
+                {
+                    s.press(item);
+                }
+            }
+            UserEvent::AccessKit(e) => {
+                if let Some(s) = self.settings.as_mut().filter(|s| s.id() == e.window_id) {
+                    s.on_accesskit(e.window_event);
+                }
+            }
         }
     }
 
-    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, _event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        if self.settings.as_ref().is_some_and(|s| s.id() == id) {
+            self.settings_event(&event);
+            return;
+        }
         match event {
             WindowEvent::RedrawRequested => self.paint(),
             WindowEvent::Resized(size) => {
@@ -583,6 +781,33 @@ impl ApplicationHandler<UserEvent> for App {
                 }
             }
             _ => {}
+        }
+    }
+}
+
+impl App {
+    fn settings_event(&mut self, event: &WindowEvent) {
+        if let WindowEvent::RedrawRequested = event {
+            self.paint_settings();
+            return;
+        }
+        let close = self
+            .settings
+            .as_mut()
+            .is_some_and(|s| s.on_window_event(event));
+        if close {
+            self.close_settings();
+            return;
+        }
+        // The widgets moved on screen.
+        if matches!(
+            event,
+            WindowEvent::Moved(_)
+                | WindowEvent::Resized(_)
+                | WindowEvent::ScaleFactorChanged { .. }
+                | WindowEvent::Occluded(_)
+        ) {
+            self.register_settings();
         }
     }
 }

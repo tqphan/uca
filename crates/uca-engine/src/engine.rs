@@ -22,14 +22,35 @@ use crate::safe_board::{safe_board, SAFE_ITEMS};
 use crate::sets::{SetStack, DEFAULT_SET};
 use crate::types::{
     ActivationId, BoardSnapshot, Control, EngineControl, EngineInput, EngineSnapshot, Intent,
-    ItemSnapshot, Latch, LayerSnapshot, SafeItem,
+    ItemSnapshot, Latch, LayerSnapshot, SafeItem, VirtualBoard, VirtualItemSnapshot,
+    VirtualSnapshot,
 };
 
-/// An item on the shown board: layer index and item index.
+/// An item on the shown board (layer index and item index), or with `virt`
+/// an item of the virtual board (layer 0, index in its items).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct ItemRef {
+    virt: bool,
     layer: usize,
     item: usize,
+}
+
+impl ItemRef {
+    fn board(layer: usize, item: usize) -> Self {
+        Self {
+            virt: false,
+            layer,
+            item,
+        }
+    }
+
+    fn virtual_item(item: usize) -> Self {
+        Self {
+            virt: true,
+            layer: 0,
+            item,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,6 +123,8 @@ pub struct Engine {
     layer_visible: BTreeMap<(String, usize), bool>,
     /// The board on screen (top of the stack, or the Safe Board) and its layout.
     shown: Option<Shown>,
+    /// A `uca-ui` screen hit-tested outside the shown board (05 "Settings window").
+    virtual_board: Option<VirtualBoard>,
     pointer: Option<FilteredPoint>,
     hover: Option<ItemRef>,
     dwell: Dwell,
@@ -146,6 +169,7 @@ impl Engine {
             safe_open: false,
             layer_visible: BTreeMap::new(),
             shown: None,
+            virtual_board: None,
             pointer: None,
             hover: None,
             dwell: Dwell::Idle,
@@ -232,6 +256,28 @@ impl Engine {
     pub fn set_monitors(&mut self, monitors: Vec<MonitorInfo>) {
         self.monitors = monitors;
         self.show_top();
+    }
+
+    /// Registers a `uca-ui` screen's widgets, or removes them with `None`
+    /// (05 "Settings window"). An unchanged board is ignored, so this may be called every frame.
+    pub fn set_virtual_board(&mut self, board: Option<VirtualBoard>, clock: &dyn Clock) {
+        if self.virtual_board == board {
+            return;
+        }
+        let now = clock.now();
+        self.advance_to(now);
+        let ids = |b: &Option<VirtualBoard>| {
+            b.as_ref().map(|b| {
+                let items: Vec<String> = b.items.iter().map(|i| i.id.clone()).collect();
+                (b.id.clone(), items)
+            })
+        };
+        // Different widgets: references by index would point at the wrong ones.
+        if ids(&self.virtual_board) != ids(&board) {
+            self.forget_virtual();
+        }
+        self.virtual_board = board;
+        self.refresh_hover(now);
     }
 
     pub fn next_deadline(&self) -> Option<Instant> {
@@ -378,6 +424,9 @@ impl Engine {
     }
 
     fn resolved(&self, r: ItemRef) -> Option<&ResolvedItem> {
+        if r.virt {
+            return None;
+        }
         self.shown.as_ref()?.resolved.get(r.layer)?.get(r.item)
     }
 
@@ -399,11 +448,36 @@ impl Engine {
         resolve_set(item, &self.sets)
     }
 
+    /// The shown board wins wherever it is; the virtual board is hit-tested
+    /// only outside it, and never while the Safe Board is open (05, 09).
     fn hit(&self, p: &FilteredPoint) -> Option<ItemRef> {
-        let shown = self.shown.as_ref()?;
-        if p.monitor != shown.layout.monitor {
+        let on_board = self.shown.as_ref().is_some_and(|s| {
+            p.monitor == s.layout.monitor && s.layout.rect.contains(p.logical.x, p.logical.y)
+        });
+        if on_board {
+            self.board_hit(p)
+        } else if self.safe_open {
+            None
+        } else {
+            self.virtual_hit(p)
+        }
+    }
+
+    /// Points where another window covers the virtual board's window don't
+    /// count, as with `ignore_covered` on a board (02).
+    fn virtual_hit(&self, p: &FilteredPoint) -> Option<ItemRef> {
+        let vb = self.virtual_board.as_ref()?;
+        if p.monitor != vb.monitor || p.covered {
             return None;
         }
+        vb.items
+            .iter()
+            .rposition(|i| i.rect.contains(p.logical.x, p.logical.y))
+            .map(ItemRef::virtual_item)
+    }
+
+    fn board_hit(&self, p: &FilteredPoint) -> Option<ItemRef> {
+        let shown = self.shown.as_ref()?;
         if p.covered && shown.file.board.ignore_covered_or_default() {
             return None;
         }
@@ -413,10 +487,7 @@ impl Engine {
                 continue;
             }
             for item in layer.items.iter().rev() {
-                let r = ItemRef {
-                    layer: li,
-                    item: item.index,
-                };
+                let r = ItemRef::board(li, item.index);
                 let Some(res) = self.resolved(r) else {
                     continue;
                 };
@@ -430,6 +501,21 @@ impl Engine {
             }
         }
         None
+    }
+
+    fn forget_virtual(&mut self) {
+        if self.hover.is_some_and(|h| h.virt) {
+            self.hover = None;
+        }
+        if let Dwell::Dwelling { item, .. } | Dwell::Grace { item, .. } = &self.dwell {
+            if item.virt {
+                self.dwell = Dwell::Idle;
+            }
+        }
+        if self.must_leave.is_some_and(|m| m.virt) {
+            self.must_leave = None;
+        }
+        self.cooldown_until.retain(|r, _| !r.virt);
     }
 
     fn refresh_hover(&mut self, t: Instant) {
@@ -448,6 +534,10 @@ impl Engine {
     }
 
     fn behavior(&self, r: ItemRef) -> Option<ResolvedBehavior> {
+        if r.virt {
+            // Virtual items have no cascade: the built-in behavior (02).
+            return Some(behavior_over_builtin(None));
+        }
         let res = self.resolved(r)?;
         Some(match self.item_entry(r) {
             Some((_, entry)) => res.behavior_for(&entry),
@@ -703,7 +793,7 @@ impl Engine {
                     .collect()
             })
             .unwrap_or_default();
-        let hovered = self.hover.and_then(|h| {
+        let hovered = self.hover.filter(|h| !h.virt).and_then(|h| {
             let shown = self.shown.as_ref()?;
             let layer = shown.layout.layers.get(h.layer)?;
             let item = layer.items.get(h.item)?;
@@ -825,6 +915,10 @@ impl Engine {
         if !self.interactive() {
             return None;
         }
+        if r.virt {
+            self.activate_virtual(r, t);
+            return None;
+        }
         if self.shown.as_ref().is_some_and(|s| s.safe) {
             let safe = SAFE_ITEMS.get(r.item).copied()?;
             self.safe_action(safe, t);
@@ -877,6 +971,25 @@ impl Engine {
             t,
         );
         Some(id)
+    }
+
+    /// Virtual items run no stages: `uca-ui` performs the widget's own action.
+    fn activate_virtual(&mut self, r: ItemRef, t: Instant) {
+        let Some(vb) = self.virtual_board.as_ref() else {
+            return;
+        };
+        let Some(item) = vb.items.get(r.item) else {
+            return;
+        };
+        tracing::debug!(target: "uca::engine", board = %vb.id, item = %item.id, "virtual item activated");
+        self.intents.push(Intent::Virtual {
+            board: vb.id.clone(),
+            item: item.id.clone(),
+        });
+        let cooldown = millis(behavior_over_builtin(None).cooldown_ms);
+        if !cooldown.is_zero() {
+            self.cooldown_until.insert(r, t + cooldown);
+        }
     }
 
     fn safe_action(&mut self, item: SafeItem, t: Instant) {
@@ -1108,6 +1221,8 @@ impl Engine {
                 }
             }
             Action::Recalibrate => self.intents.push(Intent::Control(Control::Recalibrate)),
+            Action::SettingsOpen => self.intents.push(Intent::Control(Control::OpenSettings)),
+            Action::SettingsClose => self.intents.push(Intent::Control(Control::CloseSettings)),
             Action::KeyLatch(k) => {
                 let next = match self.latched.get(k) {
                     None => Some(Latch::Latched),
@@ -1177,6 +1292,37 @@ impl Engine {
             presence: self.present_now(),
             action_sets: self.sets.ids(),
             latched: self.latched.iter().map(|(k, l)| (*k, *l)).collect(),
+            virtual_board: self.virtual_board.as_ref().map(|vb| VirtualSnapshot {
+                id: vb.id.clone(),
+                monitor: vb.monitor,
+                items: vb
+                    .items
+                    .iter()
+                    .enumerate()
+                    .map(|(i, item)| {
+                        let r = ItemRef::virtual_item(i);
+                        VirtualItemSnapshot {
+                            id: item.id.clone(),
+                            hover: self.hover == Some(r),
+                            dwell_progress: self.dwell_progress(r, now),
+                        }
+                    })
+                    .collect(),
+            }),
+        }
+    }
+
+    /// Dwell progress 0..1 while dwelling on `r` or in its grace.
+    fn dwell_progress(&self, r: ItemRef, now: Instant) -> Option<f32> {
+        match &self.dwell {
+            Dwell::Dwelling { item, done, since } if *item == r => self.dwell_ms(r).map(|ms| {
+                ((*done + now.saturating_duration_since(*since)).as_secs_f64() * 1000.0 / ms)
+                    .min(1.0) as f32
+            }),
+            Dwell::Grace { item, done, .. } if *item == r => self
+                .dwell_ms(r)
+                .map(|ms| (done.as_secs_f64() * 1000.0 / ms).min(1.0) as f32),
+            _ => None,
         }
     }
 
@@ -1187,10 +1333,7 @@ impl Engine {
         it: &crate::layout::ItemLayout,
         now: Instant,
     ) -> ItemSnapshot {
-        let r = ItemRef {
-            layer: li,
-            item: it.index,
-        };
+        let r = ItemRef::board(li, it.index);
         let res = self.resolved(r);
         let entry = if s.safe { None } else { self.item_entry(r) };
         let open = self.activations.iter().find(|a| a.owner == Owner::Item(r));
@@ -1207,16 +1350,7 @@ impl Engine {
         if self.hover == Some(r) {
             states.push(State::Hover);
         }
-        let progress = match &self.dwell {
-            Dwell::Dwelling { item, done, since } if *item == r => self.dwell_ms(r).map(|ms| {
-                ((*done + now.saturating_duration_since(*since)).as_secs_f64() * 1000.0 / ms)
-                    .min(1.0) as f32
-            }),
-            Dwell::Grace { item, done, .. } if *item == r => self
-                .dwell_ms(r)
-                .map(|ms| (done.as_secs_f64() * 1000.0 / ms).min(1.0) as f32),
-            _ => None,
-        };
+        let progress = self.dwell_progress(r, now);
         if progress.is_some() {
             states.push(State::Dwell);
         }

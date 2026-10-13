@@ -36,6 +36,9 @@ pub enum EngineControl {
 pub enum Control {
     Recalibrate,
     RestartApp,
+    /// `settings.open` / `settings.close` (05 "Settings window").
+    OpenSettings,
+    CloseSettings,
 }
 
 /// What the engine asks the executor and app to do (04 "Engine state").
@@ -51,6 +54,28 @@ pub enum Intent {
     /// Release everything UCA pressed (SAFETY-08).
     ReleaseAll,
     Control(Control),
+    /// A virtual board item was activated by dwell or `select` (05 "Settings window").
+    Virtual {
+        board: String,
+        item: String,
+    },
+}
+
+/// A `uca-ui` screen registered with the engine as a virtual board, so dwell
+/// and `select` work on its widgets (05 "Settings window"). Registered again
+/// whenever its widgets move.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VirtualBoard {
+    pub id: String,
+    pub monitor: MonitorId,
+    pub items: Vec<VirtualItem>,
+}
+
+/// One interactive widget: a stable id and its rect on the board's monitor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VirtualItem {
+    pub id: String,
+    pub rect: RectLog,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,6 +116,23 @@ pub struct EngineSnapshot {
     /// Active action sets, bottom (`default`) first.
     pub action_sets: Vec<String>,
     pub latched: Vec<(Key, Latch)>,
+    pub virtual_board: Option<VirtualSnapshot>,
+}
+
+/// Hover and dwell on a virtual board, for drawing the dwell indicator.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VirtualSnapshot {
+    pub id: String,
+    pub monitor: MonitorId,
+    pub items: Vec<VirtualItemSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VirtualItemSnapshot {
+    pub id: String,
+    pub hover: bool,
+    /// Dwell progress 0..1 while dwelling or in grace.
+    pub dwell_progress: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

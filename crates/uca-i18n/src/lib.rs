@@ -52,6 +52,15 @@ impl Dir {
     pub fn is_rtl(self) -> bool {
         self == Dir::Rtl
     }
+
+    /// Picks the left-to-right or the right-to-left variant of a horizontal
+    /// layout or alignment (17 "Mirrored layout"): `ui_dir().horizontal(ltr, rtl)`.
+    pub fn horizontal<T>(self, ltr: T, rtl: T) -> T {
+        match self {
+            Dir::Ltr => ltr,
+            Dir::Rtl => rtl,
+        }
+    }
 }
 
 /// A Fluent argument value.

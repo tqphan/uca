@@ -543,6 +543,48 @@
         {
           "type": "object",
           "properties": {
+            "settings.open": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "settings.open"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "settings.close": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "settings.close"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "delay": {
               "description": "Milliseconds.",
               "type": "integer",

@@ -107,6 +107,10 @@ impl Platform for WindowsPlatform {
         overlay::covered_at(p)
     }
 
+    fn track_covered(&self, w: RawWindowHandle, track: bool) -> Result<()> {
+        overlay::track_covered(w, track)
+    }
+
     fn configure_overlay(&self, w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
         overlay::configure(w, opts)
     }

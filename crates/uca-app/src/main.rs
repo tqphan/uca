@@ -5,6 +5,7 @@
 
 mod block_on;
 mod icon;
+mod settings_window;
 mod threads;
 mod ui;
 
@@ -38,6 +39,7 @@ fn main() -> ExitCode {
     uca_i18n::set_ui_language(&language);
 
     let (config, store) = load_config(config_dir.as_deref());
+    let profile = store.as_ref().map(|s| s.paths().clone());
     let Some(config) = config else {
         tracing::error!(target: "uca::app", "the built-in safe profile does not load");
         return ExitCode::FAILURE;
@@ -104,7 +106,9 @@ fn main() -> ExitCode {
     let _watcher = store.and_then(|s| start_watcher(s, engine_tx.clone()));
     forward_platform_events(platform.as_ref(), engine_tx.clone(), proxy.clone());
 
-    let mut app = App::new(platform, engine_tx, shared, monitors, proxy, threads);
+    let mut app = App::new(
+        platform, engine_tx, shared, monitors, profile, proxy, threads,
+    );
     if let Err(e) = event_loop.run_app(&mut app) {
         tracing::error!(target: "uca::app", error = %e, "the event loop failed");
     }

@@ -43,6 +43,8 @@ fn update_ex_style(h: HWND, set: u32, clear: u32) {
 
 /// UCA's overlay windows, for [`covered_at`].
 static OVERLAYS: Mutex<Vec<usize>> = Mutex::new(Vec::new());
+/// UCA's ordinary windows whose widgets the engine hit-tests (the Settings window, 05).
+static TRACKED: Mutex<Vec<usize>> = Mutex::new(Vec::new());
 
 fn ex_style(h: HWND) -> u32 {
     // SAFETY: reading a style of a window handle; a stale handle returns 0.
@@ -76,37 +78,68 @@ fn on_screen(h: HWND) -> bool {
     }
 }
 
+fn contains(h: HWND, pt: POINT) -> bool {
+    // SAFETY: point test on a local rect.
+    window_rect(h).is_some_and(|r| unsafe { PtInRect(&r, pt) } != 0)
+}
+
+/// Whether a window that isn't one of `own` lies above `h` at `pt`.
+fn covered_above(h: HWND, pt: POINT, own: &[usize]) -> bool {
+    // Walk the windows above `h` in z-order.
+    // SAFETY: z-order queries; a null handle ends the walk.
+    let mut w = unsafe { GetWindow(h, GW_HWNDPREV) };
+    while !w.is_null() {
+        let counts = !own.contains(&(w as usize))
+            && ex_style(w) & WS_EX_TRANSPARENT == 0
+            && on_screen(w)
+            && contains(w, pt);
+        if counts {
+            return true;
+        }
+        // SAFETY: as above.
+        w = unsafe { GetWindow(w, GW_HWNDPREV) };
+    }
+    false
+}
+
+/// On an overlay: whether another window lies above it. Elsewhere, while any
+/// window is tracked: whether the point misses every tracked window that is
+/// on screen there and not covered (so a minimised one counts as covered).
 pub fn covered_at(p: PhysPoint) -> bool {
     let pt = POINT {
         x: p.x.round() as i32,
         y: p.y.round() as i32,
     };
     let overlays = OVERLAYS.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    overlays.iter().any(|&o| {
-        let o = o as HWND;
-        // SAFETY: point test on a rect we own.
-        let under =
-            on_screen(o) && window_rect(o).is_some_and(|r| unsafe { PtInRect(&r, pt) } != 0);
-        if !under {
-            return false;
-        }
-        // Walk the windows above the overlay in z-order.
-        // SAFETY: z-order queries; a null handle ends the walk.
-        let mut w = unsafe { GetWindow(o, GW_HWNDPREV) };
-        while !w.is_null() {
-            let counts = !overlays.contains(&(w as usize))
-                && ex_style(w) & WS_EX_TRANSPARENT == 0
-                && on_screen(w)
-                // SAFETY: point test on a local rect.
-                && window_rect(w).is_some_and(|r| unsafe { PtInRect(&r, pt) } != 0);
-            if counts {
-                return true;
-            }
-            // SAFETY: as above.
-            w = unsafe { GetWindow(w, GW_HWNDPREV) };
-        }
-        false
-    })
+    let tracked = TRACKED.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let under = |h: HWND| on_screen(h) && contains(h, pt);
+    let on_overlays: Vec<HWND> = overlays
+        .iter()
+        .map(|&o| o as HWND)
+        .filter(|&o| under(o))
+        .collect();
+    if !on_overlays.is_empty() {
+        return on_overlays.iter().any(|&o| covered_above(o, pt, &overlays));
+    }
+    if tracked.is_empty() {
+        return false;
+    }
+    let own: Vec<usize> = overlays.iter().chain(&tracked).copied().collect();
+    !tracked
+        .iter()
+        .map(|&t| t as HWND)
+        .any(|t| under(t) && !covered_above(t, pt, &own))
+}
+
+/// Adds `w` to, or removes it from, the windows [`covered_at`] tracks.
+pub fn track_covered(w: RawWindowHandle, track: bool) -> Result<()> {
+    let h = hwnd(w)? as usize;
+    let mut tracked = TRACKED.lock().unwrap_or_else(|e| e.into_inner());
+    tracked.retain(|&t| t != h);
+    if track {
+        tracked.push(h);
+    }
+    Ok(())
 }
 
 pub fn configure(w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {

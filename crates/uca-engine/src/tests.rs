@@ -11,10 +11,11 @@ use uca_config::action::{Action, Mode};
 use uca_config::store::{ConfigStore, ConfigUpdate, LoadedConfig, ProfilePaths, Sources};
 use uca_types::{
     Clock, FakeClock, FilteredPoint, Key, LogPoint, LogPx, MonitorId, MonitorInfo, Phase,
-    PhysPoint, RectPhys, SourceId, SourceStatus, SourceStatusEvent, TriggerEvent, TriggerId,
+    PhysPoint, RectLog, RectPhys, SourceId, SourceStatus, SourceStatusEvent, TriggerEvent,
+    TriggerId,
 };
 
-use crate::{ActivationId, Control, Engine, EngineInput, Intent, Latch};
+use crate::{ActivationId, Control, Engine, EngineInput, Intent, Latch, VirtualBoard, VirtualItem};
 
 const PROFILE: &str = r#"schema: uca/1
 profile:
@@ -172,14 +173,18 @@ impl Rig {
     }
 
     fn point(&mut self, ms: u64, x: f64, present: bool) {
+        self.point_xy(ms, x, 50.0, present);
+    }
+
+    fn point_xy(&mut self, ms: u64, x: f64, y: f64, present: bool) {
         let p = FilteredPoint {
             t: self.at(ms),
-            phys: PhysPoint::new(x, 50.0),
+            phys: PhysPoint::new(x, y),
             monitor: MonitorId(0),
             logical: LogPoint {
                 monitor: MonitorId(0),
                 x: LogPx(x),
-                y: LogPx(50.0),
+                y: LogPx(y),
             },
             presence: present,
             covered: self.covered,
@@ -655,4 +660,192 @@ fn user_lost_status_cancels() {
     r.input(400, EngineInput::Status(st));
     r.run_to(2000);
     assert!(r.taps().is_empty());
+}
+
+// ------------------------------------------------------------ virtual board (05 "Settings window")
+
+/// The built-in dwell time that virtual items use.
+fn builtin_dwell_ms() -> u64 {
+    uca_config::cascade::behavior_over_builtin(None)
+        .dwell_ms
+        .expect("dwell on by default") as u64
+}
+
+/// Two widgets below the board: `ok` at x 0..200 and `cancel` at x 200..400, y 300..400;
+/// `wide` overlaps the board (y 0..100) and reaches past it (x up to 1200).
+fn settings(items: &[(&str, f64, f64, f64, f64)]) -> VirtualBoard {
+    VirtualBoard {
+        id: "settings".into(),
+        monitor: MonitorId(0),
+        items: items
+            .iter()
+            .map(|(id, x, y, w, h)| VirtualItem {
+                id: (*id).into(),
+                rect: RectLog::new(*x, *y, *w, *h),
+            })
+            .collect(),
+    }
+}
+
+const WIDGETS: &[(&str, f64, f64, f64, f64)] = &[
+    ("ok", 0.0, 300.0, 200.0, 100.0),
+    ("cancel", 200.0, 300.0, 200.0, 100.0),
+    ("wide", 0.0, 0.0, 1200.0, 100.0),
+];
+
+impl Rig {
+    fn register(&mut self, ms: u64, vb: Option<VirtualBoard>) {
+        self.run_to(ms);
+        self.e.set_virtual_board(vb, &self.clock);
+        self.drain();
+    }
+
+    /// (ms, item) of every virtual activation.
+    fn virtual_hits(&self) -> Vec<(u64, String)> {
+        self.log
+            .iter()
+            .filter_map(|(t, i)| match i {
+                Intent::Virtual { board, item } if board == "settings" => Some((*t, item.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+#[test]
+fn dwell_activates_a_virtual_item_once() {
+    let dwell = builtin_dwell_ms();
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.point_xy(0, 100.0, 350.0, true);
+    r.run_to(dwell * 5);
+    assert_eq!(r.virtual_hits(), vec![(dwell, "ok".to_owned())]);
+    assert!(r.taps().is_empty());
+}
+
+/// 05: where the board and the virtual board overlap, the board wins, over its whole rect.
+#[test]
+fn the_board_wins_where_they_overlap() {
+    let dwell = builtin_dwell_ms();
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.on(0, 0);
+    r.run_to(2000);
+    assert_eq!(r.taps(), vec![tap(800, "KeyA")]);
+    assert!(r.virtual_hits().is_empty());
+    // Past the board's right edge, the wide widget is reachable.
+    // Leaving the held `a` ends it after the board's 150 ms grace; then dwell starts there.
+    r.point(3000, 1100.0, true);
+    r.run_to(3150 + dwell * 2);
+    assert_eq!(r.virtual_hits(), vec![(3150 + dwell, "wide".to_owned())]);
+}
+
+#[test]
+fn covered_paused_and_safe_board_block_virtual_items() {
+    let dwell = builtin_dwell_ms();
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.covered = true;
+    r.point_xy(0, 100.0, 350.0, true);
+    r.run_to(dwell * 3);
+    assert!(r.virtual_hits().is_empty(), "covered");
+
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.trigger(0, "key:F2", Phase::Down, true);
+    r.trigger(10, "key:F2", Phase::Up, true);
+    assert_eq!(r.e.mode(), Mode::Paused);
+    r.point_xy(20, 100.0, 350.0, true);
+    r.run_to(dwell * 3);
+    assert!(r.virtual_hits().is_empty(), "paused");
+
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.trigger(0, "key:F12", Phase::Down, true);
+    r.run_to(3100);
+    assert!(r.e.safe_board_open());
+    r.point_xy(3100, 100.0, 350.0, true);
+    r.run_to(3100 + dwell / 2);
+    // The point dwells on the Safe Board (which covers the monitor), never on the widget.
+    let snap = r.e.snapshot(&r.clock);
+    let safe_dwell = snap
+        .board
+        .iter()
+        .flat_map(|b| &b.layers)
+        .flat_map(|l| &l.items)
+        .any(|i| i.dwell_progress.is_some());
+    assert!(safe_dwell);
+    let vb = snap.virtual_board.expect("registered");
+    assert!(vb
+        .items
+        .iter()
+        .all(|i| !i.hover && i.dwell_progress.is_none()));
+    assert!(r.virtual_hits().is_empty(), "safe board");
+}
+
+/// `select` (here bound to s1) activates the hovered virtual item.
+#[test]
+fn select_activates_a_hovered_virtual_item() {
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.point_xy(0, 300.0, 350.0, true);
+    r.trigger(100, "key:F13", Phase::Down, false);
+    r.trigger(150, "key:F13", Phase::Up, false);
+    assert_eq!(r.virtual_hits(), vec![(100, "cancel".to_owned())]);
+}
+
+/// Moved widgets keep their dwell; different widgets start over; removal ends it.
+#[test]
+fn registering_again_keeps_or_resets_dwell() {
+    let dwell = builtin_dwell_ms();
+    let half = dwell / 2;
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.point_xy(0, 100.0, 350.0, true);
+    // Same widgets, `ok` slightly larger: progress continues.
+    let mut moved = WIDGETS.to_vec();
+    moved[0].3 = 210.0;
+    r.register(half, Some(settings(&moved)));
+    let snap = r.e.snapshot(&r.clock);
+    let ok = &snap.virtual_board.expect("registered").items[0];
+    assert!(ok.hover);
+    assert!(
+        ok.dwell_progress.is_some_and(|p| (p - 0.5).abs() < 0.01),
+        "{ok:?}"
+    );
+    r.run_to(dwell * 2);
+    assert_eq!(r.virtual_hits(), vec![(dwell, "ok".to_owned())]);
+
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.point_xy(0, 100.0, 350.0, true);
+    // Other widgets at index 0: the dwell starts over.
+    let mut other = WIDGETS.to_vec();
+    other[0].0 = "apply";
+    r.register(half, Some(settings(&other)));
+    r.run_to(dwell * 3);
+    assert_eq!(r.virtual_hits(), vec![(half + dwell, "apply".to_owned())]);
+
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.point_xy(0, 100.0, 350.0, true);
+    r.register(half, None);
+    r.run_to(dwell * 3);
+    assert!(r.virtual_hits().is_empty());
+    assert!(r.e.snapshot(&r.clock).virtual_board.is_none());
+}
+
+#[test]
+fn settings_actions_go_to_the_app() {
+    let main = MAIN.replace(
+        "action: { board.open: second }",
+        "action: { settings.open: }",
+    );
+    let mut r = Rig::with(&main);
+    r.on(0, 8);
+    r.run_to(2000);
+    assert!(r
+        .log
+        .iter()
+        .any(|(_, i)| *i == Intent::Control(Control::OpenSettings)));
 }

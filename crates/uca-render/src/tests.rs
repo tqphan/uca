@@ -217,29 +217,31 @@ fn safe_board_en_xa() {
 /// The shipped default theme and keyboard (10 M1 default assets).
 #[test]
 fn asset_qwerty() {
-    render_asset("qwerty");
+    render_asset("qwerty", "default");
 }
 
 /// The shipped mouse board (10 M1 default assets).
 #[test]
 fn asset_mouse() {
-    render_asset("mouse");
+    render_asset("mouse", "default");
 }
 
-/// Every shipped board and theme, loaded together without errors or warnings.
-fn asset_config(start: &str) -> Arc<LoadedConfig> {
+/// The keyboard in the high-contrast theme (05).
+#[test]
+fn asset_qwerty_high_contrast() {
+    render_asset("qwerty", "high-contrast");
+}
+
+/// Every shipped board with one shipped theme, loaded without errors or warnings.
+/// The boards name `theme: default`, so the chosen theme is stored under that name.
+fn asset_config(start: &str, theme: &str) -> Arc<LoadedConfig> {
     let p = ProfilePaths {
         config_dir: PathBuf::from("cfg"),
         profile_id: "t".into(),
     };
     let mut s = Sources::default();
     let profile = format!(
-        "schema: uca/1
-profile:
-  name: t
-  start_board: {start}
-  safety: {{ escape: \"key:* hold(3000)\" }}
-"
+        "schema: uca/1\nprofile:\n  name: t\n  start_board: {start}\n  safety: {{ escape: \"key:* hold(3000)\" }}\n"
     );
     s.set(&p, &p.profile_file(), Some(profile));
     let boards = [
@@ -255,11 +257,14 @@ profile:
     for (name, text) in boards {
         s.set(&p, &p.boards_dir().join(name), Some(text.into()));
     }
-    let theme = include_str!("../../../assets/themes/default.yaml");
+    let theme_text = match theme {
+        "high-contrast" => include_str!("../../../assets/themes/high-contrast.yaml"),
+        _ => include_str!("../../../assets/themes/default.yaml"),
+    };
     s.set(
         &p,
         &p.shared_themes_dir().join("default.yaml"),
-        Some(theme.into()),
+        Some(theme_text.into()),
     );
     let config = match ConfigStore::from_sources(p, s).1 {
         ConfigUpdate::Applied(c) => c,
@@ -270,8 +275,8 @@ profile:
 }
 
 /// Renders a shipped board (bottom 40 % of a 1280 × 720 monitor).
-fn render_asset(start: &str) {
-    let config = asset_config(start);
+fn render_asset(start: &str, theme: &str) {
+    let config = asset_config(start, theme);
     let clock = FakeClock::new();
     let e = Engine::new(config.clone(), vec![monitor(1280.0, 720.0)]);
     let mut snap = e.snapshot(&clock);
@@ -286,11 +291,10 @@ fn render_asset(start: &str) {
             }
         }
     }
-    render(
-        &format!("asset_{start}"),
-        &config,
-        snap,
-        (1280.0, 288.0),
-        &clock,
-    );
+    let name = if theme == "default" {
+        format!("asset_{start}")
+    } else {
+        format!("asset_{start}_{}", theme.replace('-', "_"))
+    };
+    render(&name, &config, snap, (1280.0, 288.0), &clock);
 }

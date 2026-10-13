@@ -64,3 +64,12 @@ diag-readme-recordings = recordings/ — input recordings from debug sessions in
 diag-readme-system = system.json — UCA's version, the operating system, the monitors and what UCA can do on this computer.
 diag-readme-config = config/ — your boards and profile, included because you chose to.
 diag-readme-no-config = Your boards and profile are not included.
+
+# Notices (11).
+
+notice-crash = UCA closed unexpectedly last time.
+notice-safe-profile = UCA closed unexpectedly twice soon after starting, so it started with the built-in safe profile. Your profile was not changed.
+notice-export-saved = Diagnostics saved to { $path }
+notice-export-failed = Could not export diagnostics: { $reason }
+notice-export = Export diagnostics
+notice-dismiss = Dismiss

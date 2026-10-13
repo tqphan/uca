@@ -132,6 +132,12 @@ A debug session raises logging temporarily so a carer or the user can reproduce 
 - **Restart after a panic (decided):** a panic in any UCA thread ends UCA: crash file, SAFETY-08 releases, normal shutdown (windows, hooks, threads). UCA then waits 5 s (fixed safety value) and starts a new instance with the same arguments. With SAFETY-05 this gives: first early crash → normal restart; second early crash → the restart uses the built-in safe profile; if a run on the safe profile chosen by SAFETY-05 also crashes within 60 s of start, UCA does not restart again and logs why.
 - On next start, if a new crash file exists, show a one-line notice offering to export diagnostics.
 
+**Notices (decided):**
+- **Window:** a small topmost window that never takes focus, at the top centre of the board's monitor work area, below the debug strip when both show. Its buttons are registered with the engine as a virtual board (`notice`), like Settings, so dwell and `select` work; only the buttons take clicks. Text 16 logical px, buttons at least 48 px, the same dark look as Settings. One notice at a time; others wait in a queue.
+- **Crash:** "UCA closed unexpectedly last time." [Export diagnostics] [Dismiss]. A crash file is new when its name sorts after the one stored in `<log dir>/crashes/seen`; the newest is stored there once the notice is dismissed or its export runs.
+- **Safe profile (SAFETY-05 "shows why"):** "UCA closed unexpectedly twice soon after starting, so it started with the built-in safe profile. Your profile was not changed." [Export diagnostics] [Dismiss].
+- **Export result** (from `debug.export` or a notice): "Diagnostics saved to { $path }" or "Could not export diagnostics: { $reason }" [Dismiss]. Only this notice times out, after `notice_timeout_ms` (default 10 000, 0 = only when dismissed, `02`); the others stay until dismissed.
+
 ## Diagnostics bundle
 
 Action `debug.export` (also Settings → Diagnostics → Export) creates `uca-diagnostics-<timestamp>.zip` in the user's Documents (or a chosen folder) containing:

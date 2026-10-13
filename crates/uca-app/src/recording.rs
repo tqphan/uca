@@ -44,7 +44,10 @@ pub enum Entry {
     },
     Monitors(Vec<MonitorInfo>),
     Control(EngineControl),
-    Virtual(Option<VirtualBoard>),
+    Virtual {
+        id: String,
+        board: Option<VirtualBoard>,
+    },
     Tick,
     /// The platform's answer to "is this point covered?", in order.
     Covered(bool),
@@ -173,7 +176,7 @@ pub fn replay(text: &str, config: Arc<LoadedConfig>) -> Result<Replayed, String>
             Entry::Signal(s) => CoreInput::Signal(s.clone()),
             Entry::Monitors(m) => CoreInput::Monitors(m.clone()),
             Entry::Control(c) => CoreInput::Control(*c),
-            Entry::Virtual(v) => CoreInput::Virtual(v.clone()),
+            Entry::Virtual { id, board } => CoreInput::Virtual(id.clone(), board.clone()),
             Entry::Tick => CoreInput::Tick,
             Entry::Redacted => {
                 redacted += 1;

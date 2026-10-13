@@ -333,6 +333,15 @@ pub static SETTINGS: &[SettingDef] = &[
         None,
         "setting-behavior-active-flash-ms",
     ),
+    def(
+        "profile.notice_timeout_ms",
+        Millis,
+        N(10_000.0),
+        0.0,
+        600_000.0,
+        Some(OffEncoding::Zero),
+        "setting-notice-timeout-ms",
+    ),
 ];
 
 pub fn get(key: &str) -> Result<&'static SettingDef, SettingError> {

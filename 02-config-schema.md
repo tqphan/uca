@@ -401,6 +401,7 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
   | `presence.resume_delay_ms` | 500 | 0–10 000 ms (YAML: `profile.inputs.presence.resume_delay_ms`) |
   | `behavior.enter_delay_ms` | 150 | 0–10 000 ms (zone items only, `12`; cascades like the other `behavior` keys) |
   | `behavior.active_flash_ms` | 150 | 0–2 000 ms (visual feedback, `05`; 0 = no flash; cascades like the other `behavior` keys) |
+  | `profile.notice_timeout_ms` | 10 000 | 0–600 000 ms (YAML: `profile.notice_timeout_ms`; how long an export-result notice stays, `11`; 0 = until dismissed) |
 
 - **Levels:** each can be set at profile, board, layer, group or item level wherever the cascade allows (`behavior`, above), so a user can, for example, use a longer dwell on just the Backspace key.
 - **Adjusting in Settings:** grouped by input method, with a **live preview** (e.g. a test target showing dwell timing, a live score bar with the on/off levels for each expression). Every value has a **reset to default** and **reset to assessment value**.

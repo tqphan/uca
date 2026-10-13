@@ -695,8 +695,12 @@ const WIDGETS: &[(&str, f64, f64, f64, f64)] = &[
 
 impl Rig {
     fn register(&mut self, ms: u64, vb: Option<VirtualBoard>) {
+        self.register_as(ms, "settings", vb);
+    }
+
+    fn register_as(&mut self, ms: u64, id: &str, vb: Option<VirtualBoard>) {
         self.run_to(ms);
-        self.e.set_virtual_board(vb, &self.clock);
+        self.e.set_virtual_board(id, vb, &self.clock);
         self.drain();
     }
 
@@ -705,7 +709,7 @@ impl Rig {
         self.log
             .iter()
             .filter_map(|(t, i)| match i {
-                Intent::Virtual { board, item } if board == "settings" => Some((*t, item.clone())),
+                Intent::Virtual { item, .. } => Some((*t, item.clone())),
                 _ => None,
             })
             .collect()
@@ -775,7 +779,7 @@ fn covered_paused_and_safe_board_block_virtual_items() {
         .flat_map(|l| &l.items)
         .any(|i| i.dwell_progress.is_some());
     assert!(safe_dwell);
-    let vb = snap.virtual_board.expect("registered");
+    let vb = snap.virtual_boards.first().expect("registered");
     assert!(vb
         .items
         .iter()
@@ -807,7 +811,7 @@ fn registering_again_keeps_or_resets_dwell() {
     moved[0].3 = 210.0;
     r.register(half, Some(settings(&moved)));
     let snap = r.e.snapshot(&r.clock);
-    let ok = &snap.virtual_board.expect("registered").items[0];
+    let ok = &snap.virtual_boards.first().expect("registered").items[0];
     assert!(ok.hover);
     assert!(
         ok.dwell_progress.is_some_and(|p| (p - 0.5).abs() < 0.01),
@@ -832,7 +836,7 @@ fn registering_again_keeps_or_resets_dwell() {
     r.register(half, None);
     r.run_to(dwell * 3);
     assert!(r.virtual_hits().is_empty());
-    assert!(r.e.snapshot(&r.clock).virtual_board.is_none());
+    assert!(r.e.snapshot(&r.clock).virtual_boards.is_empty());
 }
 
 #[test]
@@ -872,4 +876,39 @@ fn debug_snapshot_shows_dwell_and_grace() {
     assert_eq!((dwell.remaining_ms, dwell.grace), (100, true));
     r.run_to(1000);
     assert_eq!(r.e.snapshot(&r.clock).debug.dwell, None);
+}
+
+/// 11: Settings and a notice register side by side; each keeps its own
+/// items, the later one wins where they overlap, removing one keeps the other.
+#[test]
+fn several_virtual_boards() {
+    let notice = |items: &[(&str, f64, f64, f64, f64)]| VirtualBoard {
+        id: "notice".into(),
+        ..settings(items)
+    };
+    let dwell = builtin_dwell_ms();
+    let mut r = Rig::new();
+    r.register(0, Some(settings(WIDGETS)));
+    r.register_as(
+        0,
+        "notice",
+        Some(notice(&[("dismiss", 100.0, 300.0, 50.0, 50.0)])),
+    );
+    assert_eq!(r.e.snapshot(&r.clock).virtual_boards.len(), 2);
+    // Overlapping `ok`: the notice, registered later, wins.
+    r.point_xy(0, 120.0, 320.0, true);
+    r.run_to(dwell * 2);
+    // Away from the notice: Settings' `cancel`.
+    r.point_xy(dwell * 2, 300.0, 350.0, true);
+    r.run_to(dwell * 4);
+    let hits = r.virtual_hits();
+    assert_eq!(
+        hits.iter().map(|(_, i)| i.as_str()).collect::<Vec<_>>(),
+        ["dismiss", "cancel"],
+        "{hits:?}"
+    );
+    r.register_as(dwell * 4, "notice", None);
+    let snap = r.e.snapshot(&r.clock);
+    assert_eq!(snap.virtual_boards.len(), 1);
+    assert_eq!(snap.virtual_boards[0].id, "settings");
 }

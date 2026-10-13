@@ -44,10 +44,11 @@ impl ItemRef {
         }
     }
 
-    fn virtual_item(item: usize) -> Self {
+    /// An item of the virtual board at `board` in registration order.
+    fn virtual_item(board: usize, item: usize) -> Self {
         Self {
             virt: true,
-            layer: 0,
+            layer: board,
             item,
         }
     }
@@ -124,7 +125,8 @@ pub struct Engine {
     /// The board on screen (top of the stack, or the Safe Board) and its layout.
     shown: Option<Shown>,
     /// A `uca-ui` screen hit-tested outside the shown board (05 "Settings window").
-    virtual_board: Option<VirtualBoard>,
+    /// Registered `uca-ui` screens (Settings, notices), oldest first.
+    virtual_boards: Vec<VirtualBoard>,
     pointer: Option<FilteredPoint>,
     hover: Option<ItemRef>,
     dwell: Dwell,
@@ -169,7 +171,7 @@ impl Engine {
             safe_open: false,
             layer_visible: BTreeMap::new(),
             shown: None,
-            virtual_board: None,
+            virtual_boards: Vec::new(),
             pointer: None,
             hover: None,
             dwell: Dwell::Idle,
@@ -258,25 +260,34 @@ impl Engine {
         self.show_top();
     }
 
-    /// Registers a `uca-ui` screen's widgets, or removes them with `None`
-    /// (05 "Settings window"). An unchanged board is ignored, so this may be called every frame.
-    pub fn set_virtual_board(&mut self, board: Option<VirtualBoard>, clock: &dyn Clock) {
-        if self.virtual_board == board {
+    /// Registers a `uca-ui` screen's widgets under `id`, or removes them with
+    /// `None` (05 "Settings window", 11 notices). Several screens can be
+    /// registered; where they overlap, the one registered last wins. An
+    /// unchanged board is ignored, so this may be called every frame.
+    pub fn set_virtual_board(&mut self, id: &str, board: Option<VirtualBoard>, clock: &dyn Clock) {
+        let at = self.virtual_boards.iter().position(|b| b.id == id);
+        if at.map(|i| &self.virtual_boards[i]) == board.as_ref() {
             return;
         }
         let now = clock.now();
         self.advance_to(now);
-        let ids = |b: &Option<VirtualBoard>| {
-            b.as_ref().map(|b| {
-                let items: Vec<String> = b.items.iter().map(|i| i.id.clone()).collect();
-                (b.id.clone(), items)
-            })
-        };
-        // Different widgets: references by index would point at the wrong ones.
-        if ids(&self.virtual_board) != ids(&board) {
-            self.forget_virtual();
+        let item_ids = |b: &VirtualBoard| b.items.iter().map(|i| i.id.clone()).collect::<Vec<_>>();
+        match (at, board) {
+            (Some(i), Some(b)) => {
+                // Different widgets: references by index would point at the wrong ones.
+                if item_ids(&self.virtual_boards[i]) != item_ids(&b) {
+                    self.forget_virtual();
+                }
+                self.virtual_boards[i] = b;
+            }
+            (Some(i), None) => {
+                // Later boards move down one place.
+                self.forget_virtual();
+                self.virtual_boards.remove(i);
+            }
+            (None, Some(b)) => self.virtual_boards.push(b),
+            (None, None) => {}
         }
-        self.virtual_board = board;
         self.refresh_hover(now);
     }
 
@@ -466,14 +477,20 @@ impl Engine {
     /// Points where another window covers the virtual board's window don't
     /// count, as with `ignore_covered` on a board (02).
     fn virtual_hit(&self, p: &FilteredPoint) -> Option<ItemRef> {
-        let vb = self.virtual_board.as_ref()?;
-        if p.monitor != vb.monitor || p.covered {
+        if p.covered {
             return None;
         }
-        vb.items
+        self.virtual_boards
             .iter()
-            .rposition(|i| i.rect.contains(p.logical.x, p.logical.y))
-            .map(ItemRef::virtual_item)
+            .enumerate()
+            .rev()
+            .filter(|(_, vb)| vb.monitor == p.monitor)
+            .find_map(|(bi, vb)| {
+                vb.items
+                    .iter()
+                    .rposition(|i| i.rect.contains(p.logical.x, p.logical.y))
+                    .map(|ii| ItemRef::virtual_item(bi, ii))
+            })
     }
 
     fn board_hit(&self, p: &FilteredPoint) -> Option<ItemRef> {
@@ -975,7 +992,7 @@ impl Engine {
 
     /// Virtual items run no stages: `uca-ui` performs the widget's own action.
     fn activate_virtual(&mut self, r: ItemRef, t: Instant) {
-        let Some(vb) = self.virtual_board.as_ref() else {
+        let Some(vb) = self.virtual_boards.get(r.layer) else {
             return;
         };
         let Some(item) = vb.items.get(r.item) else {
@@ -1292,23 +1309,28 @@ impl Engine {
             presence: self.present_now(),
             action_sets: self.sets.ids(),
             latched: self.latched.iter().map(|(k, l)| (*k, *l)).collect(),
-            virtual_board: self.virtual_board.as_ref().map(|vb| VirtualSnapshot {
-                id: vb.id.clone(),
-                monitor: vb.monitor,
-                items: vb
-                    .items
-                    .iter()
-                    .enumerate()
-                    .map(|(i, item)| {
-                        let r = ItemRef::virtual_item(i);
-                        VirtualItemSnapshot {
-                            id: item.id.clone(),
-                            hover: self.hover == Some(r),
-                            dwell_progress: self.dwell_progress(r, now),
-                        }
-                    })
-                    .collect(),
-            }),
+            virtual_boards: self
+                .virtual_boards
+                .iter()
+                .enumerate()
+                .map(|(bi, vb)| VirtualSnapshot {
+                    id: vb.id.clone(),
+                    monitor: vb.monitor,
+                    items: vb
+                        .items
+                        .iter()
+                        .enumerate()
+                        .map(|(i, item)| {
+                            let r = ItemRef::virtual_item(bi, i);
+                            VirtualItemSnapshot {
+                                id: item.id.clone(),
+                                hover: self.hover == Some(r),
+                                dwell_progress: self.dwell_progress(r, now),
+                            }
+                        })
+                        .collect(),
+                })
+                .collect(),
             debug: self.debug_snapshot(now),
         }
     }
@@ -1336,7 +1358,7 @@ impl Engine {
     /// `board/layer/item`, or `virtual-board/item`.
     fn item_name(&self, r: ItemRef) -> Option<String> {
         if r.virt {
-            let vb = self.virtual_board.as_ref()?;
+            let vb = self.virtual_boards.get(r.layer)?;
             let item = vb.items.get(r.item)?;
             return Some(format!("{}/{}", vb.id, item.id));
         }

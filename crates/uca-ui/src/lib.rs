@@ -9,6 +9,7 @@
 
 pub mod debug_overlay;
 pub mod debug_strip;
+pub mod notice;
 pub mod settings;
 
 pub use settings::{

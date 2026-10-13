@@ -39,6 +39,8 @@ pub struct PassiveWindow {
     window: Arc<Window>,
     /// Shown through the platform once; never through winit (see `place`).
     shown: bool,
+    /// Where `place` last put it: top and height, in physical pixels.
+    placed: Option<(f64, u32)>,
     ctx: egui::Context,
     state: egui_winit::State,
     painter: egui_wgpu::winit::Painter,
@@ -103,6 +105,7 @@ impl PassiveWindow {
             platform,
             window,
             shown: false,
+            placed: None,
             ctx,
             state,
             painter,
@@ -171,7 +174,13 @@ impl PassiveWindow {
     /// `set_visible`, and the flags are applied again afterwards. A window
     /// shown for the first time is drawn at once: a redraw requested while it
     /// was hidden is lost.
+    /// The bottom edge where it was last placed, in physical pixels.
+    pub fn bottom(&self) -> Option<f64> {
+        self.placed.map(|(y, h)| y + f64::from(h))
+    }
+
     pub fn place(&mut self, x: f64, y: f64, size: PhysicalSize<u32>) {
+        self.placed = Some((y.round(), size.height));
         self.window
             .set_outer_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
         let resized = self.window.inner_size() != size;

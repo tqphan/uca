@@ -2646,6 +2646,21 @@
         "name": {
           "type": "string"
         },
+        "notice_timeout_ms": {
+          "description": "How long an export-result notice stays (11); 0 = until dismissed.",
+          "anyOf": [
+            {
+              "description": "off",
+              "const": 0
+            },
+            {
+              "description": "Setting `profile.notice_timeout_ms` (ms)",
+              "type": "integer",
+              "maximum": 600000.0,
+              "minimum": 0.0
+            }
+          ]
+        },
         "safety": {
           "description": "Required (SAFETY-01); checked during validation so the message is exact.",
           "anyOf": [

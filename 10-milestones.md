@@ -24,7 +24,7 @@ Goal: a mouse/keyboard/switch user can type with a YAML-defined on-screen keyboa
 - [ ] `uca-app`: wiring, tray icon
 - [x] Logging: subscriber setup, JSON log files with rotation, `app.yaml` + `UCA_LOG` + `--log`, target naming, redaction layer, ring buffer + crash file, debug sessions, debug overlay — `11`
 - [ ] Crash monitor: minidump via `crash-handler` / `minidumper` in a small out-of-process monitor, and on Windows the unhandled-exception filter (moved out of the logging item, decided) — `11`
-- [ ] Diagnostics bundle export and `uca-replay` recording/replay tool; the notices after a crash ("export diagnostics?") and after a crash loop (SAFETY-05 "shows why"), moved here from the logging item (decided) — `11`, `09`
+- [x] Diagnostics bundle export and `uca-replay` recording/replay tool; the notices after a crash ("export diagnostics?") and after a crash loop (SAFETY-05 "shows why"), moved here from the logging item (decided) — `11`, `09`
 - [ ] Game outputs, part 1: scan-code key injection, `key.hold` / `release` / `toggle`, hold-while-active via start stages, zone items (`zone: true`) in free layers, exclusive-fullscreen tip, latency benchmark — `12`
 - [ ] Default assets: `themes/default.yaml`, `themes/high-contrast.yaml`, `boards/qwerty.yaml`, `boards/mouse.yaml`, `boards/game-pointer.yaml`, `boards/game-wasd-zones.yaml`, default profile — `02`, `12`
 

@@ -23,3 +23,4 @@ setting-filter-ema-alpha = Pointer smoothing. Lower is smoother but slower to fo
 setting-presence-resume-delay-ms = After you are detected again, how long to wait before dwell and scanning resume.
 setting-behavior-enter-delay-ms = How long the pointer must be inside a game zone before it acts, so a passing glance does nothing.
 setting-behavior-active-flash-ms = How long a selected item flashes, so you can see it was chosen. 0 turns the flash off.
+setting-notice-timeout-ms = How long a message about an export stays on screen. 0 keeps it until you dismiss it.

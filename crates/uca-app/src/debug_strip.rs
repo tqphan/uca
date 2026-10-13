@@ -48,6 +48,11 @@ impl DebugStrip {
         self.window.id()
     }
 
+    /// Its bottom edge in physical pixels, once placed; notices go below it.
+    pub fn bottom(&self) -> Option<f64> {
+        self.window.bottom()
+    }
+
     /// Redraws when what it shows changed.
     pub fn update(&mut self, s: StripState) {
         if self.shown.as_ref() == Some(&s) {

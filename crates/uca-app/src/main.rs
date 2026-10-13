@@ -9,6 +9,8 @@ mod debug_overlay;
 mod debug_session;
 mod debug_strip;
 mod icon;
+mod notice_window;
+mod notices;
 mod passive_window;
 mod settings_window;
 mod threads;
@@ -174,6 +176,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         logging: logging.clone(),
         cli_session: debug_session_arg(),
         cli_record: record_arg(),
+        startup_notices: startup_notices(log_dir.as_deref(), safe_mode),
         debug_area: debug_area(app_file.as_ref()),
     };
     let mut app = App::new(
@@ -232,6 +235,19 @@ fn log_options() -> uca_log::Options {
         }
     }
     options
+}
+
+/// The safe-profile notice after a crash loop, else a crash notice when a
+/// new crash file exists (11, SAFETY-05).
+fn startup_notices(log_dir: Option<&Path>, safe_mode: bool) -> Vec<notices::Notice> {
+    let newest = log_dir.and_then(notices::new_crash);
+    if safe_mode {
+        return vec![notices::Notice::SafeProfile { newest }];
+    }
+    newest
+        .map(|newest| notices::Notice::Crash { newest })
+        .into_iter()
+        .collect()
 }
 
 /// `--record <file>` (11).

@@ -38,6 +38,8 @@ use crate::block_on::block_on;
 use crate::debug_overlay::DebugOverlay;
 use crate::debug_session::Sessions;
 use crate::debug_strip::{DebugStrip, StripState};
+use crate::notice_window::NoticeWindow;
+use crate::notices::Notice;
 use crate::settings_window::SettingsWindow;
 use crate::threads::{DebugInfo, Msg, Shared, UiWaker};
 
@@ -60,8 +62,12 @@ pub enum UserEvent {
     App(uca_config::action::Action),
     /// `app.yaml` → `debug.area` changed (11).
     DebugArea(uca_config::board::Area),
-    /// A diagnostics export finished: the bundle's path, or why it failed (11).
-    Exported(Result<std::path::PathBuf, String>),
+    /// A diagnostics export finished: the bundle's path, or why it failed.
+    /// Exports started from Settings show their result there only (11).
+    Exported {
+        result: Result<std::path::PathBuf, String>,
+        from_settings: bool,
+    },
 }
 
 impl From<egui_winit::accesskit_winit::Event> for UserEvent {
@@ -145,6 +151,11 @@ pub struct App {
     recording: bool,
     /// The last export's result line for Settings, translated (11).
     export_result: Option<String>,
+    /// Waiting notices; the first is on screen (11).
+    notices: std::collections::VecDeque<Notice>,
+    notice_window: Option<NoticeWindow>,
+    /// When the first notice appeared, for its timeout.
+    notice_since: Option<Instant>,
     /// `debug.overlay` / `UCA_DEBUG_OVERLAY=1` (11).
     overlay_on: bool,
     debug_overlay: Option<DebugOverlay>,
@@ -161,6 +172,8 @@ pub struct AppRuntime {
     pub debug_area: uca_config::board::Area,
     /// `--record <file>` (11).
     pub cli_record: Option<std::path::PathBuf>,
+    /// Notices to show at start: a crash, or the safe profile (11).
+    pub startup_notices: Vec<Notice>,
 }
 
 impl App {
@@ -194,6 +207,9 @@ impl App {
             cli_record: runtime.cli_record,
             recording: false,
             export_result: None,
+            notices: runtime.startup_notices.into(),
+            notice_window: None,
+            notice_since: None,
             diagnostics: DiagnosticsView {
                 minutes: 60,
                 trace: false,
@@ -350,13 +366,16 @@ impl App {
                 .is_none_or(|old| old.board != snapshot.board || old.latched != snapshot.latched);
         let settings_redraw = config_changed
             || self.snapshot.as_ref().is_none_or(|old| {
-                old.virtual_board != snapshot.virtual_board
+                old.virtual_boards != snapshot.virtual_boards
                     || old.mode != snapshot.mode
                     || old.board.as_ref().map(|b| &b.id) != snapshot.board.as_ref().map(|b| &b.id)
             });
         if settings_redraw {
             if let Some(s) = &self.settings {
                 s.request_redraw();
+            }
+            if let Some(n) = &self.notice_window {
+                n.request_redraw();
             }
         }
         self.snapshot = Some(snapshot);
@@ -637,7 +656,7 @@ impl App {
     fn close_settings(&mut self) {
         if let Some(s) = self.settings.take() {
             s.close(self.platform.as_ref());
-            self.send(Msg::Virtual(None));
+            self.send(Msg::Virtual(SETTINGS_BOARD_ID.into(), None));
         }
     }
 
@@ -688,8 +707,7 @@ impl App {
             export_result: export_result.as_deref(),
             paused: snapshot.is_some_and(|s| s.mode == Mode::Paused),
             dwell: snapshot
-                .and_then(|s| s.virtual_board.as_ref())
-                .filter(|v| v.id == SETTINGS_BOARD_ID),
+                .and_then(|s| s.virtual_boards.iter().find(|v| v.id == SETTINGS_BOARD_ID)),
             indicator: &indicator,
         };
         let (commands, content) = settings.paint(&view);
@@ -711,7 +729,7 @@ impl App {
                 SettingsCommand::ToggleIncludeConfig => {
                     self.diagnostics.include_config = !self.diagnostics.include_config
                 }
-                SettingsCommand::Export => self.export(self.diagnostics.include_config),
+                SettingsCommand::Export => self.export(self.diagnostics.include_config, true),
                 SettingsCommand::TogglePause => self.send(Msg::Control(EngineControl::TogglePause)),
                 SettingsCommand::Close => {
                     self.close_settings();
@@ -742,7 +760,7 @@ impl App {
     fn register_settings(&mut self) {
         let Some(s) = &mut self.settings else { return };
         if let Some(board) = s.registration(&self.monitors) {
-            self.send(Msg::Virtual(board));
+            self.send(Msg::Virtual(SETTINGS_BOARD_ID.into(), board));
         }
     }
 
@@ -780,6 +798,9 @@ impl App {
         self.sessions.stop("exit", self.logging.as_ref());
         self.strip = None;
         self.debug_overlay = None;
+        if let Some(n) = self.notice_window.take() {
+            n.close();
+        }
         self.close_settings();
         self.send(Msg::Quit);
         for t in self.threads.drain(..) {
@@ -833,7 +854,13 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::Crashed => self.quit(event_loop),
             UserEvent::App(action) => self.on_app_action(action),
-            UserEvent::Exported(result) => {
+            UserEvent::Exported {
+                result,
+                from_settings,
+            } => {
+                if !from_settings {
+                    self.notices.push_back(Notice::Exported(result.clone()));
+                }
                 self.export_result = Some(match &result {
                     Ok(path) => {
                         tracing::info!(target: "uca::app", file = %path.display(), "diagnostics exported");
@@ -861,7 +888,11 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Control(Control::OpenSettings) => self.open_settings(event_loop),
             UserEvent::Control(Control::CloseSettings) => self.close_settings(),
             UserEvent::Virtual { board, item } => {
-                if let Some(s) = self
+                if board == uca_ui::notice::NOTICE_BOARD_ID {
+                    if let Some(n) = &mut self.notice_window {
+                        n.press(item);
+                    }
+                } else if let Some(s) = self
                     .settings
                     .as_mut()
                     .filter(|_| board == SETTINGS_BOARD_ID)
@@ -892,6 +923,15 @@ impl ApplicationHandler<UserEvent> for App {
         }
         self.update_debug_strip(event_loop);
         self.update_debug_overlay(event_loop);
+        let notice_wake = self.update_notices(event_loop);
+        let wake = [self.sessions.next_wake(Instant::now()), notice_wake]
+            .into_iter()
+            .flatten()
+            .min();
+        event_loop.set_control_flow(match wake {
+            Some(t) => ControlFlow::WaitUntil(t),
+            None => ControlFlow::Wait,
+        });
     }
 
     fn window_event(&mut self, _event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
@@ -902,6 +942,12 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(d) = self.debug_overlay.as_mut().filter(|d| d.owns(id)) {
             let area = self.debug_area;
             d.on_window_event(id, &event, self.snapshot.as_ref(), &self.debug_info, area);
+            return;
+        }
+        if let Some(n) = self.notice_window.as_mut().filter(|n| n.id() == id) {
+            if n.on_window_event(&event) {
+                self.paint_notice();
+            }
             return;
         }
         if self.settings.as_ref().is_some_and(|s| s.id() == id) {
@@ -954,7 +1000,7 @@ impl App {
                 tracing::info!(target: "uca::app", on = self.overlay_on, "debug overlay");
             }
             // The action never includes the boards and profile (11, decided).
-            Action::DebugExport => self.export(false),
+            Action::DebugExport => self.export(false, false),
             other => {
                 tracing::info!(target: "uca::app", action = ?other, "this debug action is not available yet");
             }
@@ -963,11 +1009,15 @@ impl App {
 
     /// Builds a diagnostics bundle on its own thread (11); the result comes
     /// back as `UserEvent::Exported`.
-    fn export(&mut self, include_config: bool) {
+    fn export(&mut self, include_config: bool, from_settings: bool) {
+        let done = move |result: Result<std::path::PathBuf, String>| UserEvent::Exported {
+            result,
+            from_settings,
+        };
         let Some(out_dir) = self.platform.documents_dir() else {
             let _ = self
                 .proxy
-                .send_event(UserEvent::Exported(Err("no Documents folder".into())));
+                .send_event(done(Err("no Documents folder".into())));
             return;
         };
         let config = self
@@ -988,12 +1038,10 @@ impl App {
             .name("diagnostics".into())
             .spawn(move || {
                 let result = uca_app::diagnostics::export(&input).map_err(|e| e.to_string());
-                let _ = proxy.send_event(UserEvent::Exported(result));
+                let _ = proxy.send_event(done(result));
             });
         if let Err(e) = spawned {
-            let _ = self
-                .proxy
-                .send_event(UserEvent::Exported(Err(e.to_string())));
+            let _ = self.proxy.send_event(done(Err(e.to_string())));
         }
     }
 
@@ -1027,6 +1075,120 @@ impl App {
             "plugins": [],
             "sources": sources,
         })
+    }
+
+    /// Ends a timed-out export notice, opens or closes the notice window, and
+    /// returns when the current notice times out (11).
+    fn update_notices(&mut self, event_loop: &ActiveEventLoop) -> Option<Instant> {
+        let now = Instant::now();
+        let timeout = self.notice_timeout();
+        let expired = self.notices.front().is_some_and(|n| n.times_out())
+            && timeout
+                .zip(self.notice_since)
+                .is_some_and(|(t, since)| now >= since + t);
+        if expired {
+            self.next_notice();
+        }
+        if self.notices.is_empty() {
+            if let Some(n) = self.notice_window.take() {
+                n.close();
+                self.send(Msg::Virtual(uca_ui::notice::NOTICE_BOARD_ID.into(), None));
+            }
+            return None;
+        }
+        if self.notice_window.is_none() {
+            self.notice_window = NoticeWindow::open(event_loop, self.platform.clone());
+            // Laid out on the first frame, then placed.
+            if let Some(n) = &self.notice_window {
+                n.request_redraw();
+            }
+            self.paint_notice();
+        }
+        let since = *self.notice_since.get_or_insert(now);
+        self.notices
+            .front()
+            .filter(|n| n.times_out())
+            .and(timeout)
+            .map(|t| since + t)
+    }
+
+    /// `profile.notice_timeout_ms`; `None` when off (0) (02, 11).
+    fn notice_timeout(&self) -> Option<std::time::Duration> {
+        use uca_config::settings_registry::{self, SettingValue};
+        let set = self
+            .config
+            .as_ref()
+            .and_then(|c| c.profile.profile.notice_timeout_ms);
+        let ms = match set {
+            Some(SettingValue::Number(n)) => n,
+            Some(SettingValue::Off) => 0.0,
+            None => match settings_registry::get("profile.notice_timeout_ms").map(|d| d.default) {
+                Ok(SettingValue::Number(n)) => n,
+                _ => 0.0,
+            },
+        };
+        (ms > 0.0).then(|| std::time::Duration::from_millis(ms as u64))
+    }
+
+    fn next_notice(&mut self) {
+        self.notices.pop_front();
+        self.notice_since = None;
+        if let Some(n) = &self.notice_window {
+            n.request_redraw();
+        }
+    }
+
+    /// Draws the first notice, places the window and handles its buttons.
+    fn paint_notice(&mut self) {
+        let Some(notice) = self.notices.front().cloned() else {
+            return;
+        };
+        let monitor = self.board_monitor();
+        let indicator = self.settings_indicator();
+        let strip_bottom = self.strip.as_ref().and_then(|s| s.bottom());
+        let dwell = self.snapshot.as_ref().and_then(|s| {
+            s.virtual_boards
+                .iter()
+                .find(|v| v.id == uca_ui::notice::NOTICE_BOARD_ID)
+                .cloned()
+        });
+        let Some(window) = &mut self.notice_window else {
+            return;
+        };
+        let text = notice.text();
+        let buttons = notice.buttons();
+        let view = uca_ui::notice::NoticeView {
+            text: &text,
+            buttons: &buttons,
+            dwell: dwell.as_ref(),
+            indicator: &indicator,
+        };
+        let (pressed, size) = window.paint(&view);
+        if let Some(m) = &monitor {
+            // Top centre of the work area, below the debug strip (11).
+            let a = m.work_area_phys;
+            let gap = NOTICE_GAP * m.scale_factor;
+            let y = strip_bottom.map_or(a.y + gap, |b| b + gap);
+            let x = a.x + (a.width - f64::from(size.width)) / 2.0;
+            window.place(x, y, size);
+        }
+        if let Some(board) = window.registration(&self.monitors) {
+            self.send(Msg::Virtual(uca_ui::notice::NOTICE_BOARD_ID.into(), board));
+        }
+        for id in pressed {
+            self.notice_button(&notice, &id);
+        }
+    }
+
+    fn notice_button(&mut self, notice: &Notice, id: &str) {
+        if let (Some(dir), Some(file)) = (self.platform.log_dir(), notice.crash_file()) {
+            crate::notices::mark_seen(&dir, file);
+        }
+        if id == crate::notices::EXPORT {
+            // From a notice, as from the action: never the boards and profile (11).
+            self.export(false, false);
+        }
+        self.next_notice();
     }
 
     /// Opens or closes the overlay windows and follows monitor changes (11).
@@ -1137,10 +1299,6 @@ impl App {
             }
             None => self.strip = None,
         }
-        event_loop.set_control_flow(match self.sessions.next_wake(now) {
-            Some(t) => ControlFlow::WaitUntil(t),
-            None => ControlFlow::Wait,
-        });
     }
 
     fn settings_event(&mut self, event: &WindowEvent) {
@@ -1202,3 +1360,7 @@ fn readme(with_config: bool) -> String {
         .join("\r\n")
         + "\r\n"
 }
+
+/// Gap between the notice and the work area's top or the debug strip, in
+/// logical px (11).
+const NOTICE_GAP: f64 = 8.0;

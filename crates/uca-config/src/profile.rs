@@ -40,6 +40,10 @@ pub struct Profile {
     pub bindings: Vec<Binding>,
     #[serde(default)]
     pub macros: BTreeMap<Id, Macro>,
+    /// How long an export-result notice stays (11); 0 = until dismissed.
+    #[serde(default, deserialize_with = "setting::notice_timeout_ms")]
+    #[schemars(schema_with = "crate::setting::schema::notice_timeout_ms")]
+    pub notice_timeout_ms: Option<SettingValue>,
 }
 
 /// Method ids from 08.

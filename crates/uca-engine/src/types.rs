@@ -116,7 +116,8 @@ pub struct EngineSnapshot {
     /// Active action sets, bottom (`default`) first.
     pub action_sets: Vec<String>,
     pub latched: Vec<(Key, Latch)>,
-    pub virtual_board: Option<VirtualSnapshot>,
+    /// Hover and dwell on each registered virtual board.
+    pub virtual_boards: Vec<VirtualSnapshot>,
     /// What the debug overlay shows about hover and dwell (11).
     pub debug: DebugSnapshot,
 }

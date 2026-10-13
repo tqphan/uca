@@ -20,7 +20,8 @@ pub enum CoreInput {
     Config(Arc<LoadedConfig>),
     Monitors(Vec<MonitorInfo>),
     Control(EngineControl),
-    Virtual(Option<VirtualBoard>),
+    /// A `uca-ui` screen's widgets by board id, or `None` to remove them.
+    Virtual(String, Option<VirtualBoard>),
     Tick,
 }
 
@@ -83,7 +84,7 @@ impl EngineCore {
                 self.engine.set_monitors(self.monitors.clone());
             }
             CoreInput::Control(c) => self.engine.control(c, clock),
-            CoreInput::Virtual(board) => self.engine.set_virtual_board(board, clock),
+            CoreInput::Virtual(id, board) => self.engine.set_virtual_board(&id, board, clock),
             CoreInput::Tick => {
                 for out in self.hub.on_tick(clock.now()) {
                     self.engine.on_signal(engine_input(out, covered), clock);

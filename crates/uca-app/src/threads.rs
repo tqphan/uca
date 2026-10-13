@@ -24,8 +24,9 @@ pub enum Msg {
     Config(ConfigUpdate),
     Monitors(Vec<MonitorInfo>),
     Control(EngineControl),
-    /// The Settings window's widgets, or `None` when it closes (05).
-    Virtual(Option<VirtualBoard>),
+    /// A `uca-ui` screen's widgets by board id (Settings, notices), or
+    /// `None` when it closes (05, 11).
+    Virtual(String, Option<VirtualBoard>),
     /// Start recording into the file, or stop with `None` (11).
     Record(Option<std::path::PathBuf>),
     Quit,
@@ -136,9 +137,10 @@ pub fn run_engine(
             }
             Ok(Msg::Monitors(m)) => Some((CoreInput::Monitors(m.clone()), Entry::Monitors(m))),
             Ok(Msg::Control(c)) => Some((CoreInput::Control(c), Entry::Control(c))),
-            Ok(Msg::Virtual(board)) => {
-                Some((CoreInput::Virtual(board.clone()), Entry::Virtual(board)))
-            }
+            Ok(Msg::Virtual(id, board)) => Some((
+                CoreInput::Virtual(id.clone(), board.clone()),
+                Entry::Virtual { id, board },
+            )),
             Ok(Msg::Record(target)) => {
                 recorder = target.and_then(|path| start_recording(&path, &core, &current));
                 if recorder.is_none() {
@@ -335,7 +337,7 @@ fn frame_deadline(
             .any(|i| i.dwell_progress.is_some())
             .then_some(b.monitor)
     });
-    let on_virtual = snap.virtual_board.as_ref().and_then(|v| {
+    let on_virtual = snap.virtual_boards.iter().find_map(|v| {
         v.items
             .iter()
             .any(|i| i.dwell_progress.is_some())

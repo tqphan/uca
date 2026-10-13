@@ -284,7 +284,9 @@ impl App {
         let Ok(handle) = o.window.window_handle().map(|h| h.as_raw()) else {
             return;
         };
-        if o.reserved {
+        // A board that also reserves updates the strip in place: releasing first
+        // would hand the space back to other windows for a moment.
+        if o.reserved && reserve.is_none() {
             if let Err(e) = self.platform.release_edge(handle) {
                 tracing::warn!(target: "uca::app", error = %e, "cannot release reserved space");
             }
@@ -302,6 +304,10 @@ impl App {
                 self.monitors.iter().find(|m| m.id == p.monitor)?.clone(),
             ))
         }) else {
+            if o.reserved {
+                let _ = self.platform.release_edge(handle);
+                o.reserved = false;
+            }
             let _ = self.platform.show_overlay(handle, false);
             return;
         };

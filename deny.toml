@@ -23,6 +23,9 @@ allow = [
     "GPL-3.0-only",
     "GPL-3.0-or-later",
     "CC0-1.0",
+    # Fonts embedded by egui (epaint_default_fonts), decided in 18.
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
 ]
 
 # Dependencies come only from crates.io: no git dependencies, no other registries.

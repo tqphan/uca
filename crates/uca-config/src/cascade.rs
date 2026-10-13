@@ -527,6 +527,11 @@ impl ResolvedItem {
         self.resolve(&style)
     }
 
+    /// Whether the cascade styles this state; if not, the renderer draws its built-in visual (05).
+    pub fn styles_state(&self, state: State) -> bool {
+        self.states.contains_key(&state)
+    }
+
     /// Behavior for an action set entry: its `behavior` merged over the item's (04).
     pub fn behavior_for(&self, entry: &ActionSetEntry) -> ResolvedBehavior {
         let Some(over) = &entry.behavior else {

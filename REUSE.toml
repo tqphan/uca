@@ -26,7 +26,26 @@ SPDX-License-Identifier = "MIT OR Apache-2.0"
 
 # Test fixtures are part of their crate (18-licensing.md); `.expected` files have no comment syntax.
 [[annotations]]
-path = ["crates/*/tests/golden/**", "crates/*/tests/data/**"]
+path = ["crates/*/tests/golden/**", "crates/*/tests/data/**", "crates/*/tests/snapshots/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "The UCA contributors"
 SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Bundled fonts keep their upstream licence (18-licensing.md).
+[[annotations]]
+path = ["assets/fonts/noto-sans/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic)"
+SPDX-License-Identifier = "OFL-1.1"
+
+[[annotations]]
+path = ["assets/fonts/atkinson-hyperlegible/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2020 Braille Institute of America, Inc."
+SPDX-License-Identifier = "OFL-1.1"
+
+[[annotations]]
+path = ["assets/fonts/lexend/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2018 The Lexend Project Authors (https://github.com/googlefonts/lexend)"
+SPDX-License-Identifier = "OFL-1.1"

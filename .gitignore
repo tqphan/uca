@@ -2,3 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 /target/
+
+# egui_kittest output on snapshot mismatch
+*.new.png
+*.diff.png
+*.old.png

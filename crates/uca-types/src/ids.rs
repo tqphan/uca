@@ -7,7 +7,9 @@ use smol_str::SmolStr;
 pub const MOUSE_SOURCE: &str = "mouse";
 
 /// An input source, e.g. `"mouse"`, `"keyboard"`, or a plugin id.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct SourceId(pub SmolStr);
 
 /// A fully qualified item id: `"board/layer/item"`.

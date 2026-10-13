@@ -35,6 +35,7 @@ settings-session-stop = Stop debug session
 
 debug-strip-on = Debug logging on · { $minutes } min left
 debug-strip-sensitive = Sensitive logging is on — typed text is recorded
+debug-strip-recording = Recording input for diagnostics
 
 # The debug overlay's text panel (11).
 

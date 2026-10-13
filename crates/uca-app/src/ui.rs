@@ -137,6 +137,10 @@ pub struct App {
     strip: Option<DebugStrip>,
     /// Where the strip and the overlay panel are placed (11).
     debug_area: uca_config::board::Area,
+    /// `--record <file>`, started once the loop runs (11).
+    cli_record: Option<std::path::PathBuf>,
+    /// A signal recording runs (11).
+    recording: bool,
     /// `debug.overlay` / `UCA_DEBUG_OVERLAY=1` (11).
     overlay_on: bool,
     debug_overlay: Option<DebugOverlay>,
@@ -151,6 +155,8 @@ pub struct AppRuntime {
     pub cli_session: Option<u32>,
     /// `app.yaml` → `debug.area` at start (11).
     pub debug_area: uca_config::board::Area,
+    /// `--record <file>` (11).
+    pub cli_record: Option<std::path::PathBuf>,
 }
 
 impl App {
@@ -181,6 +187,8 @@ impl App {
             sessions: Sessions::default(),
             cli_session: runtime.cli_session,
             debug_area: runtime.debug_area,
+            cli_record: runtime.cli_record,
+            recording: false,
             diagnostics: DiagnosticsView {
                 minutes: 60,
                 trace: false,
@@ -852,6 +860,9 @@ impl ApplicationHandler<UserEvent> for App {
             self.sessions
                 .start(settings, Instant::now(), self.logging.as_ref());
         }
+        if let Some(path) = self.cli_record.take() {
+            self.start_recording(Some(path));
+        }
         self.update_debug_strip(event_loop);
         self.update_debug_overlay(event_loop);
     }
@@ -896,13 +907,20 @@ impl ApplicationHandler<UserEvent> for App {
 }
 
 impl App {
-    /// `debug.*` actions (11): `debug.session` and `debug.overlay` so far.
+    /// `debug.*` actions (11): `debug.session`, `debug.record` and `debug.overlay` so far.
     fn on_app_action(&mut self, action: uca_config::action::Action) {
         use uca_config::action::Action;
         match action {
             Action::DebugSession(settings) => {
                 self.sessions
                     .toggle(settings, Instant::now(), self.logging.as_ref());
+            }
+            Action::DebugRecord => {
+                if self.recording {
+                    self.stop_recording();
+                } else {
+                    self.start_recording(None);
+                }
             }
             Action::DebugOverlay => {
                 self.overlay_on = !self.overlay_on;
@@ -954,12 +972,45 @@ impl App {
             .toggle(settings, Instant::now(), self.logging.as_ref());
     }
 
+    /// Starts a recording, inside a debug session: a default one is started
+    /// when none runs (11, decided). `None` records into the log folder.
+    fn start_recording(&mut self, path: Option<std::path::PathBuf>) {
+        let path = path.or_else(|| {
+            let dir = self.platform.log_dir()?.join("recordings");
+            Some(dir.join(format!("rec-{}.ucarec", uca_log::crash::now_basic_utc())))
+        });
+        let Some(path) = path else {
+            tracing::warn!(target: "uca::app", "no log directory; cannot record");
+            return;
+        };
+        if self.sessions.active().is_none() {
+            let settings = uca_config::action::DebugSession {
+                minutes: 60,
+                level: uca_config::action::DebugLevel::Debug,
+                sensitive: false,
+            };
+            self.sessions
+                .start(settings, Instant::now(), self.logging.as_ref());
+        }
+        self.send(Msg::Record(Some(path)));
+        self.recording = true;
+    }
+
+    fn stop_recording(&mut self) {
+        self.send(Msg::Record(None));
+        self.recording = false;
+    }
+
     /// Ends an expired session, keeps the indicator and Settings current, and
     /// wakes the loop when the minutes shown change (11).
     fn update_debug_strip(&mut self, event_loop: &ActiveEventLoop) {
         let now = Instant::now();
         self.sessions.tick(now, self.logging.as_ref());
         let active = self.sessions.active().is_some();
+        // A recording lives only inside a debug session (11).
+        if !active && self.recording {
+            self.stop_recording();
+        }
         if active != self.diagnostics.active {
             self.diagnostics.active = active;
             if let Some(s) = &self.settings {
@@ -981,6 +1032,7 @@ impl App {
                     strip.update(StripState {
                         minutes_left,
                         sensitive: a.settings.sensitive,
+                        recording: self.recording,
                         area: debug_rect(&monitor, self.debug_area),
                         scale: monitor.scale_factor,
                     });

@@ -17,10 +17,13 @@ const AMBER: Color32 = Color32::from_rgb(0xf5, 0x9e, 0x0b);
 const PAD_X: i8 = 12;
 
 /// Draws the strip into `ui`, no wider than its longest pill, pills centred.
-pub fn show(ui: &mut Ui, minutes_left: u32, sensitive: bool) {
+pub fn show(ui: &mut Ui, minutes_left: u32, sensitive: bool, recording: bool) {
     let mut labels = vec![t!("debug-strip-on", minutes = minutes_left)];
     if sensitive {
         labels.push(t!("debug-strip-sensitive"));
+    }
+    if recording {
+        labels.push(t!("debug-strip-recording"));
     }
     let width = labels
         .iter()
@@ -47,6 +50,9 @@ pub fn show(ui: &mut Ui, minutes_left: u32, sensitive: bool) {
         if sensitive {
             pill(ui, t!("debug-strip-sensitive"), AMBER, Color32::BLACK);
         }
+        if recording {
+            pill(ui, t!("debug-strip-recording"), AMBER, Color32::BLACK);
+        }
     });
 }
 
@@ -72,8 +78,10 @@ mod tests {
 
     #[test]
     fn shows_time_left_and_the_sensitive_banner() {
-        let mut h =
-            Harness::new_ui_state(|ui, sensitive: &mut bool| show(ui, 42, *sensitive), false);
+        let mut h = Harness::new_ui_state(
+            |ui, sensitive: &mut bool| show(ui, 42, *sensitive, false),
+            false,
+        );
         h.run();
         h.get_by_label("Debug logging on · 42 min left");
         assert!(h
@@ -82,5 +90,17 @@ mod tests {
         *h.state_mut() = true;
         h.run();
         h.get_by_label("Sensitive logging is on — typed text is recorded");
+    }
+
+    #[test]
+    fn shows_the_recording_line() {
+        let mut h = Harness::new_ui_state(|ui, rec: &mut bool| show(ui, 5, false, *rec), false);
+        h.run();
+        assert!(h
+            .query_by_label("Recording input for diagnostics")
+            .is_none());
+        *h.state_mut() = true;
+        h.run();
+        h.get_by_label("Recording input for diagnostics");
     }
 }

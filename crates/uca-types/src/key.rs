@@ -9,7 +9,7 @@ use crate::suggest::closest;
 
 macro_rules! keys {
     ($($variant:ident),* $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
         pub enum Key {
             $($variant,)*
         }
@@ -123,6 +123,88 @@ pub struct KeyError {
 }
 
 impl Key {
+    /// Keys that type a character (letters, digits, punctuation, space and the
+    /// numpad's digits and operators). Logs and recordings hide these unless
+    /// sensitive logging is on; modifiers and special keys are shown (11).
+    pub fn types_text(self) -> bool {
+        use Key::*;
+        matches!(
+            self,
+            Backquote
+                | Backslash
+                | BracketLeft
+                | BracketRight
+                | Comma
+                | Equal
+                | Minus
+                | Period
+                | Quote
+                | Semicolon
+                | Slash
+                | Space
+                | IntlBackslash
+                | IntlRo
+                | IntlYen
+                | Digit0
+                | Digit1
+                | Digit2
+                | Digit3
+                | Digit4
+                | Digit5
+                | Digit6
+                | Digit7
+                | Digit8
+                | Digit9
+                | KeyA
+                | KeyB
+                | KeyC
+                | KeyD
+                | KeyE
+                | KeyF
+                | KeyG
+                | KeyH
+                | KeyI
+                | KeyJ
+                | KeyK
+                | KeyL
+                | KeyM
+                | KeyN
+                | KeyO
+                | KeyP
+                | KeyQ
+                | KeyR
+                | KeyS
+                | KeyT
+                | KeyU
+                | KeyV
+                | KeyW
+                | KeyX
+                | KeyY
+                | KeyZ
+                | Numpad0
+                | Numpad1
+                | Numpad2
+                | Numpad3
+                | Numpad4
+                | Numpad5
+                | Numpad6
+                | Numpad7
+                | Numpad8
+                | Numpad9
+                | NumpadAdd
+                | NumpadComma
+                | NumpadDecimal
+                | NumpadDivide
+                | NumpadEqual
+                | NumpadHash
+                | NumpadMultiply
+                | NumpadParenLeft
+                | NumpadParenRight
+                | NumpadStar
+                | NumpadSubtract
+        )
+    }
+
     /// Parses a YAML key name: a W3C code in any case, or an alias.
     pub fn parse(name: &str) -> Result<Key, KeyError> {
         if let Some(&(_, key)) = ALIASES.iter().find(|(a, _)| a.eq_ignore_ascii_case(name)) {

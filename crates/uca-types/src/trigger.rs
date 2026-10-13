@@ -141,6 +141,20 @@ impl TriggerId {
     }
 }
 
+/// Written as its id string, e.g. `"key:KeyQ"` (11 recordings).
+impl serde::Serialize for TriggerId {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for TriggerId {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(d)?;
+        TriggerId::parse(&text).map_err(serde::de::Error::custom)
+    }
+}
+
 impl fmt::Display for TriggerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {

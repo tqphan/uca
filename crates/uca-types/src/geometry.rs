@@ -9,18 +9,24 @@
 //! `logical = (phys - monitor.origin_phys) / monitor.scale_factor`.
 
 /// Physical pixels, virtual-desktop space.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, PartialOrd, Default, serde::Serialize, serde::Deserialize,
+)]
 pub struct PhysPx(pub f64);
 
 /// Logical pixels on a specific monitor.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, PartialOrd, Default, serde::Serialize, serde::Deserialize,
+)]
 pub struct LogPx(pub f64);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct MonitorId(pub u32);
 
 /// A point on the virtual desktop, in physical pixels.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct PhysPoint {
     pub x: f64,
     pub y: f64,
@@ -33,7 +39,7 @@ impl PhysPoint {
 }
 
 /// A rectangle on the virtual desktop, in physical pixels.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct RectPhys {
     pub x: f64,
     pub y: f64,
@@ -63,7 +69,7 @@ impl RectPhys {
 }
 
 /// A point in one monitor's logical pixels.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LogPoint {
     pub monitor: MonitorId,
     pub x: LogPx,
@@ -71,7 +77,7 @@ pub struct LogPoint {
 }
 
 /// A rectangle in one monitor's logical pixels.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct RectLog {
     pub x: f64,
     pub y: f64,
@@ -162,7 +168,7 @@ impl MonitorTransform {
 }
 
 /// One monitor, as reported by the platform (05).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MonitorInfo {
     pub id: MonitorId,
     pub name: String,

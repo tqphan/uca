@@ -10,6 +10,7 @@ pub mod key;
 pub mod output;
 pub mod signal;
 pub mod suggest;
+pub mod timebase;
 pub mod trigger;
 
 pub use clock::{Clock, FakeClock, SystemClock};

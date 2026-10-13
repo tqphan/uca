@@ -1595,7 +1595,8 @@
           "type": [
             "string",
             "integer"
-          ]
+          ],
+          "default": null
         },
         "layer": {
           "anyOf": [

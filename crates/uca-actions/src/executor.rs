@@ -347,7 +347,7 @@ fn log_execute(by: ActivationId, a: &Action) {
         | Action::KeyRelease(k)
         | Action::KeyToggle(k)
         | Action::KeyLatch(k) => {
-            if types_text(*k) {
+            if k.types_text() {
                 tracing::debug!(target: "uca::actions", activation, action, key = ?SensitiveKey(k), "execute");
             } else {
                 tracing::debug!(target: "uca::actions", activation, action, key = ?k, "execute");
@@ -358,87 +358,6 @@ fn log_execute(by: ActivationId, a: &Action) {
         }
         _ => tracing::debug!(target: "uca::actions", activation, action, "execute"),
     }
-}
-
-/// Keys that type a character; modifiers and special keys (Enter, Backspace,
-/// arrows, F-keys…) are logged plainly (11).
-fn types_text(k: Key) -> bool {
-    use Key::*;
-    matches!(
-        k,
-        Backquote
-            | Backslash
-            | BracketLeft
-            | BracketRight
-            | Comma
-            | Equal
-            | Minus
-            | Period
-            | Quote
-            | Semicolon
-            | Slash
-            | Space
-            | IntlBackslash
-            | IntlRo
-            | IntlYen
-            | Digit0
-            | Digit1
-            | Digit2
-            | Digit3
-            | Digit4
-            | Digit5
-            | Digit6
-            | Digit7
-            | Digit8
-            | Digit9
-            | KeyA
-            | KeyB
-            | KeyC
-            | KeyD
-            | KeyE
-            | KeyF
-            | KeyG
-            | KeyH
-            | KeyI
-            | KeyJ
-            | KeyK
-            | KeyL
-            | KeyM
-            | KeyN
-            | KeyO
-            | KeyP
-            | KeyQ
-            | KeyR
-            | KeyS
-            | KeyT
-            | KeyU
-            | KeyV
-            | KeyW
-            | KeyX
-            | KeyY
-            | KeyZ
-            | Numpad0
-            | Numpad1
-            | Numpad2
-            | Numpad3
-            | Numpad4
-            | Numpad5
-            | Numpad6
-            | Numpad7
-            | Numpad8
-            | Numpad9
-            | NumpadAdd
-            | NumpadComma
-            | NumpadDecimal
-            | NumpadDivide
-            | NumpadEqual
-            | NumpadHash
-            | NumpadMultiply
-            | NumpadParenLeft
-            | NumpadParenRight
-            | NumpadStar
-            | NumpadSubtract
-    )
 }
 
 /// The action's name only: arguments may be sensitive (11).

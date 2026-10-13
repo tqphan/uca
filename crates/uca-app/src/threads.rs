@@ -8,11 +8,11 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use uca_actions::{Executor, SoftwareOutput};
+use uca_app::engine_core::{CoreInput, EngineCore};
+use uca_app::recording::{config_hash, Entry, Header, Recorder, FORMAT};
 use uca_config::store::{ConfigUpdate, LoadedConfig};
-use uca_engine::{
-    Control, Engine, EngineControl, EngineInput, EngineSnapshot, Intent, VirtualBoard,
-};
-use uca_input::{HubOutput, InputHub, SignalSender, SourceStats, StatsCollector};
+use uca_engine::{Control, Engine, EngineControl, EngineSnapshot, Intent, VirtualBoard};
+use uca_input::{SignalSender, SourceStats, StatsCollector};
 use uca_platform::sources::ConsumeSet;
 use uca_platform::Platform;
 use uca_types::{Clock, MonitorInfo, PhysPoint, Signal, SourceId, SystemClock};
@@ -26,6 +26,8 @@ pub enum Msg {
     Control(EngineControl),
     /// The Settings window's widgets, or `None` when it closes (05).
     Virtual(Option<VirtualBoard>),
+    /// Start recording into the file, or stop with `None` (11).
+    Record(Option<std::path::PathBuf>),
     Quit,
 }
 
@@ -52,21 +54,6 @@ pub trait UiWaker: Send + 'static {
     fn control(&self, c: Control);
     /// A virtual board item was activated (05 "Settings window").
     fn virtual_item(&self, board: String, item: String);
-}
-
-/// Marks points that another window covers on a board (02 `ignore_covered`).
-fn engine_input(o: HubOutput, platform: &dyn Platform) -> EngineInput {
-    match o {
-        HubOutput::Point(mut p) => {
-            p.covered = platform.overlay_covered_at(p.phys);
-            EngineInput::Point(p)
-        }
-        HubOutput::Escape(e) => EngineInput::Escape(e),
-        HubOutput::Trigger(t) => EngineInput::Trigger(t),
-        HubOutput::Gesture(g) => EngineInput::Gesture(g),
-        HubOutput::Status(s) => EngineInput::Status(s),
-        HubOutput::PointerSourceLost(s) => EngineInput::PointerSourceLost(s),
-    }
 }
 
 /// What the engine thread talks to.
@@ -96,74 +83,87 @@ pub fn run_engine(
         senders,
     } = links;
     let clock = SystemClock;
-    let mut monitors = monitors;
-    let mut hub = InputHub::new(&config.profile.profile.inputs, monitors.clone());
-    let mut engine = Engine::new(config.clone(), monitors.clone());
+    let mut current = config.clone();
+    let mut core = EngineCore::new(config.clone(), monitors);
     set_consume(&consume, &config);
     let mut stats = StatsCollector::default();
     let mut debug = DebugInfo::default();
+    let mut recorder: Option<Recorder> = None;
     let mut frame = publish(
-        &engine,
+        core.engine(),
         &shared,
         Some(config),
         &clock,
         &waker,
-        &monitors,
+        core.monitors(),
         &debug,
     );
     loop {
-        let deadline = [
-            engine.next_deadline(),
-            hub.next_deadline(),
-            frame,
-            stats.next_deadline(),
-        ]
-        .into_iter()
-        .flatten()
-        .min();
+        let deadline = [core.next_deadline(), frame, stats.next_deadline()]
+            .into_iter()
+            .flatten()
+            .min();
         let msg = match deadline {
             Some(d) => rx.recv_timeout(d.saturating_duration_since(Instant::now())),
             None => rx.recv().map_err(|_| RecvTimeoutError::Disconnected),
         };
         let mut new_config = None;
-        match msg {
+        let input = match msg {
             Ok(Msg::Signal(s)) => {
                 if let Signal::Point(p) = &s {
                     stats.on_point(p, clock.now());
-                    if hub.pointer_source() == Some(&p.source) {
+                    if core.pointer_source() == Some(&p.source) {
                         debug.raw = Some(p.pos);
                     }
                 }
-                for out in hub.on_signal(s) {
-                    engine.on_signal(engine_input(out, platform.as_ref()), &clock);
-                }
+                Some((CoreInput::Signal(s.clone()), Entry::Signal(s)))
             }
             Ok(Msg::Config(ConfigUpdate::Applied(c))) => {
-                hub = InputHub::new(&c.profile.profile.inputs, monitors.clone());
-                engine.on_config(c.clone(), &clock);
                 set_consume(&consume, &c);
-                new_config = Some(c);
+                current = c.clone();
+                new_config = Some(c.clone());
+                let hash = if recorder.is_some() {
+                    config_hash(&c)
+                } else {
+                    String::new()
+                };
+                Some((CoreInput::Config(c), Entry::Config { hash }))
             }
             Ok(Msg::Config(ConfigUpdate::Rejected(issues))) => {
                 // Last-known-good stays live (02); the store already logged each issue.
                 tracing::warn!(target: "uca::app", count = issues.len(), "config change rejected");
+                None
             }
-            Ok(Msg::Monitors(m)) => {
-                monitors = m;
-                hub.set_monitors(monitors.clone());
-                engine.set_monitors(monitors.clone());
+            Ok(Msg::Monitors(m)) => Some((CoreInput::Monitors(m.clone()), Entry::Monitors(m))),
+            Ok(Msg::Control(c)) => Some((CoreInput::Control(c), Entry::Control(c))),
+            Ok(Msg::Virtual(board)) => {
+                Some((CoreInput::Virtual(board.clone()), Entry::Virtual(board)))
             }
-            Ok(Msg::Control(c)) => engine.control(c, &clock),
-            Ok(Msg::Virtual(board)) => engine.set_virtual_board(board, &clock),
-            Ok(Msg::Quit) | Err(RecvTimeoutError::Disconnected) => break,
-            Err(RecvTimeoutError::Timeout) => {
-                for out in hub.on_tick(clock.now()) {
-                    engine.on_signal(engine_input(out, platform.as_ref()), &clock);
+            Ok(Msg::Record(target)) => {
+                recorder = target.and_then(|path| start_recording(&path, &core, &current));
+                if recorder.is_none() {
+                    tracing::info!(target: "uca::app", "recording stopped");
                 }
-                engine.on_tick(&clock);
+                None
             }
+            Ok(Msg::Quit) | Err(RecvTimeoutError::Disconnected) => break,
+            Err(RecvTimeoutError::Timeout) => Some((CoreInput::Tick, Entry::Tick)),
+        };
+        if let Some((input, entry)) = input {
+            let now = clock.now();
+            if let Some(r) = &mut recorder {
+                r.record(now, entry);
+            }
+            let rec = &mut recorder;
+            core.handle(input, &clock, &mut |p| {
+                let covered = platform.overlay_covered_at(p);
+                if let Some(r) = rec.as_mut() {
+                    r.record(now, Entry::Covered(covered));
+                }
+                covered
+            });
         }
-        for intent in engine.drain_intents() {
+        for intent in core.drain_intents() {
             match intent {
                 Intent::Control(c) => waker.control(c),
                 Intent::Virtual { board, item } => waker.virtual_item(board, item),
@@ -176,11 +176,84 @@ pub fn run_engine(
         }
         source_stats(&mut stats, &senders, &mut debug, clock.now());
         frame = publish(
-            &engine, &shared, new_config, &clock, &waker, &monitors, &debug,
+            core.engine(),
+            &shared,
+            new_config,
+            &clock,
+            &waker,
+            core.monitors(),
+            &debug,
         );
     }
     // SAFETY-08 on exit: the executor releases everything when this sender drops.
     let _ = intents.send(Intent::ReleaseAll);
+}
+
+/// Opens `path` and starts a recorder whose lines a writer thread writes, so
+/// the engine thread never waits on the disk (11).
+fn start_recording(
+    path: &std::path::Path,
+    core: &EngineCore,
+    config: &LoadedConfig,
+) -> Option<Recorder> {
+    use std::io::Write;
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let file = match std::fs::File::create(path) {
+        Ok(f) => f,
+        Err(e) => {
+            tracing::error!(target: "uca::app", file = %path.display(), error = %e, "cannot start a recording");
+            return None;
+        }
+    };
+    let (tx, rx) = std::sync::mpsc::channel::<String>();
+    let spawned = std::thread::Builder::new()
+        .name("recorder".into())
+        .spawn(move || {
+            // Flushed whenever it has caught up, so a crash or a kill keeps
+            // what was recorded up to then.
+            let mut out = std::io::BufWriter::new(file);
+            while let Ok(line) = rx.recv() {
+                let mut ok = writeln!(out, "{line}").is_ok();
+                while let (true, Ok(more)) = (ok, rx.try_recv()) {
+                    ok = writeln!(out, "{more}").is_ok();
+                }
+                if !ok || out.flush().is_err() {
+                    break;
+                }
+            }
+        });
+    if let Err(e) = spawned {
+        tracing::error!(target: "uca::app", error = %e, "cannot start a recording");
+        return None;
+    }
+    let header = Header {
+        format: FORMAT,
+        uca_version: env!("CARGO_PKG_VERSION").to_owned(),
+        started: uca_log::crash::now_rfc3339(),
+        profile_id: profile_id(config),
+        config_hash: config_hash(config),
+        monitors: core.monitors().to_vec(),
+    };
+    tracing::info!(target: "uca::app", file = %path.display(), "recording started");
+    Some(Recorder::start(
+        Instant::now(),
+        &header,
+        Box::new(move |l| {
+            let _ = tx.send(l);
+        }),
+    ))
+}
+
+/// The profile's id: the name of the folder `profile.yaml` is in (02).
+fn profile_id(config: &LoadedConfig) -> String {
+    config
+        .profile_file
+        .parent()
+        .and_then(|d| d.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 fn set_consume(consume: &ConsumeSet, config: &LoadedConfig) {

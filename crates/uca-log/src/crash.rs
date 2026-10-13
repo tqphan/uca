@@ -18,6 +18,11 @@ pub fn now_rfc3339() -> String {
     crate::time::rfc3339_micros(SystemTime::now())
 }
 
+/// The current UTC time in basic form for file names, e.g. `20261013T182302Z`.
+pub fn now_basic_utc() -> String {
+    crate::time::basic_utc(SystemTime::now())
+}
+
 /// What the crash file says besides the ring buffer.
 #[derive(Debug, Clone)]
 pub struct CrashReport {

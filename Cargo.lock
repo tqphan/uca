@@ -4231,6 +4231,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "raw-window-handle",
+ "serde",
  "serde_json",
  "tracing",
  "tray-icon",
@@ -4268,6 +4269,7 @@ dependencies = [
 name = "uca-engine"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "tracing",
  "uca-config",
  "uca-mapping",
@@ -4348,6 +4350,8 @@ dependencies = [
 name = "uca-types"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "smol_str 0.3.6",
  "thiserror 2.0.21",
 ]

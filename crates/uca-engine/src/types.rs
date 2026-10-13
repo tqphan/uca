@@ -25,7 +25,7 @@ pub enum EngineInput {
 pub struct ActivationId(pub u64);
 
 /// Requests to the engine from outside the input path (tray menu, settings).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum EngineControl {
     TogglePause,
     OpenSafeBoard,
@@ -64,7 +64,7 @@ pub enum Intent {
 /// A `uca-ui` screen registered with the engine as a virtual board, so dwell
 /// and `select` work on its widgets (05 "Settings window"). Registered again
 /// whenever its widgets move.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VirtualBoard {
     pub id: String,
     pub monitor: MonitorId,
@@ -72,7 +72,7 @@ pub struct VirtualBoard {
 }
 
 /// One interactive widget: a stable id and its rect on the board's monitor.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VirtualItem {
     pub id: String,
     pub rect: RectLog,

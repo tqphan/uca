@@ -58,6 +58,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     let crash_loop = match &log_dir {
         Some(dir) => {
             logging.start_file(dir, &app_logging);
+            prune_recordings(dir);
             crash::set_crash_dir(dir.join("crashes"));
             let c = crash::CrashLoop::start(dir);
             c.watch_uptime();
@@ -172,6 +173,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         threads,
         logging: logging.clone(),
         cli_session: debug_session_arg(),
+        cli_record: record_arg(),
         debug_area: debug_area(app_file.as_ref()),
     };
     let mut app = App::new(
@@ -230,6 +232,43 @@ fn log_options() -> uca_log::Options {
         }
     }
     options
+}
+
+/// `--record <file>` (11).
+fn record_arg() -> Option<PathBuf> {
+    let mut args = std::env::args_os().skip(1);
+    while let Some(a) = args.next() {
+        if a == "--record" {
+            let file = args.next().map(PathBuf::from);
+            if file.is_none() {
+                tracing::warn!(target: "uca::app", "--record needs a file; ignored");
+            }
+            return file;
+        }
+    }
+    None
+}
+
+/// Recordings from `debug.record` are kept 7 days (11, decided).
+fn prune_recordings(log_dir: &Path) {
+    const KEEP: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
+    let Ok(entries) = std::fs::read_dir(log_dir.join("recordings")) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let old = e
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age > KEEP);
+        let ours = e.path().extension().is_some_and(|x| x == "ucarec");
+        if old && ours {
+            if let Err(err) = std::fs::remove_file(e.path()) {
+                tracing::warn!(target: "uca::app", error = %err, "cannot delete an old recording");
+            }
+        }
+    }
 }
 
 /// `--debug-session <minutes>` (11); a missing or invalid value is ignored.

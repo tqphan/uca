@@ -167,6 +167,13 @@ Because the engine is deterministic (`AGENTS.md` rule 2), most interaction bugs 
 - Action `debug.record` (or `--record <file>`) writes every `Signal`, `ConfigUpdate` hash and `Control` reaching the engine to a `.ucarec` file: JSON lines, timestamps relative to recording start. A recording is a sensitive file: it is only allowed inside a debug session, carries the same banner, and redacts trigger ids that map to typing keys unless sensitive logging is on.
 - `uca-replay` (a dev binary in `crates/uca-app/src/bin/`) feeds a recording plus a board/profile into the engine with `FakeClock` and prints the resulting intents and actions, or diff-compares them with an expected file. Used to turn bug reports into regression tests.
 
+Decided:
+- **Format:** the signal types in `uca-types` derive serde. A `.ucarec` file is JSON lines: a header line (format version, UCA version, monitors, profile id, a hash of the config files, start time), then one line per message reaching the engine thread `{t_us, kind, data}` (microseconds from the start): signals before the InputHub, config updates (as the config hash), monitor changes, controls and virtual-board registrations. Monitors are recorded because layout depends on them.
+- **Outside a session:** `debug.record` starts a default debug session (60 min, `debug`, sensitive off) and records within it. A second press, or the session's end, stops the recording.
+- **Banner (decided):** while a recording runs, the debug strip shows a third amber line, "Recording input for diagnostics". The sensitive banner still appears only when sensitive logging is on.
+- **Location:** recordings from the action go to `<log dir>/recordings/rec-<UTC basic>.ucarec` and are deleted after 7 days. `--record <file>` writes where it is told and is not cleaned up.
+- **Replay:** `uca-replay <file.ucarec> --config <config dir> [--profile <id>] [--expect <file>]`. `--profile` defaults to the header's profile id; a config-hash mismatch prints a warning. Output is one engine decision per line, `<ms> <intent>`; `--expect` compares with a saved output, prints the first difference and exits with code 1.
+
 ## Plugins
 
 - Plugin `Log` messages (see `06`) are re-emitted under `uca::plugin::<plugin-id>` at the plugin's level. Plugins should send `debug`/`trace` only when the host has asked for them: the host sends `Configure.settings._log_level` with the effective level for that plugin's target and updates it on change.

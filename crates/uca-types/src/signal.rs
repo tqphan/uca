@@ -11,7 +11,7 @@ use crate::geometry::{LogPoint, MonitorId, PhysPoint};
 use crate::ids::SourceId;
 use crate::trigger::TriggerId;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Signal {
     Point(PointSample),
     Trigger(TriggerEvent),
@@ -21,8 +21,9 @@ pub enum Signal {
     SourceStatus(SourceStatusEvent),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PointSample {
+    #[serde(with = "crate::timebase")]
     pub t: Instant,
     pub source: SourceId,
     pub pos: PhysPoint,
@@ -47,29 +48,32 @@ pub struct FilteredPoint {
     pub covered: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Phase {
     Down,
     Up,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TriggerEvent {
+    #[serde(with = "crate::timebase")]
     pub t: Instant,
     pub source: SourceId,
     pub trigger: TriggerId,
     pub phase: Phase,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GestureEvent {
+    #[serde(with = "crate::timebase")]
     pub t: Instant,
     pub source: SourceId,
     pub gesture: SmolStr,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct HeadPoseSample {
+    #[serde(with = "crate::timebase")]
     pub t: Instant,
     pub source: SourceId,
     /// Radians.
@@ -84,7 +88,7 @@ pub struct HeadPoseSample {
     pub confidence: f32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SourceStatus {
     Connected,
     Disconnected,
@@ -93,8 +97,9 @@ pub enum SourceStatus {
     Error(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SourceStatusEvent {
+    #[serde(with = "crate::timebase")]
     pub t: Instant,
     pub source: SourceId,
     pub status: SourceStatus,

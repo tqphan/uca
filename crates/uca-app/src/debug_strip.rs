@@ -23,6 +23,8 @@ const TOP_GAP: f64 = 8.0;
 pub struct StripState {
     pub minutes_left: u32,
     pub sensitive: bool,
+    /// A signal recording runs (11).
+    pub recording: bool,
     /// Placed at the top centre of this rect (the work area or the bounds, 11).
     pub area: RectPhys,
     pub scale: f64,
@@ -66,7 +68,7 @@ impl DebugStrip {
         let Some(s) = self.shown.clone() else { return };
         let (content, ppp) = self
             .window
-            .paint(|ui| uca_ui::debug_strip::show(ui, s.minutes_left, s.sensitive));
+            .paint(|ui| uca_ui::debug_strip::show(ui, s.minutes_left, s.sensitive, s.recording));
         let size = PhysicalSize::new(
             (content.x * ppp).ceil().max(1.0) as u32,
             (content.y * ppp).ceil().max(1.0) as u32,

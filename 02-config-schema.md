@@ -20,6 +20,10 @@ Config dir: Windows `%APPDATA%\UCA`, Linux `$XDG_CONFIG_HOME/uca`, macOS `~/Libr
 
 One computer can hold several user profiles, for example for schools, clinics or therapists trying set-ups.
 - **Profile id:** `[a-z0-9_-]+`. The profile has a display name and an optional picture.
+- **Shipped files (decided):**
+    - **First run:** if `profiles/` has no profile, UCA copies the shipped default profile (id `default`) with its boards (`qwerty`, `mouse`) and the themes (`default`, `high-contrast`) into the config dir once. Later UCA updates never overwrite them.
+    - **Default profile:** identical to the built-in safe profile, but as editable files: name "Default", method `mouse-dwell`, pointer `mouse` with no filter, start board `qwerty`, escape `key:* hold(3000)`, and no switches or bindings.
+    - **Safe profile:** the built-in safe profile (SAFETY-04) is made from the same files, embedded in UCA and loaded in memory.
 - **M1 start-up (decided, until multiple profiles arrive in M2):**
     - With exactly one folder in `profiles/`, UCA loads it.
     - With several, it loads the first in alphabetical order and shows a notice that choosing a profile arrives in M2.

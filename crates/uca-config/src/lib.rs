@@ -6,6 +6,7 @@
 pub mod action;
 pub mod app;
 pub mod board;
+pub mod bundled;
 pub mod cascade;
 pub mod error;
 pub mod load;

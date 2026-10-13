@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: The UCA contributors
+# SPDX-License-Identifier: CC-BY-SA-4.0
+
+# The shipped default profile (02 "Shipped files"); also the built-in safe profile (SAFETY-04).
+schema: uca/1
+profile:
+  name: Default
+  method: mouse-dwell
+  start_board: qwerty
+  inputs:
+    pointer_source: mouse
+    sources:
+      mouse: { enabled: true, filter: { kind: none } }
+  safety:
+    escape: "key:* hold(3000)"

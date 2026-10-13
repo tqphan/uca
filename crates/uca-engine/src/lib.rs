@@ -14,9 +14,9 @@ pub mod types;
 
 pub use engine::Engine;
 pub use types::{
-    ActivationId, BoardSnapshot, Control, EngineControl, EngineInput, EngineSnapshot, Intent,
-    ItemSnapshot, Latch, LayerSnapshot, SafeItem, VirtualBoard, VirtualItem, VirtualItemSnapshot,
-    VirtualSnapshot,
+    ActivationId, BoardSnapshot, Control, DebugSnapshot, DwellSnapshot, EngineControl, EngineInput,
+    EngineSnapshot, Intent, ItemSnapshot, Latch, LayerSnapshot, SafeItem, VirtualBoard,
+    VirtualItem, VirtualItemSnapshot, VirtualSnapshot,
 };
 
 #[cfg(test)]

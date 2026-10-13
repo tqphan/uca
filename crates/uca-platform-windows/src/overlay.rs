@@ -146,7 +146,8 @@ pub fn configure(w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
     let h = hwnd(w)?;
     {
         let mut overlays = OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
-        if !overlays.contains(&(h as usize)) {
+        overlays.retain(|&o| o != h as usize);
+        if !opts.display_only {
             overlays.push(h as usize);
         }
     }
@@ -285,4 +286,52 @@ pub fn release_edge(w: RawWindowHandle) -> Result<()> {
     unsafe { SHAppBarMessage(ABM_REMOVE, &mut d) };
     set_own_strip(h, None);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroIsize;
+
+    use raw_window_handle::Win32WindowHandle;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{CreateWindowExW, DestroyWindow, WS_POPUP};
+
+    use super::*;
+
+    /// 11: display-only windows are not boards for covered points (02 `ignore_covered`).
+    #[test]
+    fn display_only_windows_are_not_boards() {
+        let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
+        // SAFETY: a hidden window of a system class, destroyed below.
+        let h = unsafe {
+            CreateWindowExW(
+                0,
+                class.as_ptr(),
+                std::ptr::null(),
+                WS_POPUP,
+                0,
+                0,
+                10,
+                10,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null(),
+            )
+        };
+        let raw = RawWindowHandle::Win32(Win32WindowHandle::new(
+            NonZeroIsize::new(h as isize).expect("a window"),
+        ));
+        let registered = || OVERLAYS.lock().unwrap().contains(&(h as usize));
+        let opts = |display_only| OverlayOptions {
+            topmost: false,
+            no_focus: true,
+            display_only,
+        };
+        configure(raw, opts(false)).unwrap();
+        assert!(registered());
+        configure(raw, opts(true)).unwrap();
+        assert!(!registered());
+        // SAFETY: the window created above.
+        unsafe { DestroyWindow(h) };
+    }
 }

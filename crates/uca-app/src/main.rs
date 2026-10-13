@@ -5,9 +5,11 @@
 
 mod block_on;
 mod crash;
+mod debug_overlay;
 mod debug_session;
 mod debug_strip;
 mod icon;
+mod passive_window;
 mod settings_window;
 mod threads;
 mod ui;
@@ -122,8 +124,20 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
             return ExitCode::FAILURE;
         }
     }
-    let (engine_shared, engine_consume, engine_monitors) =
-        (shared.clone(), consume.clone(), monitors.clone());
+    let mut sources: Vec<Box<dyn InputSource>> = vec![
+        Box::new(HookSource::keyboard(platform.clone(), consume.clone())),
+        Box::new(HookSource::mouse(platform.clone(), consume.clone())),
+    ];
+    let senders: Vec<(uca_types::SourceId, SignalSender)> = sources
+        .iter()
+        .map(|s| (s.id(), SignalSender::new(engine_tx.clone(), Msg::Signal)))
+        .collect();
+    let (engine_shared, engine_consume, engine_monitors, engine_senders) = (
+        shared.clone(),
+        consume.clone(),
+        monitors.clone(),
+        senders.clone(),
+    );
     let waker = ProxyWaker(proxy.clone());
     let engine_platform = platform.clone();
     match std::thread::Builder::new()
@@ -135,6 +149,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
                 intents: intent_tx,
                 shared: engine_shared,
                 consume: engine_consume,
+                senders: engine_senders,
             };
             threads::run_engine(config, engine_monitors, links, waker)
         }) {
@@ -145,12 +160,8 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         }
     }
 
-    let mut sources: Vec<Box<dyn InputSource>> = vec![
-        Box::new(HookSource::keyboard(platform.clone(), consume.clone())),
-        Box::new(HookSource::mouse(platform.clone(), consume)),
-    ];
-    for s in &mut sources {
-        if let Err(e) = s.start(SignalSender::new(engine_tx.clone(), Msg::Signal)) {
+    for (s, (_, sender)) in sources.iter_mut().zip(senders) {
+        if let Err(e) = s.start(sender) {
             tracing::error!(target: "uca::app", source = %s.id().0, error = %e, "input source did not start");
         }
     }

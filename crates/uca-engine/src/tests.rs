@@ -849,3 +849,27 @@ fn settings_actions_go_to_the_app() {
         .iter()
         .any(|(_, i)| *i == Intent::Control(Control::OpenSettings)));
 }
+
+/// 11: the debug overlay sees the hovered item, dwell progress, ms left and grace.
+#[test]
+fn debug_snapshot_shows_dwell_and_grace() {
+    let mut r = Rig::new();
+    r.on(0, 0);
+    r.run_to(200);
+    let d = r.e.snapshot(&r.clock).debug;
+    assert_eq!(d.hovered.as_deref(), Some("main/l/a"));
+    let dwell = d.dwell.expect("dwelling");
+    assert_eq!(
+        (dwell.item.as_str(), dwell.remaining_ms, dwell.grace),
+        ("main/l/a", 600, false)
+    );
+    assert!((dwell.progress - 0.25).abs() < 0.01);
+    r.off(400);
+    r.run_to(450);
+    let d = r.e.snapshot(&r.clock).debug;
+    assert_eq!(d.hovered, None);
+    let dwell = d.dwell.expect("in grace");
+    assert_eq!((dwell.remaining_ms, dwell.grace), (100, true));
+    r.run_to(1000);
+    assert_eq!(r.e.snapshot(&r.clock).debug.dwell, None);
+}

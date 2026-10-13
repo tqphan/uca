@@ -35,10 +35,11 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::window::{Window, WindowId, WindowLevel};
 
 use crate::block_on::block_on;
+use crate::debug_overlay::DebugOverlay;
 use crate::debug_session::Sessions;
 use crate::debug_strip::{DebugStrip, StripState};
 use crate::settings_window::SettingsWindow;
-use crate::threads::{Msg, Shared, UiWaker};
+use crate::threads::{DebugInfo, Msg, Shared, UiWaker};
 
 /// What wakes the UI thread.
 #[derive(Debug)]
@@ -132,6 +133,11 @@ pub struct App {
     /// The Settings choices for the next debug session (05).
     diagnostics: DiagnosticsView,
     strip: Option<DebugStrip>,
+    /// `debug.overlay` / `UCA_DEBUG_OVERLAY=1` (11).
+    overlay_on: bool,
+    debug_overlay: Option<DebugOverlay>,
+    /// The input side of the debug overlay, from the engine thread.
+    debug_info: DebugInfo,
 }
 
 /// The app's threads, and what it needs for logging and debug sessions.
@@ -175,6 +181,9 @@ impl App {
                 active: false,
             },
             strip: None,
+            overlay_on: std::env::var("UCA_DEBUG_OVERLAY").is_ok_and(|v| v == "1"),
+            debug_overlay: None,
+            debug_info: DebugInfo::default(),
         }
     }
 
@@ -198,6 +207,7 @@ impl App {
             let opts = OverlayOptions {
                 topmost: true,
                 no_focus: true,
+                display_only: false,
             };
             if let Err(e) = self.platform.configure_overlay(h.as_raw(), opts) {
                 tracing::warn!(target: "uca::app", error = %e, "overlay window flags not applied");
@@ -285,8 +295,14 @@ impl App {
     fn on_snapshot(&mut self) {
         let (snapshot, config) = {
             let s = self.shared.lock().unwrap_or_else(|e| e.into_inner());
+            if self.debug_overlay.is_some() && s.debug != self.debug_info {
+                self.debug_info = s.debug.clone();
+            }
             (s.snapshot.clone(), s.config.clone())
         };
+        if let Some(d) = &self.debug_overlay {
+            d.request_redraw();
+        }
         let config_changed = match (&self.config, &config) {
             (Some(a), Some(b)) => !Arc::ptr_eq(a, b),
             (None, None) => false,
@@ -553,6 +569,9 @@ impl App {
         if model.animating(now) {
             o.window.request_redraw();
         }
+        if let Some(d) = &mut self.debug_overlay {
+            d.board_frame(Instant::now());
+        }
     }
 
     /// The monitor of the board on screen, else the primary (05 "Settings window").
@@ -733,6 +752,7 @@ impl App {
         }
         self.sessions.stop("exit", self.logging.as_ref());
         self.strip = None;
+        self.debug_overlay = None;
         self.close_settings();
         self.send(Msg::Quit);
         for t in self.threads.drain(..) {
@@ -820,11 +840,16 @@ impl ApplicationHandler<UserEvent> for App {
                 .start(settings, Instant::now(), self.logging.as_ref());
         }
         self.update_debug_strip(event_loop);
+        self.update_debug_overlay(event_loop);
     }
 
     fn window_event(&mut self, _event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
         if let Some(strip) = self.strip.as_mut().filter(|s| s.id() == id) {
             strip.on_window_event(&event);
+            return;
+        }
+        if let Some(d) = self.debug_overlay.as_mut().filter(|d| d.owns(id)) {
+            d.on_window_event(id, &event, self.snapshot.as_ref(), &self.debug_info);
             return;
         }
         if self.settings.as_ref().is_some_and(|s| s.id() == id) {
@@ -857,7 +882,7 @@ impl ApplicationHandler<UserEvent> for App {
 }
 
 impl App {
-    /// `debug.*` actions (11). Only `debug.session` exists so far.
+    /// `debug.*` actions (11): `debug.session` and `debug.overlay` so far.
     fn on_app_action(&mut self, action: uca_config::action::Action) {
         use uca_config::action::Action;
         match action {
@@ -865,8 +890,36 @@ impl App {
                 self.sessions
                     .toggle(settings, Instant::now(), self.logging.as_ref());
             }
+            Action::DebugOverlay => {
+                self.overlay_on = !self.overlay_on;
+                tracing::info!(target: "uca::app", on = self.overlay_on, "debug overlay");
+            }
             other => {
                 tracing::info!(target: "uca::app", action = ?other, "this debug action is not available yet");
+            }
+        }
+    }
+
+    /// Opens or closes the overlay windows and follows monitor changes (11).
+    fn update_debug_overlay(&mut self, event_loop: &ActiveEventLoop) {
+        if !self.overlay_on {
+            self.debug_overlay = None;
+            return;
+        }
+        match &mut self.debug_overlay {
+            Some(d) => d.set_monitors(event_loop, self.platform.as_ref(), &self.monitors),
+            None => {
+                self.debug_info = self
+                    .shared
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .debug
+                    .clone();
+                self.debug_overlay = Some(DebugOverlay::open(
+                    event_loop,
+                    self.platform.as_ref(),
+                    &self.monitors,
+                ));
             }
         }
     }

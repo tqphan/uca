@@ -117,6 +117,26 @@ pub struct EngineSnapshot {
     pub action_sets: Vec<String>,
     pub latched: Vec<(Key, Latch)>,
     pub virtual_board: Option<VirtualSnapshot>,
+    /// What the debug overlay shows about hover and dwell (11).
+    pub debug: DebugSnapshot,
+}
+
+/// Hover and dwell for the debug overlay (11). Items are named
+/// `board/layer/item`, or `virtual-board/item`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DebugSnapshot {
+    pub hovered: Option<String>,
+    pub dwell: Option<DwellSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DwellSnapshot {
+    pub item: String,
+    /// 0..1
+    pub progress: f32,
+    /// Until the item activates, or in grace until the dwell is dropped.
+    pub remaining_ms: u64,
+    pub grace: bool,
 }
 
 /// Hover and dwell on a virtual board, for drawing the dwell indicator.

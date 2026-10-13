@@ -99,6 +99,9 @@ pub struct OverlayOptions {
     pub topmost: bool,
     /// Never takes focus, so typing goes to the app behind (05).
     pub no_focus: bool,
+    /// Drawing only (the debug strip and overlay, 11): never counts as a board
+    /// for [`Platform::overlay_covered_at`]. Boards pass `false`.
+    pub display_only: bool,
 }
 
 /// A monitor edge for space reservation (AppBar on Windows).

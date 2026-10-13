@@ -152,6 +152,13 @@ Toggle with action `debug.overlay` or `UCA_DEBUG_OVERLAY=1`. Draws on top of boa
 - per-source rate, confidence, presence
 - FPS and signal-to-pixel latency (replaces the `UCA_DEBUG_LATENCY` flag mentioned in `05`)
 
+Decided:
+- **Windows:** one transparent, click-through, always-on-top window covering each monitor while the overlay is on. The dots and the text panel are drawn on the monitor the pointer is on.
+- **M1 content:** what exists now: raw and filtered pointer, hovered item, dwell progress, ms left and grace, per-source stats, FPS and latency. Scan, switch-pointer and fixation lines are added with those features.
+- **Look:** text panel in the top-left corner of the pointer's monitor (top-right in RTL), 8 logical px in, 13 logical px monospace text on a black panel at 75 % opacity. Raw pointer: hollow white ring, 10 px; filtered pointer: filled cyan (#22d3ee) dot, 8 px.
+- **Text** goes through Fluent like all UI (en-US): "Board: { $board }"; "Hovered: { $item }" or "Hovered: none"; "Dwell: { $percent }% · { $ms } ms left", "Grace: { $percent }% · { $ms } ms left" or "Dwell: idle"; per source "{ $source }: { $rate } Hz · confidence { $confidence } · presence { $presence }% · dropped { $dropped }"; "FPS: { $fps }"; "Latency: { $ms } ms" or "Latency: —" without pointer samples.
+- **Measures:** per-source stats cover the last second: point samples received (`rate_hz`), their mean confidence, the share with presence, and samples dropped because the engine channel was full (`01`). They are also logged at `debug` once a second, and drops at `warn` (`01`). FPS counts the board window's frames in the last second. Latency is the time from a pointer sample to the end of the overlay frame that draws it, averaged over the last second.
+
 ## Signal recording and replay
 
 Because the engine is deterministic (`AGENTS.md` rule 2), most interaction bugs can be reproduced exactly from the input stream.

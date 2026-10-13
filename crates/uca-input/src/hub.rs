@@ -70,6 +70,11 @@ impl InputHub {
         self.monitors = monitors;
     }
 
+    /// The source whose points drive the pointer (03).
+    pub fn pointer_source(&self) -> Option<&SourceId> {
+        self.pointer_source.as_ref()
+    }
+
     pub fn status(&self, source: &SourceId) -> Option<&SourceStatus> {
         self.status.get(source)
     }

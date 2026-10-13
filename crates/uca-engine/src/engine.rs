@@ -21,9 +21,9 @@ use crate::layout::{choose_monitor, layout_board, BoardLayout};
 use crate::safe_board::{safe_board, SAFE_ITEMS};
 use crate::sets::{SetStack, DEFAULT_SET};
 use crate::types::{
-    ActivationId, BoardSnapshot, Control, EngineControl, EngineInput, EngineSnapshot, Intent,
-    ItemSnapshot, Latch, LayerSnapshot, SafeItem, VirtualBoard, VirtualItemSnapshot,
-    VirtualSnapshot,
+    ActivationId, BoardSnapshot, Control, DebugSnapshot, DwellSnapshot, EngineControl, EngineInput,
+    EngineSnapshot, Intent, ItemSnapshot, Latch, LayerSnapshot, SafeItem, VirtualBoard,
+    VirtualItemSnapshot, VirtualSnapshot,
 };
 
 /// An item on the shown board (layer index and item index), or with `virt`
@@ -1309,7 +1309,44 @@ impl Engine {
                     })
                     .collect(),
             }),
+            debug: self.debug_snapshot(now),
         }
+    }
+
+    fn debug_snapshot(&self, now: Instant) -> DebugSnapshot {
+        DebugSnapshot {
+            hovered: self.hover.and_then(|h| self.item_name(h)),
+            dwell: self.dwell_snapshot(now),
+        }
+    }
+
+    fn dwell_snapshot(&self, now: Instant) -> Option<DwellSnapshot> {
+        let (Dwell::Dwelling { item, .. } | Dwell::Grace { item, .. }) = &self.dwell else {
+            return None;
+        };
+        let remaining = self.dwell_deadline()?.saturating_duration_since(now);
+        Some(DwellSnapshot {
+            item: self.item_name(*item)?,
+            progress: self.dwell_progress(*item, now)?,
+            remaining_ms: u64::try_from(remaining.as_millis()).unwrap_or(u64::MAX),
+            grace: matches!(self.dwell, Dwell::Grace { .. }),
+        })
+    }
+
+    /// `board/layer/item`, or `virtual-board/item`.
+    fn item_name(&self, r: ItemRef) -> Option<String> {
+        if r.virt {
+            let vb = self.virtual_board.as_ref()?;
+            let item = vb.items.get(r.item)?;
+            return Some(format!("{}/{}", vb.id, item.id));
+        }
+        let shown = self.shown.as_ref()?;
+        let layer = shown.layout.layers.get(r.layer)?;
+        let item = layer.items.iter().find(|i| i.index == r.item)?;
+        Some(format!(
+            "{}/{}/{}",
+            shown.file.board.id.0, layer.id, item.id
+        ))
     }
 
     /// Dwell progress 0..1 while dwelling on `r` or in its grace.

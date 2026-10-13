@@ -12,10 +12,10 @@ use uca_config::store::{ConfigUpdate, LoadedConfig};
 use uca_engine::{
     Control, Engine, EngineControl, EngineInput, EngineSnapshot, Intent, VirtualBoard,
 };
-use uca_input::{HubOutput, InputHub};
+use uca_input::{HubOutput, InputHub, SignalSender, SourceStats, StatsCollector};
 use uca_platform::sources::ConsumeSet;
 use uca_platform::Platform;
-use uca_types::{Clock, MonitorInfo, Signal, SystemClock};
+use uca_types::{Clock, MonitorInfo, PhysPoint, Signal, SourceId, SystemClock};
 
 /// Everything that reaches the engine thread (01: one channel).
 #[derive(Debug)]
@@ -34,6 +34,16 @@ pub enum Msg {
 pub struct Shared {
     pub snapshot: Option<EngineSnapshot>,
     pub config: Option<Arc<LoadedConfig>>,
+    pub debug: DebugInfo,
+}
+
+/// What the debug overlay shows from the input side (11).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DebugInfo {
+    /// The pointer source's last raw sample, before the PointPipeline.
+    pub raw: Option<PhysPoint>,
+    /// The last one-second window's per-source stats.
+    pub sources: Vec<SourceStats>,
 }
 
 /// Wakes the UI thread when the snapshot changes or the app must act.
@@ -66,6 +76,8 @@ pub struct EngineLinks {
     pub intents: Sender<Intent>,
     pub shared: Arc<Mutex<Shared>>,
     pub consume: ConsumeSet,
+    /// Each source's sender, to read its dropped samples (01, 11).
+    pub senders: Vec<(SourceId, SignalSender)>,
 }
 
 /// The engine loop (01): signals, config, controls and timers in one place.
@@ -81,18 +93,34 @@ pub fn run_engine(
         intents,
         shared,
         consume,
+        senders,
     } = links;
     let clock = SystemClock;
     let mut monitors = monitors;
     let mut hub = InputHub::new(&config.profile.profile.inputs, monitors.clone());
     let mut engine = Engine::new(config.clone(), monitors.clone());
     set_consume(&consume, &config);
-    let mut frame = publish(&engine, &shared, Some(config), &clock, &waker, &monitors);
+    let mut stats = StatsCollector::default();
+    let mut debug = DebugInfo::default();
+    let mut frame = publish(
+        &engine,
+        &shared,
+        Some(config),
+        &clock,
+        &waker,
+        &monitors,
+        &debug,
+    );
     loop {
-        let deadline = [engine.next_deadline(), hub.next_deadline(), frame]
-            .into_iter()
-            .flatten()
-            .min();
+        let deadline = [
+            engine.next_deadline(),
+            hub.next_deadline(),
+            frame,
+            stats.next_deadline(),
+        ]
+        .into_iter()
+        .flatten()
+        .min();
         let msg = match deadline {
             Some(d) => rx.recv_timeout(d.saturating_duration_since(Instant::now())),
             None => rx.recv().map_err(|_| RecvTimeoutError::Disconnected),
@@ -100,6 +128,12 @@ pub fn run_engine(
         let mut new_config = None;
         match msg {
             Ok(Msg::Signal(s)) => {
+                if let Signal::Point(p) = &s {
+                    stats.on_point(p, clock.now());
+                    if hub.pointer_source() == Some(&p.source) {
+                        debug.raw = Some(p.pos);
+                    }
+                }
                 for out in hub.on_signal(s) {
                     engine.on_signal(engine_input(out, platform.as_ref()), &clock);
                 }
@@ -140,7 +174,10 @@ pub fn run_engine(
                 }
             }
         }
-        frame = publish(&engine, &shared, new_config, &clock, &waker, &monitors);
+        source_stats(&mut stats, &senders, &mut debug, clock.now());
+        frame = publish(
+            &engine, &shared, new_config, &clock, &waker, &monitors, &debug,
+        );
     }
     // SAFETY-08 on exit: the executor releases everything when this sender drops.
     let _ = intents.send(Intent::ReleaseAll);
@@ -153,6 +190,37 @@ fn set_consume(consume: &ConsumeSet, config: &LoadedConfig) {
     }
 }
 
+/// Collects dropped samples and, once a second, the per-source stats: logged
+/// at `debug`, drops at `warn` (01, 11), and kept for the debug overlay.
+fn source_stats(
+    stats: &mut StatsCollector,
+    senders: &[(SourceId, SignalSender)],
+    debug: &mut DebugInfo,
+    now: Instant,
+) {
+    for (id, sender) in senders {
+        stats.add_dropped(id, sender.take_dropped(), now);
+    }
+    let Some(window) = stats.on_tick(now) else {
+        return;
+    };
+    for s in &window {
+        tracing::debug!(
+            target: "uca::input",
+            source = %s.source.0,
+            rate_hz = s.rate_hz,
+            dropped = s.dropped,
+            mean_confidence = s.mean_confidence,
+            presence_ratio = s.presence_ratio,
+            "source stats"
+        );
+        if s.dropped > 0 {
+            tracing::warn!(target: "uca::input", source = %s.source.0, dropped = s.dropped, "point samples dropped: the engine channel was full");
+        }
+    }
+    debug.sources = window;
+}
+
 fn publish(
     engine: &Engine,
     shared: &Mutex<Shared>,
@@ -160,11 +228,15 @@ fn publish(
     clock: &dyn Clock,
     waker: &impl UiWaker,
     monitors: &[MonitorInfo],
+    debug: &DebugInfo,
 ) -> Option<Instant> {
     let snap = engine.snapshot(clock);
     let next_frame = frame_deadline(&snap, monitors, clock.now());
     let mut s = shared.lock().unwrap_or_else(|e| e.into_inner());
-    let changed = s.snapshot.as_ref() != Some(&snap) || config.is_some();
+    let changed = s.snapshot.as_ref() != Some(&snap) || config.is_some() || s.debug != *debug;
+    if s.debug != *debug {
+        s.debug = debug.clone();
+    }
     if config.is_some() {
         s.config = config;
     }

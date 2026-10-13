@@ -7,6 +7,7 @@
 //! the screen with the engine as a virtual board: dwell and `select` then work
 //! on it like on board items (05 "Settings window").
 
+pub mod debug_overlay;
 pub mod debug_strip;
 pub mod settings;
 

@@ -35,3 +35,16 @@ settings-session-stop = Stop debug session
 
 debug-strip-on = Debug logging on · { $minutes } min left
 debug-strip-sensitive = Sensitive logging is on — typed text is recorded
+
+# The debug overlay's text panel (11).
+
+debug-overlay-none = none
+debug-overlay-board = Board: { $board }
+debug-overlay-hovered = Hovered: { $item }
+debug-overlay-dwell = Dwell: { $percent }% · { $ms } ms left
+debug-overlay-grace = Grace: { $percent }% · { $ms } ms left
+debug-overlay-dwell-idle = Dwell: idle
+debug-overlay-source = { $source }: { $rate } Hz · confidence { $confidence } · presence { $presence }% · dropped { $dropped }
+debug-overlay-fps = FPS: { $fps }
+debug-overlay-latency = Latency: { $ms } ms
+debug-overlay-latency-none = Latency: —

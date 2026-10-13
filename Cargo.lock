@@ -4325,6 +4325,7 @@ dependencies = [
 name = "uca-platform-windows"
 version = "0.1.0"
 dependencies = [
+ "raw-window-handle",
  "tracing",
  "uca-platform",
  "uca-types",

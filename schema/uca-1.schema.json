@@ -966,6 +966,17 @@
     "AppFile": {
       "type": "object",
       "properties": {
+        "debug": {
+          "description": "Debug tools placement (11).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Debug"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "logging": {
           "anyOf": [
             {
@@ -1600,6 +1611,24 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Mode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Debug": {
+      "description": "`debug` (11): where the debug strip and the overlay panel are placed.",
+      "type": "object",
+      "properties": {
+        "area": {
+          "description": "`work` (default): inside the monitor's work area, clear of the\ntaskbar; `full`: from the monitor's edges.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Area"
             },
             {
               "type": "null"

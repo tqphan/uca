@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use uca_platform::Platform;
-use uca_types::MonitorInfo;
+use uca_types::RectPhys;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -15,7 +15,7 @@ use winit::window::WindowId;
 
 use crate::passive_window::PassiveWindow;
 
-/// Gap between the strip and the monitor's top edge, in logical px (11).
+/// Gap between the strip and the top of its area, in logical px (11).
 const TOP_GAP: f64 = 8.0;
 
 /// What the strip shows and where.
@@ -23,7 +23,9 @@ const TOP_GAP: f64 = 8.0;
 pub struct StripState {
     pub minutes_left: u32,
     pub sensitive: bool,
-    pub monitor: MonitorInfo,
+    /// Placed at the top centre of this rect (the work area or the bounds, 11).
+    pub area: RectPhys,
+    pub scale: f64,
 }
 
 pub struct DebugStrip {
@@ -59,7 +61,7 @@ impl DebugStrip {
         }
     }
 
-    /// Sized to the content and placed at the top centre of the monitor.
+    /// Sized to the content and placed at the top centre of its area.
     fn paint(&mut self) {
         let Some(s) = self.shown.clone() else { return };
         let (content, ppp) = self
@@ -69,9 +71,9 @@ impl DebugStrip {
             (content.x * ppp).ceil().max(1.0) as u32,
             (content.y * ppp).ceil().max(1.0) as u32,
         );
-        let b = s.monitor.bounds_phys;
+        let b = s.area;
         let x = b.x + (b.width - f64::from(size.width)) / 2.0;
-        let y = b.y + TOP_GAP * s.monitor.scale_factor;
+        let y = b.y + TOP_GAP * s.scale;
         self.window.place(x, y, size);
     }
 }

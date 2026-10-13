@@ -96,6 +96,7 @@ impl DebugOverlay {
         event: &WindowEvent,
         snapshot: Option<&EngineSnapshot>,
         debug: &DebugInfo,
+        area: uca_config::board::Area,
     ) {
         let Some(i) = self.windows.iter().position(|(_, w)| w.id() == id) else {
             return;
@@ -109,6 +110,17 @@ impl DebugOverlay {
         trim(&mut self.frames, now, |t| *t);
         trim(&mut self.latencies, now, |(t, _)| *t);
         let (monitor, window) = &mut self.windows[i];
+        let panel_area = {
+            let (a, b, s) = (
+                crate::ui::debug_rect(monitor, area),
+                monitor.bounds_phys,
+                monitor.scale_factor as f32,
+            );
+            egui::Rect::from_min_size(
+                egui::pos2(((a.x - b.x) as f32) / s, ((a.y - b.y) as f32) / s),
+                egui::vec2(a.width as f32 / s, a.height as f32 / s),
+            )
+        };
         let local = |p: PhysPoint| {
             let b = monitor.bounds_phys;
             b.contains(p).then(|| {
@@ -122,6 +134,7 @@ impl DebugOverlay {
             self.latencies.iter().map(|(_, ms)| ms).sum::<f32>() / self.latencies.len() as f32
         });
         let view = OverlayView {
+            panel_area: Some(panel_area),
             raw: debug.raw.and_then(local),
             filtered,
             panel: (panel_on == Some(monitor.id)).then(|| PanelView {

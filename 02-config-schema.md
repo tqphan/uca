@@ -6,7 +6,7 @@ All user configuration is YAML. Rust types in `uca-config` are the source of tru
 
 | Path (under config dir) | Content |
 | --- | --- |
-| `app.yaml` | App-level settings not tied to a user: `logging` (`11`), `ui_language` (`17`), `last_profile` |
+| `app.yaml` | App-level settings not tied to a user: `logging` (`11`), `debug` (`11`), `ui_language` (`17`), `last_profile` |
 | `profiles/<profile-id>/profile.yaml` | One user's profile: inputs, global bindings, method, calibration, safety escape, language |
 | `profiles/<profile-id>/boards/*.yaml` | That user's boards (vocabulary is personal), one board per file |
 | `profiles/<profile-id>/phrases.yaml`, `prediction/`, `images/` | That user's saved phrases, learned prediction data, own pictures (`16`) |

@@ -140,6 +140,13 @@ pub fn layout_board(file: &BoardFile, monitor: &MonitorInfo) -> BoardLayout {
         Anchor::Center => ((screen.width - w) / 2.0, (screen.height - h) / 2.0),
         Anchor::Free => pos_of(b.position, screen, None),
     };
+    // Anchors place the board inside the layout area, which starts away from
+    // the monitor's corner when a taskbar is at the top or left; `free`
+    // positions already include the area's origin.
+    let (x, y) = match b.anchor.unwrap_or(Anchor::Center) {
+        Anchor::Free => (x, y),
+        _ => (screen.x + x, screen.y + y),
+    };
     let rect = RectLog::new(x, y, w, h);
     let content = inset(rect, b.padding, screen);
     BoardLayout {
@@ -404,6 +411,46 @@ mod tests {
             layout_board(&b, &monitor(1.0)).rect,
             RectLog::new(0.0, 648.0, 1920.0, 432.0),
             "a board that does not reserve uses the full bounds"
+        );
+    }
+
+    /// 02 `area: work`: a taskbar at the top or left moves the work area's
+    /// origin; anchored boards stay inside it and reach the far edges.
+    #[test]
+    fn work_area_away_from_the_corner() {
+        let top_taskbar = MonitorInfo {
+            work_area_phys: RectPhys::new(0.0, 48.0, 2560.0, 1263.0),
+            bounds_phys: RectPhys::new(0.0, 0.0, 2560.0, 1311.0),
+            ..monitor(1.0)
+        };
+        let b = board("board: { id: b, anchor: bottom, size: { width: 100%, height: 40% } }\n");
+        let r = layout_board(&b, &top_taskbar).rect;
+        assert_eq!(r.y + r.height, 1311.0, "reaches the bottom edge: {r:?}");
+        let b = board("board: { id: b, anchor: top, size: { width: 100%, height: 100 } }\n");
+        assert_eq!(
+            layout_board(&b, &top_taskbar).rect.y,
+            48.0,
+            "below the taskbar"
+        );
+
+        let left_taskbar = MonitorInfo {
+            work_area_phys: RectPhys::new(60.0, 0.0, 1860.0, 1080.0),
+            ..monitor(1.0)
+        };
+        let b = board("board: { id: b, anchor: left, size: { width: 200, height: 100% } }\n");
+        assert_eq!(
+            layout_board(&b, &left_taskbar).rect.x,
+            60.0,
+            "right of the taskbar"
+        );
+        let b = board("board: { id: b, anchor: right, size: { width: 200, height: 100% } }\n");
+        let r = layout_board(&b, &left_taskbar).rect;
+        assert_eq!(r.x + r.width, 1920.0, "reaches the right edge: {r:?}");
+        let b = board("board: { id: b, anchor: free, position: { x: 0, y: 0 }, size: { width: 10, height: 10 } }\n");
+        assert_eq!(
+            layout_board(&b, &left_taskbar).rect.x,
+            0.0,
+            "a free board uses the full bounds"
         );
     }
 

@@ -58,6 +58,8 @@ pub enum UserEvent {
     Crashed,
     /// A `debug.*` action from a board or binding (11).
     App(uca_config::action::Action),
+    /// `app.yaml` → `debug.area` changed (11).
+    DebugArea(uca_config::board::Area),
 }
 
 impl From<egui_winit::accesskit_winit::Event> for UserEvent {
@@ -133,6 +135,8 @@ pub struct App {
     /// The Settings choices for the next debug session (05).
     diagnostics: DiagnosticsView,
     strip: Option<DebugStrip>,
+    /// Where the strip and the overlay panel are placed (11).
+    debug_area: uca_config::board::Area,
     /// `debug.overlay` / `UCA_DEBUG_OVERLAY=1` (11).
     overlay_on: bool,
     debug_overlay: Option<DebugOverlay>,
@@ -145,6 +149,8 @@ pub struct AppRuntime {
     pub threads: Vec<JoinHandle<()>>,
     pub logging: Arc<uca_log::Logging>,
     pub cli_session: Option<u32>,
+    /// `app.yaml` → `debug.area` at start (11).
+    pub debug_area: uca_config::board::Area,
 }
 
 impl App {
@@ -174,6 +180,7 @@ impl App {
             logging: runtime.logging,
             sessions: Sessions::default(),
             cli_session: runtime.cli_session,
+            debug_area: runtime.debug_area,
             diagnostics: DiagnosticsView {
                 minutes: 60,
                 trace: false,
@@ -806,6 +813,12 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::Crashed => self.quit(event_loop),
             UserEvent::App(action) => self.on_app_action(action),
+            UserEvent::DebugArea(area) => {
+                self.debug_area = area;
+                if let Some(d) = &self.debug_overlay {
+                    d.request_redraw();
+                }
+            }
             UserEvent::Control(Control::Recalibrate) => {
                 // M1 has no calibrated pointer sources; the mouse needs none.
                 tracing::info!(target: "uca::app", "nothing to recalibrate for the current pointer source");
@@ -849,7 +862,8 @@ impl ApplicationHandler<UserEvent> for App {
             return;
         }
         if let Some(d) = self.debug_overlay.as_mut().filter(|d| d.owns(id)) {
-            d.on_window_event(id, &event, self.snapshot.as_ref(), &self.debug_info);
+            let area = self.debug_area;
+            d.on_window_event(id, &event, self.snapshot.as_ref(), &self.debug_info, area);
             return;
         }
         if self.settings.as_ref().is_some_and(|s| s.id() == id) {
@@ -967,7 +981,8 @@ impl App {
                     strip.update(StripState {
                         minutes_left,
                         sensitive: a.settings.sensitive,
-                        monitor,
+                        area: debug_rect(&monitor, self.debug_area),
+                        scale: monitor.scale_factor,
                     });
                 }
             }
@@ -1002,5 +1017,13 @@ impl App {
         ) {
             self.register_settings();
         }
+    }
+}
+
+/// The part of `m` the debug strip and overlay panel are placed in (11).
+pub fn debug_rect(m: &MonitorInfo, area: uca_config::board::Area) -> uca_types::RectPhys {
+    match area {
+        uca_config::board::Area::Work => m.work_area_phys,
+        uca_config::board::Area::Full => m.bounds_phys,
     }
 }

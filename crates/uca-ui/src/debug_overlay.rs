@@ -45,6 +45,9 @@ pub struct OverlayView {
     pub filtered: Option<Pos2>,
     /// Shown on the monitor the pointer is on.
     pub panel: Option<PanelView>,
+    /// Where the panel is placed, in window points; the whole window without
+    /// one (11 `debug.area`).
+    pub panel_area: Option<egui::Rect>,
 }
 
 /// The panel's lines, translated.
@@ -94,7 +97,10 @@ pub fn panel_lines(p: &PanelView) -> Vec<String> {
 pub fn show(ui: &mut Ui, view: &OverlayView) {
     if let Some(p) = &view.panel {
         let lines = panel_lines(p);
-        let rect = ui.max_rect().shrink(INSET);
+        let rect = view
+            .panel_area
+            .unwrap_or_else(|| ui.max_rect())
+            .shrink(INSET);
         let anchor = ui_dir().horizontal(egui::Align2::LEFT_TOP, egui::Align2::RIGHT_TOP);
         egui::Area::new(egui::Id::new("uca-debug-overlay-panel"))
             .fixed_pos(anchor.pos_in_rect(&rect))
@@ -200,6 +206,10 @@ mod tests {
             raw: Some(Pos2::new(100.0, 100.0)),
             filtered: Some(Pos2::new(102.0, 101.0)),
             panel: Some(panel()),
+            panel_area: Some(egui::Rect::from_min_size(
+                Pos2::new(0.0, 48.0),
+                egui::vec2(800.0, 500.0),
+            )),
         };
         let mut h = Harness::new_ui(move |ui| show(ui, &view));
         h.run();

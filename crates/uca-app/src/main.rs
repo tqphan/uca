@@ -69,9 +69,6 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         }
     };
     let safe_mode = crash_loop.as_ref().is_some_and(|c| c.safe_mode);
-    let _app_watcher = config_dir
-        .as_deref()
-        .and_then(|d| watch_app_file(d, logging.clone()));
     let language = uca_i18n::choose_ui_language(
         app_file.as_ref().and_then(|a| a.ui_language.as_deref()),
         platform.ui_locale().as_deref(),
@@ -98,6 +95,9 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         }
     };
     let proxy = event_loop.create_proxy();
+    let _app_watcher = config_dir
+        .as_deref()
+        .and_then(|d| watch_app_file(d, logging.clone(), proxy.clone()));
     let crash_proxy = proxy.clone();
     crash::on_crash(move || {
         let _ = crash_proxy.send_event(UserEvent::Crashed);
@@ -172,6 +172,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         threads,
         logging: logging.clone(),
         cli_session: debug_session_arg(),
+        debug_area: debug_area(app_file.as_ref()),
     };
     let mut app = App::new(
         platform, engine_tx, shared, monitors, profile, proxy, runtime,
@@ -265,11 +266,12 @@ fn app_logging(app: Option<&uca_config::app::AppFile>) -> uca_log::AppLogging {
     }
 }
 
-/// `app.yaml` logging settings apply live (11); a broken file keeps the last
-/// valid settings.
+/// `app.yaml` logging and debug settings apply live (11); a broken file keeps
+/// the last valid settings.
 fn watch_app_file(
     config_dir: &Path,
     logging: Arc<uca_log::Logging>,
+    proxy: EventLoopProxy<UserEvent>,
 ) -> Option<uca_config::watcher::ConfigWatcher> {
     use uca_config::watcher::AppChange;
     let (tx, rx) = mpsc::channel();
@@ -285,8 +287,14 @@ fn watch_app_file(
         .spawn(move || {
             for change in rx {
                 match change {
-                    AppChange::Changed(a) => logging.apply_app(&app_logging(Some(&a))),
-                    AppChange::Removed => logging.apply_app(&app_logging(None)),
+                    AppChange::Changed(a) => {
+                        logging.apply_app(&app_logging(Some(&a)));
+                        let _ = proxy.send_event(UserEvent::DebugArea(debug_area(Some(&a))));
+                    }
+                    AppChange::Removed => {
+                        logging.apply_app(&app_logging(None));
+                        let _ = proxy.send_event(UserEvent::DebugArea(debug_area(None)));
+                    }
                     AppChange::Invalid(e) => {
                         tracing::warn!(target: "uca::config", error = %e, "app.yaml is invalid; keeping the last valid settings");
                     }
@@ -298,6 +306,13 @@ fn watch_app_file(
         return None;
     }
     Some(watcher)
+}
+
+/// `app.yaml` → `debug.area`, `work` by default (11).
+fn debug_area(app: Option<&uca_config::app::AppFile>) -> uca_config::board::Area {
+    app.and_then(|a| a.debug)
+        .unwrap_or_default()
+        .area_or_default()
 }
 
 fn read_app_file(config_dir: &Path) -> Option<uca_config::app::AppFile> {

@@ -907,7 +907,7 @@ impl App {
             return;
         }
         match &mut self.debug_overlay {
-            Some(d) => d.set_monitors(event_loop, self.platform.as_ref(), &self.monitors),
+            Some(d) => d.set_monitors(event_loop, &self.platform, &self.monitors),
             None => {
                 self.debug_info = self
                     .shared
@@ -917,7 +917,7 @@ impl App {
                     .clone();
                 self.debug_overlay = Some(DebugOverlay::open(
                     event_loop,
-                    self.platform.as_ref(),
+                    &self.platform,
                     &self.monitors,
                 ));
             }
@@ -961,7 +961,7 @@ impl App {
         match shown {
             Some(((a, minutes_left), monitor)) => {
                 if self.strip.is_none() {
-                    self.strip = DebugStrip::open(event_loop, self.platform.as_ref());
+                    self.strip = DebugStrip::open(event_loop, self.platform.clone());
                 }
                 if let Some(strip) = &mut self.strip {
                     strip.update(StripState {

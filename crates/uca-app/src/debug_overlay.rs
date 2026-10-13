@@ -6,6 +6,7 @@
 //! pointer is on.
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use uca_engine::EngineSnapshot;
@@ -36,7 +37,7 @@ pub struct DebugOverlay {
 impl DebugOverlay {
     pub fn open(
         event_loop: &ActiveEventLoop,
-        platform: &dyn Platform,
+        platform: &Arc<dyn Platform>,
         monitors: &[MonitorInfo],
     ) -> Self {
         let mut o = Self {
@@ -53,7 +54,7 @@ impl DebugOverlay {
     pub fn set_monitors(
         &mut self,
         event_loop: &ActiveEventLoop,
-        platform: &dyn Platform,
+        platform: &Arc<dyn Platform>,
         monitors: &[MonitorInfo],
     ) {
         let same = self.windows.len() == monitors.len()
@@ -64,7 +65,7 @@ impl DebugOverlay {
         self.windows = monitors
             .iter()
             .filter_map(|m| {
-                let w = PassiveWindow::open(event_loop, platform, "debug overlay")?;
+                let mut w = PassiveWindow::open(event_loop, platform.clone(), "debug overlay")?;
                 let b = m.bounds_phys;
                 let size = PhysicalSize::new(b.width.max(1.0) as u32, b.height.max(1.0) as u32);
                 w.place(b.x, b.y, size);

@@ -35,15 +35,24 @@ pub fn transparent_wgpu_config() -> egui_wgpu::WgpuConfiguration {
 }
 
 pub struct PassiveWindow {
+    platform: Arc<dyn Platform>,
     window: Arc<Window>,
+    /// Shown through the platform once; never through winit (see `place`).
+    shown: bool,
     ctx: egui::Context,
     state: egui_winit::State,
     painter: egui_wgpu::winit::Painter,
 }
 
 impl PassiveWindow {
-    /// Creates the window hidden. `what` names it in log messages.
-    pub fn open(event_loop: &ActiveEventLoop, platform: &dyn Platform, what: &str) -> Option<Self> {
+    /// Creates the window hidden. `what` names it in log messages. A window
+    /// that cannot be made click-through is not created: it could cover the
+    /// screen and catch every click (AGENTS.md rule 4).
+    pub fn open(
+        event_loop: &ActiveEventLoop,
+        platform: Arc<dyn Platform>,
+        what: &str,
+    ) -> Option<Self> {
         let attrs = Window::default_attributes()
             .with_title(t!("app-name"))
             .with_decorations(false)
@@ -59,18 +68,16 @@ impl PassiveWindow {
                 return None;
             }
         };
-        if let Ok(h) = window.window_handle() {
-            let opts = OverlayOptions {
-                topmost: true,
-                no_focus: true,
-                display_only: true,
-            };
-            let configured = platform
-                .configure_overlay(h.as_raw(), opts)
-                .and_then(|()| platform.set_click_through(h.as_raw(), true));
-            if let Err(e) = configured {
-                tracing::warn!(target: "uca::app", window = what, error = %e, "window flags not applied");
-            }
+        // winit rewrites a window's extended styles from its own flags (for
+        // example when shown), so winit itself must know the window ignores
+        // the cursor; otherwise click-through is silently lost.
+        if let Err(e) = window.set_cursor_hittest(false) {
+            tracing::error!(target: "uca::app", window = what, error = %e, "cannot make a window click-through; not shown");
+            return None;
+        }
+        if let Err(e) = apply_flags(platform.as_ref(), &window) {
+            tracing::error!(target: "uca::app", window = what, error = %e, "window flags not applied; not shown");
+            return None;
         }
         let ctx = egui::Context::default();
         ctx.set_fonts(uca_render::fonts::font_definitions());
@@ -93,7 +100,9 @@ impl PassiveWindow {
             painter.max_texture_side(),
         );
         Some(Self {
+            platform,
             window,
+            shown: false,
             ctx,
             state,
             painter,
@@ -158,19 +167,51 @@ impl PassiveWindow {
     }
 
     /// Moves and sizes the window in physical pixels, and shows it.
-    /// A window shown for the first time is drawn at once: a redraw requested
-    /// while it is still hidden is lost.
-    pub fn place(&self, x: f64, y: f64, size: PhysicalSize<u32>) {
+    /// It is shown through the platform, as boards are, never with winit's
+    /// `set_visible`, and the flags are applied again afterwards. A window
+    /// shown for the first time is drawn at once: a redraw requested while it
+    /// was hidden is lost.
+    pub fn place(&mut self, x: f64, y: f64, size: PhysicalSize<u32>) {
         self.window
             .set_outer_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
         let resized = self.window.inner_size() != size;
         if resized {
             let _ = self.window.request_inner_size(size);
         }
-        let shown = self.window.is_visible() == Some(true);
-        self.window.set_visible(true);
-        if resized || !shown {
+        let first = !self.shown;
+        if first {
+            let Ok(h) = self.window.window_handle() else {
+                return;
+            };
+            let shown = self
+                .platform
+                .show_overlay(h.as_raw(), true)
+                .and_then(|()| apply_flags(self.platform.as_ref(), &self.window));
+            match shown {
+                Ok(()) => self.shown = true,
+                Err(e) => {
+                    let _ = self.platform.show_overlay(h.as_raw(), false);
+                    tracing::error!(target: "uca::app", error = %e, "window flags not applied; hidden");
+                    return;
+                }
+            }
+        }
+        if resized || first {
             self.window.request_redraw();
         }
     }
+}
+
+/// Topmost, never focused, display-only, click-through (11).
+fn apply_flags(platform: &dyn Platform, window: &Window) -> uca_platform::Result<()> {
+    let h = window
+        .window_handle()
+        .map_err(|_| uca_platform::PlatformError::Unsupported("no window handle"))?;
+    let opts = OverlayOptions {
+        topmost: true,
+        no_focus: true,
+        display_only: true,
+    };
+    platform.configure_overlay(h.as_raw(), opts)?;
+    platform.set_click_through(h.as_raw(), true)
 }

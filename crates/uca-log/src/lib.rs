@@ -287,7 +287,12 @@ pub fn capture(directives: &str, f: impl FnOnce()) -> Vec<String> {
     let lines = Collect::default();
     let filter = EnvFilter::try_new(directives).unwrap_or_else(|_| EnvFilter::new("trace"));
     let sub = Registry::default().with(json::JsonLayer::new(lines.clone()).with_filter(filter));
-    tracing::subscriber::with_default(sub, f);
+    tracing::subscriber::with_default(sub, || {
+        // A call site first hit on another thread with no subscriber can stay
+        // cached as disabled; re-ask every call site now this one is in place.
+        tracing::callsite::rebuild_interest_cache();
+        f();
+    });
     let out = std::mem::take(&mut *lines.0.lock().unwrap_or_else(|e| e.into_inner()));
     out
 }

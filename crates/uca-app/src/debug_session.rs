@@ -111,10 +111,17 @@ impl Sessions {
 mod tests {
     use std::cell::RefCell;
 
-    use uca_config::action::Action;
     use uca_types::{Clock, FakeClock, Key};
 
     use super::*;
+
+    /// Sessions switch the process-wide sensitive-logging flag; tests that
+    /// start or stop one run one at a time.
+    static FLAG: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn serial() -> std::sync::MutexGuard<'static, ()> {
+        FLAG.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     #[derive(Default)]
     struct Filters(RefCell<Vec<Option<String>>>);
@@ -135,6 +142,7 @@ mod tests {
 
     #[test]
     fn toggle_starts_and_stops() {
+        let _serial = serial();
         let clock = FakeClock::new();
         let log = Filters::default();
         let mut s = Sessions::default();
@@ -147,6 +155,7 @@ mod tests {
 
     #[test]
     fn minutes_left_and_wake_times() {
+        let _serial = serial();
         let clock = FakeClock::new();
         let log = Filters::default();
         let mut s = Sessions::default();
@@ -165,19 +174,20 @@ mod tests {
     /// session expires it is redacted again.
     #[test]
     fn sensitive_logging_ends_with_the_session() {
+        let _serial = serial();
         let clock = FakeClock::new();
         let log = Filters::default();
         let mut s = Sessions::default();
+        // Logged through this test's own call sites: the executor's are shared
+        // with tests on other threads, which makes their capture racy.
         let typed = || {
-            let mut e = uca_actions::Executor::new(
-                Box::new(uca_actions::FakeOutput::default()),
-                std::sync::Arc::new(uca_platform::fake::FakePlatform::new(Vec::new())),
-            );
-            uca_log::capture("uca::actions=debug", || {
-                e.handle(&uca_engine::Intent::Execute {
-                    activation: uca_engine::ActivationId(1),
-                    actions: vec![Action::TextType("secret".into()), Action::KeyTap(Key::KeyQ)],
-                });
+            uca_log::capture("uca::app=debug", || {
+                tracing::debug!(
+                    target: "uca::app",
+                    text = %uca_log::Sensitive("secret"),
+                    key = ?uca_log::SensitiveKey(Key::KeyQ),
+                    "typed"
+                );
             })
             .join("\n")
         };

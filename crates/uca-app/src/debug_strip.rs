@@ -4,6 +4,8 @@
 //! The debug-session indicator window (11, decided): click-through, always on
 //! top, never focused, at the top centre of the board's monitor.
 
+use std::sync::Arc;
+
 use uca_platform::Platform;
 use uca_types::MonitorInfo;
 use winit::dpi::PhysicalSize;
@@ -31,7 +33,7 @@ pub struct DebugStrip {
 
 impl DebugStrip {
     /// Creates the window hidden; [`update`](Self::update) shows it.
-    pub fn open(event_loop: &ActiveEventLoop, platform: &dyn Platform) -> Option<Self> {
+    pub fn open(event_loop: &ActiveEventLoop, platform: Arc<dyn Platform>) -> Option<Self> {
         Some(Self {
             window: PassiveWindow::open(event_loop, platform, "debug indicator")?,
             shown: None,

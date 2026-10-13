@@ -110,7 +110,7 @@ pub fn show(ui: &mut Ui, view: &OverlayView) {
                                 .monospace()
                                 .size(TEXT_SIZE)
                                 .color(Color32::WHITE);
-                            ui.label(text);
+                            ui.add(egui::Label::new(text).extend());
                         }
                     });
             });

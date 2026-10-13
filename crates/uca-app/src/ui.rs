@@ -217,7 +217,7 @@ impl App {
         ctx.set_fonts(uca_render::fonts::font_definitions());
         let mut painter = block_on(egui_wgpu::winit::Painter::new(
             ctx.clone(),
-            egui_wgpu::WgpuConfiguration::default(),
+            crate::passive_window::transparent_wgpu_config(),
             true,
             egui_wgpu::RendererOptions::default(),
         ));

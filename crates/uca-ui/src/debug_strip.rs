@@ -13,9 +13,30 @@ pub const TEXT_SIZE: f32 = 14.0;
 const GREY: Color32 = Color32::from_rgb(0x37, 0x41, 0x51);
 const AMBER: Color32 = Color32::from_rgb(0xf5, 0x9e, 0x0b);
 
-/// Draws the strip, centred, into `ui`.
+/// Horizontal padding inside a pill, in logical px.
+const PAD_X: i8 = 12;
+
+/// Draws the strip into `ui`, no wider than its longest pill, pills centred.
 pub fn show(ui: &mut Ui, minutes_left: u32, sensitive: bool) {
-    ui.with_layout(Layout::top_down(Align::Center), |ui| {
+    let mut labels = vec![t!("debug-strip-on", minutes = minutes_left)];
+    if sensitive {
+        labels.push(t!("debug-strip-sensitive"));
+    }
+    let width = labels
+        .iter()
+        .map(|l| {
+            let galley = ui.painter().layout_no_wrap(
+                strip_isolation(l).to_string(),
+                egui::FontId::proportional(TEXT_SIZE),
+                Color32::WHITE,
+            );
+            galley.size().x
+        })
+        .fold(0.0, f32::max)
+        + 2.0 * f32::from(PAD_X);
+    let layout = Layout::top_down(Align::Center);
+    ui.allocate_ui_with_layout(egui::vec2(width, 0.0), layout, |ui| {
+        ui.set_width(width);
         ui.spacing_mut().item_spacing.y = TEXT_SIZE / 4.0;
         pill(
             ui,
@@ -36,7 +57,7 @@ fn pill(ui: &mut Ui, label: String, fill: Color32, color: Color32) {
     Frame::new()
         .fill(fill)
         .corner_radius(CornerRadius::same(u8::MAX))
-        .inner_margin(Margin::symmetric(12, 4))
+        .inner_margin(Margin::symmetric(PAD_X, 4))
         .show(ui, |ui| {
             ui.label(text);
         });

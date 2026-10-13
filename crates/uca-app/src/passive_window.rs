@@ -19,6 +19,21 @@ use winit::window::{Window, WindowId, WindowLevel};
 
 use crate::block_on::block_on;
 
+/// wgpu setup for UCA's transparent windows (boards, strip, overlay; 05).
+/// On DX12 only DirectComposition presentation keeps per-pixel alpha; the
+/// default window swapchain is opaque and paints the whole window black.
+/// Other backends ignore the option.
+pub fn transparent_wgpu_config() -> egui_wgpu::WgpuConfiguration {
+    let mut config = egui_wgpu::WgpuConfiguration::default();
+    if let egui_wgpu::WgpuSetup::CreateNew(new) = &mut config.wgpu_setup {
+        new.instance_descriptor
+            .backend_options
+            .dx12
+            .presentation_system = egui_wgpu::wgpu::Dx12SwapchainKind::DxgiFromVisual;
+    }
+    config
+}
+
 pub struct PassiveWindow {
     window: Arc<Window>,
     ctx: egui::Context,
@@ -61,7 +76,7 @@ impl PassiveWindow {
         ctx.set_fonts(uca_render::fonts::font_definitions());
         let mut painter = block_on(egui_wgpu::winit::Painter::new(
             ctx.clone(),
-            egui_wgpu::WgpuConfiguration::default(),
+            transparent_wgpu_config(),
             true,
             egui_wgpu::RendererOptions::default(),
         ));
@@ -143,13 +158,19 @@ impl PassiveWindow {
     }
 
     /// Moves and sizes the window in physical pixels, and shows it.
+    /// A window shown for the first time is drawn at once: a redraw requested
+    /// while it is still hidden is lost.
     pub fn place(&self, x: f64, y: f64, size: PhysicalSize<u32>) {
-        if self.window.inner_size() != size {
-            let _ = self.window.request_inner_size(size);
-            self.window.request_redraw();
-        }
         self.window
             .set_outer_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
+        let resized = self.window.inner_size() != size;
+        if resized {
+            let _ = self.window.request_inner_size(size);
+        }
+        let shown = self.window.is_visible() == Some(true);
         self.window.set_visible(true);
+        if resized || !shown {
+            self.window.request_redraw();
+        }
     }
 }

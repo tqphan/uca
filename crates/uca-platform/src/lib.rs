@@ -12,6 +12,7 @@ use std::sync::mpsc::Sender;
 pub use uca_types::{Key, KeyDir, MonitorInfo, MouseButton, Phase, PhysPoint, TriggerId};
 
 pub mod fake;
+pub mod sources;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum PlatformError {
@@ -48,13 +49,26 @@ pub enum PlatformEvent {
     ForegroundAppChanged(Option<String>),
 }
 
-/// A key or mouse button seen by a global hook.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HookEvent {
-    pub trigger: TriggerId,
-    pub phase: Phase,
-    /// Injected by UCA itself; ignored by input (SAFETY-07).
-    pub injected: bool,
+/// What a global hook sees (07, decided).
+#[derive(Debug, Clone, PartialEq)]
+pub enum HookEvent {
+    /// A key or mouse button.
+    Button {
+        trigger: TriggerId,
+        phase: Phase,
+        /// Injected by UCA itself; ignored by input (SAFETY-07).
+        injected: bool,
+    },
+    /// The mouse moved (mouse hook only).
+    Move { pos: PhysPoint, injected: bool },
+}
+
+impl HookEvent {
+    pub fn injected(&self) -> bool {
+        match self {
+            HookEvent::Button { injected, .. } | HookEvent::Move { injected, .. } => *injected,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

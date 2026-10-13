@@ -506,6 +506,45 @@ impl Mapping {
     }
 }
 
+/// Keys and buttons UCA swallows so other apps do not see them (03 "Suppression",
+/// decided): switch alias targets, and triggers named by exact id in a binding
+/// pattern (including the escape) of a binding without `passthrough: true`.
+/// Wildcards and `mouse:left` are never consumed.
+pub fn consumed_triggers(config: &LoadedConfig) -> BTreeSet<TriggerId> {
+    let profile = &config.profile.profile;
+    let mut out: BTreeSet<TriggerId> = profile.inputs.switches.values().cloned().collect();
+    let mut patterns: Vec<String> = profile.safety.iter().map(|s| s.escape.clone()).collect();
+    let mut add = |bindings: &[Binding]| {
+        for b in bindings {
+            if b.passthrough != Some(true) {
+                patterns.push(b.when.clone());
+            }
+        }
+    };
+    add(&profile.bindings);
+    for file in config.boards.values() {
+        add(&file.bindings);
+        for layer in &file.layers {
+            add(&layer.bindings);
+            for item in &layer.items {
+                add(&item.bindings);
+            }
+        }
+    }
+    for text in patterns {
+        let Ok(pattern) = Pattern::parse(&text) else {
+            continue;
+        };
+        for input in pattern.inputs() {
+            if let Input::Trigger(t) = input {
+                out.insert(t.clone());
+            }
+        }
+    }
+    out.retain(|t| !t.is_any_key() && t.to_string() != "mouse:left");
+    out
+}
+
 /// Advances a sequence; true when it completes.
 fn advance_sequence(
     st: &mut TermState,

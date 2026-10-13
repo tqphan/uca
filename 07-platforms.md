@@ -20,7 +20,7 @@ pub trait Platform: Send + Sync {
     fn cursor_pos(&self) -> Option<PhysPoint>;
 
     // Global input hooks (switches)
-    fn hook_keyboard(&self, cb: HookCallback) -> Result<HookHandle>; // cb returns Consume|Pass
+    fn hook_keyboard(&self, cb: HookCallback) -> Result<HookHandle>; // cb returns Consume|Pass; decided: hook events are `Button { trigger, phase, injected }` or, from the mouse hook, `Move { pos, injected }`
     fn hook_mouse(&self, cb: HookCallback) -> Result<HookHandle>;
 
     // Overlay

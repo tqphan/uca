@@ -26,6 +26,12 @@ Switch interfaces appear to the OS as keys, mouse buttons or gamepad buttons; th
 
 When a key/mouse button is bound as a UCA switch, its original OS event must be **consumed** (not passed to apps) unless the binding sets `passthrough: true`. Requires the platform hook to support blocking (see `07`). If the platform cannot block, report in `Capabilities` and warn in UI.
 
+Decided:
+- **What is consumed:** a key or button is consumed if it is the target of a switch alias (`inputs.switches`), or if it appears by exact id in a binding pattern (including the escape) of a binding without `passthrough: true`. Wildcards (`key:*`) and `mouse:left` are never consumed, so a physical keyboard and mouse keep working.
+- **Adapter location:** the keyboard and mouse adapters live in `uca-platform` (`sources`) and work on any `Platform`.
+- **Hand-off:** each hook callback only stamps the time and hands the event to its adapter thread over an unbounded channel, so the hook never blocks.
+- **Mouse moves:** the mouse pointer source gets positions from the mouse hook, one `Point` per OS move, with confidence 1 and presence true.
+
 ## InputHub
 
 - Receives all `Signal`s, drops those from disabled sources.

@@ -30,6 +30,7 @@ struct Inner {
     cursor: Option<PhysPoint>,
     foreground: Option<String>,
     keyboard_hooks: Vec<HookCallback>,
+    mouse_hooks: Vec<HookCallback>,
     subscribers: Vec<Sender<PlatformEvent>>,
 }
 
@@ -87,9 +88,23 @@ impl FakePlatform {
 
     /// Sends a keyboard event through every keyboard hook; `Consume` if any consumes it.
     pub fn press(&self, e: &HookEvent) -> HookDecision {
+        self.dispatch(e, false)
+    }
+
+    /// Sends a mouse event (button or move) through every mouse hook.
+    pub fn mouse(&self, e: &HookEvent) -> HookDecision {
+        self.dispatch(e, true)
+    }
+
+    fn dispatch(&self, e: &HookEvent, mouse: bool) -> HookDecision {
         let mut inner = self.lock();
         let mut decision = HookDecision::Pass;
-        for cb in &mut inner.keyboard_hooks {
+        let hooks = if mouse {
+            &mut inner.mouse_hooks
+        } else {
+            &mut inner.keyboard_hooks
+        };
+        for cb in hooks.iter_mut() {
             if cb(e) == HookDecision::Consume {
                 decision = HookDecision::Consume;
             }
@@ -168,7 +183,8 @@ impl Platform for FakePlatform {
         Ok(Box::new(FakeHook))
     }
 
-    fn hook_mouse(&self, _cb: HookCallback) -> Result<Box<dyn HookHandle>> {
+    fn hook_mouse(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>> {
+        self.lock().mouse_hooks.push(cb);
         Ok(Box::new(FakeHook))
     }
 
@@ -249,14 +265,14 @@ mod tests {
         let f13 = TriggerIdOf::f13();
         let _h = p
             .hook_keyboard(Box::new(move |e| {
-                if e.trigger == f13 {
+                if matches!(e, HookEvent::Button { trigger, .. } if *trigger == f13) {
                     HookDecision::Consume
                 } else {
                     HookDecision::Pass
                 }
             }))
             .expect("hook");
-        let ev = |t: &str| HookEvent {
+        let ev = |t: &str| HookEvent::Button {
             trigger: crate::TriggerId::parse(t).expect("t"),
             phase: crate::Phase::Down,
             injected: false,

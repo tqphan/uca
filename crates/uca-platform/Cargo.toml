@@ -12,6 +12,7 @@ publish.workspace = true
 
 [dependencies]
 thiserror.workspace = true
+uca-input = { path = "../uca-input" }
 uca-types = { path = "../uca-types" }
 
 [lints]

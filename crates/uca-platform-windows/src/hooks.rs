@@ -10,7 +10,7 @@ use std::sync::mpsc;
 use std::thread::JoinHandle;
 
 use uca_platform::{HookCallback, HookDecision, HookEvent, HookHandle, PlatformError, Result};
-use uca_types::{Key, Phase, TriggerId};
+use uca_types::{Key, Phase, PhysPoint, TriggerId};
 use windows_sys::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::VK_PAUSE;
@@ -18,8 +18,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, GetMessageW, PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
     HC_ACTION, KBDLLHOOKSTRUCT, LLKHF_EXTENDED, LLKHF_INJECTED, LLMHF_INJECTED, MSG,
     MSLLHOOKSTRUCT, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN,
-    WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_QUIT, WM_RBUTTONDOWN, WM_RBUTTONUP,
-    WM_SYSKEYDOWN, WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP, XBUTTON1,
+    WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEMOVE, WM_QUIT, WM_RBUTTONDOWN,
+    WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP, XBUTTON1,
 };
 
 use crate::inject::UCA_INJECTED_TAG;
@@ -77,7 +77,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
         if let (Some(phase), Some(key)) = (phase, key) {
             let injected = info.flags & LLKHF_INJECTED != 0 && info.dwExtraInfo == UCA_INJECTED_TAG;
             if let Some(trigger) = trigger(&format!("key:{}", key.code())) {
-                let event = HookEvent {
+                let event = HookEvent::Button {
                     trigger,
                     phase,
                     injected,
@@ -113,10 +113,15 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
             WM_XBUTTONUP => Some((x, Phase::Up)),
             _ => None,
         };
+        if wparam as u32 == WM_MOUSEMOVE {
+            let injected = info.flags & LLMHF_INJECTED != 0 && info.dwExtraInfo == UCA_INJECTED_TAG;
+            let pos = PhysPoint::new(f64::from(info.pt.x), f64::from(info.pt.y));
+            decide(&HookEvent::Move { pos, injected });
+        }
         if let Some((name, phase)) = event {
             let injected = info.flags & LLMHF_INJECTED != 0 && info.dwExtraInfo == UCA_INJECTED_TAG;
             if let Some(trigger) = trigger(&format!("mouse:{name}")) {
-                let event = HookEvent {
+                let event = HookEvent::Button {
                     trigger,
                     phase,
                     injected,

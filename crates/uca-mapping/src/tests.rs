@@ -334,3 +334,25 @@ fn reset_forgets_everything() {
     r.m.reset();
     assert_eq!(ended(&r.key(100, "key:F13", Up, &c)), 0);
 }
+
+#[test]
+fn consumed_triggers_rule() {
+    let c = config();
+    let consumed: Vec<String> = consumed_triggers(&c)
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    // Alias targets (s1, s2), exact ids in bindings and the escape; never mouse:left or key:*.
+    for t in [
+        "key:F13",
+        "key:F14",
+        "key:F1",
+        "key:F2",
+        "mouse:right",
+        "face:a",
+        "face:b",
+    ] {
+        assert!(consumed.contains(&t.to_owned()), "{t} in {consumed:?}");
+    }
+    assert!(!consumed.contains(&"mouse:left".to_owned()));
+}

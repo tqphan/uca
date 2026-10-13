@@ -525,10 +525,20 @@ impl ApplicationHandler<UserEvent> for App {
         match event {
             UserEvent::Snapshot => self.on_snapshot(),
             UserEvent::Monitors(m) => {
-                self.monitors = m;
-                if let Some(o) = &mut self.overlay {
-                    o.placement = None;
+                // Reserving space changes the work area, which the platform also
+                // reports; only bounds and scale move the window, or the two
+                // would chase each other.
+                let geometry = |ms: &[MonitorInfo]| {
+                    ms.iter()
+                        .map(|m| (m.id, m.bounds_phys, m.scale_factor))
+                        .collect::<Vec<_>>()
+                };
+                if geometry(&m) != geometry(&self.monitors) {
+                    if let Some(o) = &mut self.overlay {
+                        o.placement = None;
+                    }
                 }
+                self.monitors = m;
                 self.on_snapshot();
             }
             UserEvent::Menu(e) => self.on_menu(e, event_loop),

@@ -33,6 +33,8 @@ enum Smoother {
 #[derive(Debug, Clone)]
 pub struct PointPipeline {
     min_confidence: f64,
+    /// Stage 2 on or off (03 `filter.outliers`).
+    outliers: bool,
     max_velocity: f64,
     agree_needed: usize,
     smoother: Smoother,
@@ -44,7 +46,10 @@ pub struct PointPipeline {
 
 impl PointPipeline {
     /// From `profile.inputs.sources.<id>.filter`; `None` means no smoothing with default limits.
-    pub fn new(filter: Option<&Filter>) -> Self {
+    ///
+    /// `outliers_by_default` applies when `filter.outliers` is not set:
+    /// `false` for the `mouse` source, `true` for others (03, decided).
+    pub fn new(filter: Option<&Filter>, outliers_by_default: bool) -> Self {
         let get =
             |pick: fn(&Filter) -> Option<SettingValue>, key| value(filter.and_then(pick), key);
         let smoother = match filter.map(|f| f.kind) {
@@ -66,6 +71,9 @@ impl PointPipeline {
         };
         Self {
             min_confidence: get(|f| f.min_confidence, "filter.min_confidence"),
+            outliers: filter
+                .and_then(|f| f.outliers)
+                .unwrap_or(outliers_by_default),
             max_velocity: get(|f| f.max_velocity_px_s, "filter.max_velocity_px_s"),
             agree_needed: get(|f| f.outlier_agree_samples, "filter.outlier_agree_samples").max(1.0)
                 as usize,
@@ -86,8 +94,26 @@ impl PointPipeline {
         }
         let raw_monitor = monitors.iter().find(|m| m.bounds_phys.contains(s.pos))?;
 
-        // 2. Outlier rejection.
-        if !self.accept(s.t, s.pos) {
+        // 2. Outlier rejection. Coordinates only at trace (11).
+        let reference = self.last_accepted;
+        if self.outliers && !self.accept(s.t, s.pos) {
+            tracing::debug!(
+                target: "uca::pipeline",
+                source = %s.source.0,
+                candidates = self.candidates.len(),
+                "sample rejected as an outlier"
+            );
+            if let Some((t, p)) = reference {
+                tracing::trace!(
+                    target: "uca::pipeline",
+                    x = s.pos.x,
+                    y = s.pos.y,
+                    from_x = p.x,
+                    from_y = p.y,
+                    dt_us = u64::try_from(s.t.saturating_duration_since(t).as_micros()).unwrap_or(u64::MAX),
+                    "rejected sample"
+                );
+            }
             return None;
         }
 
@@ -200,6 +226,44 @@ mod tests {
             .expect("filter")
     }
 
+    /// 03 (decided): the mouse skips outlier rejection unless its filter
+    /// turns it on; other sources reject a lone jump unless turned off.
+    #[test]
+    fn outliers_switch_per_source() {
+        let jump = |p: &mut PointPipeline, clock: &FakeClock| {
+            let at = |ms: u64, x: f64| PointSample {
+                t: clock.start() + Duration::from_millis(ms),
+                source: SourceId("s".into()),
+                pos: PhysPoint::new(x, 100.0),
+                monitor: None,
+                confidence: 1.0,
+                presence: true,
+            };
+            p.process(&at(0, 100.0), &monitors());
+            // 1000 px in 1 ms: far above max_velocity_px_s.
+            p.process(&at(1, 1100.0), &monitors()).is_some()
+        };
+        let clock = FakeClock::new();
+        assert!(
+            jump(&mut PointPipeline::new(None, false), &clock),
+            "mouse default: kept"
+        );
+        assert!(
+            !jump(&mut PointPipeline::new(None, true), &clock),
+            "other sources: rejected"
+        );
+        let on = filter("{ kind: none, outliers: true }");
+        assert!(
+            !jump(&mut PointPipeline::new(Some(&on), false), &clock),
+            "turned on"
+        );
+        let off = filter("{ kind: none, outliers: false }");
+        assert!(
+            jump(&mut PointPipeline::new(Some(&off), true), &clock),
+            "turned off"
+        );
+    }
+
     struct Rig {
         clock: FakeClock,
         pipeline: PointPipeline,
@@ -209,7 +273,7 @@ mod tests {
         fn new(f: Option<&Filter>) -> Self {
             Rig {
                 clock: FakeClock::new(),
-                pipeline: PointPipeline::new(f),
+                pipeline: PointPipeline::new(f, true),
             }
         }
 

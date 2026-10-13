@@ -97,6 +97,9 @@ pub struct SourceConfig {
 #[serde(deny_unknown_fields)]
 pub struct Filter {
     pub kind: FilterKind,
+    /// Outlier rejection (03 stage 2); `false` by default for the `mouse`
+    /// source, `true` for every other point source (03, decided).
+    pub outliers: Option<bool>,
     #[serde(default, deserialize_with = "setting::min_confidence")]
     #[schemars(schema_with = "crate::setting::schema::min_confidence")]
     pub min_confidence: Option<SettingValue>,

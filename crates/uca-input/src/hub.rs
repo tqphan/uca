@@ -49,6 +49,7 @@ impl InputHub {
                     .sources
                     .get(id.0.as_str())
                     .and_then(|s| s.filter.as_ref()),
+                id.0 != uca_types::ids::MOUSE_SOURCE,
             )
         });
         Self {

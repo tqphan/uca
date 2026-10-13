@@ -21,7 +21,7 @@ use crate::{HookDecision, HookEvent, HookHandle, Platform};
 pub type ConsumeSet = Arc<RwLock<BTreeSet<TriggerId>>>;
 
 pub const KEYBOARD_SOURCE: &str = "keyboard";
-pub const MOUSE_SOURCE: &str = "mouse";
+pub use uca_types::ids::MOUSE_SOURCE;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Which {

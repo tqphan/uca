@@ -20,7 +20,7 @@ Goal: a mouse/keyboard/switch user can type with a YAML-defined on-screen keyboa
 - [ ] Localization infrastructure: `uca-i18n` with Fluent, `en-US` catalog, `t!` macro, no-hard-coded-strings lint, fallback chain, pseudo-locales `en-XA` / `ar-XB` with snapshot tests, `ui_language` vs `language` settings — `17`
 - [ ] UI stack: `winit` loop + `egui-winit` + `egui-wgpu` (no OpenGL fallback), one context per window, snapshot wake-up via `EventLoopProxy`, pinned egui version — `05`
 - [ ] `uca-render`: per-monitor overlay windows, epaint item drawing for every style property, theme fonts, states, dwell ring, `egui_kittest` golden tests — `05`, `02`
-- [ ] `uca-ui`: minimal settings window (profile name, start board, pause) in egui, registered with the engine as a virtual board so it is scannable; `settings.open` / `settings.close` actions — `05`, `02`
+- [x] `uca-ui`: minimal settings window (profile name, start board, pause) in egui, registered with the engine as a virtual board so it is scannable; `settings.open` / `settings.close` actions — `05`, `02`
 - [ ] `uca-app`: wiring, tray icon
 - [ ] Logging: subscriber setup, JSON log files with rotation, `app.yaml` + `UCA_LOG` + `--log`, target naming, redaction layer, ring buffer + crash file, debug sessions, debug overlay — `11`
 - [ ] Diagnostics bundle export and `uca-replay` recording/replay tool — `11`

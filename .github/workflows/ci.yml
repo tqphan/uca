@@ -28,6 +28,11 @@ jobs:
         run: |
           python -I tools/check-timing-literals.py --self-test
           python -I tools/check-timing-literals.py
+      - name: User-visible strings go through uca-i18n (17)
+        shell: bash
+        run: |
+          python -I tools/check-ui-strings.py --self-test
+          python -I tools/check-ui-strings.py
 
   licences:
     name: cargo deny, reuse lint

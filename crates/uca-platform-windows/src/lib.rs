@@ -20,6 +20,10 @@ use uca_platform::{
     PhysPoint, Platform, PlatformEvent, Result, WindowQuery,
 };
 use windows_sys::Win32::Foundation::POINT;
+use windows_sys::Win32::Globalization::GetUserDefaultLocaleName;
+
+/// LOCALE_NAME_MAX_LENGTH from winnls.h.
+const LOCALE_NAME_MAX_LENGTH: usize = 85;
 use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 pub use inject::UCA_INJECTED_TAG;
@@ -128,6 +132,13 @@ impl Platform for WindowsPlatform {
         };
         vec![Key::ControlLeft, key]
     }
+
+    fn ui_locale(&self) -> Option<String> {
+        let mut buf = [0u16; LOCALE_NAME_MAX_LENGTH];
+        // SAFETY: the buffer and its length are passed together.
+        let n = unsafe { GetUserDefaultLocaleName(buf.as_mut_ptr(), buf.len() as i32) };
+        (n > 1).then(|| String::from_utf16_lossy(&buf[..(n - 1) as usize]))
+    }
 }
 
 #[cfg(test)]
@@ -138,6 +149,8 @@ mod tests {
     fn monitors_are_reported() {
         let m = WindowsPlatform::new().monitors();
         assert!(!m.is_empty(), "at least one monitor");
+        let locale = WindowsPlatform::new().ui_locale();
+        assert!(locale.is_some_and(|l| l.contains('-')), "a BCP-47 tag");
         assert!(
             m.iter().filter(|m| m.primary).count() == 1,
             "exactly one primary"

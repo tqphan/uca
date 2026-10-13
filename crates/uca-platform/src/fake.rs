@@ -192,6 +192,10 @@ impl Platform for FakePlatform {
         };
         vec![Key::ControlLeft, key]
     }
+
+    fn ui_locale(&self) -> Option<String> {
+        Some("en-US".into())
+    }
 }
 
 #[cfg(test)]

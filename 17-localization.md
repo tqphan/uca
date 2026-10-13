@@ -17,6 +17,11 @@ Languages are BCP-47 tags (`en-GB`, `fr-CA`, `ar`, `he`, `zh-Hans`).
 
 **Fallback chain:** exact tag → base language (`fr-CA` → `fr`) → `en-US`. A missing string never shows an empty label or an id.
 
+Decided:
+- **OS locale:** the default `ui_language` comes from `Platform::ui_locale()` (BCP-47), so OS code stays in platform crates (`07`).
+- **Missing ids:** a CI check verifies that every `t!("id")` in the code exists in `en-US`. If an id is still missing at runtime, `t!` returns “…” (U+2026) and logs a warning once per id.
+- **Isolation marks:** Fluent's bidi isolation marks (U+2066–U+2069) stay on. `uca-render` and `uca-ui` remove them before handing text to egui, and the run-based bidi workaround uses them to split runs. This is revisited when egui ships bidi.
+
 ## UI strings
 
 - Use **Project Fluent** (`fluent-bundle` crate). It handles plurals (CLDR rules), gender and grammatical variants, and inserts bidi isolation marks around variables.
@@ -39,7 +44,7 @@ Languages are BCP-47 tags (`en-GB`, `fr-CA`, `ar`, `he`, `zh-Hans`).
 
 Two generated locales, available in debug builds and in Settings → Diagnostics:
 - `en-XA`: accented and about 40 % longer strings, wrapped in brackets. Catches hard-coded strings and text that doesn't fit.
-- `ar-XB`: English text mirrored into an RTL layout. Catches layout code that assumes left-to-right.
+- `ar-XB`: English text mirrored into an RTL layout. Catches layout code that assumes left-to-right. Decided: as in Chrome and Android, each string is wrapped in RIGHT-TO-LEFT OVERRIDE … POP DIRECTIONAL FORMATTING, so the letters display reversed and right-aligned, and `ui_dir()` is RTL. Untranslated strings stand out as normal left-to-right English.
 
 CI renders the main screens and the default boards in both, with `egui_kittest` (`05`). It fails on text overflowing its widget or on untranslated (non-pseudo) strings.
 

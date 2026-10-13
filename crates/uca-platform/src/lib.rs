@@ -108,4 +108,6 @@ pub trait Platform: Send + Sync {
     fn foreground_app(&self) -> Option<String>;
     /// Keys for copy / paste / cut on this OS (07, decided).
     fn clipboard_chord(&self, op: ClipboardOp) -> Vec<Key>;
+    /// The OS UI locale as a BCP-47 tag, the default `ui_language` (17).
+    fn ui_locale(&self) -> Option<String>;
 }

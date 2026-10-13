@@ -31,7 +31,8 @@ pub trait Platform: Send + Sync {
     fn launch(&self, path: &str, args: &[String]) -> Result<()>;
     fn focus_window(&self, q: WindowQuery) -> Result<()>;
     fn foreground_app(&self) -> Option<String>;
-    fn clipboard_chord(&self, op: ClipboardOp) -> Vec<Key>;  // decided: keys for copy/paste/cut (e.g. ctrl+c; macOS meta+c), pressed by the executor on the chosen output
+    fn clipboard_chord(&self, op: ClipboardOp) -> Vec<Key>;
+    fn ui_locale(&self) -> Option<String>;              // decided: the OS UI locale as BCP-47, default for `ui_language` (17)  // decided: keys for copy/paste/cut (e.g. ctrl+c; macOS meta+c), pressed by the executor on the chosen output
     fn key_label(&self, key: Key, mods: Modifiers) -> Option<String>; // character this key produces under the current OS keyboard layout (`17`)
     // also emits PlatformEvent::KeyboardLayoutChanged
 

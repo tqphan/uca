@@ -1,4 +1,149 @@
 // SPDX-FileCopyrightText: The UCA contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Windows platform backend.
+//! Windows platform backend (07).
+
+#![cfg(windows)]
+
+mod events;
+mod hooks;
+mod inject;
+mod keys;
+mod monitors;
+mod system;
+
+use std::sync::mpsc::Sender;
+use std::sync::Mutex;
+
+use uca_platform::{
+    Capabilities, ClipboardOp, HookCallback, HookHandle, Key, KeyDir, MonitorInfo, MouseButton,
+    PhysPoint, Platform, PlatformEvent, Result, WindowQuery,
+};
+use windows_sys::Win32::Foundation::POINT;
+use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+pub use inject::UCA_INJECTED_TAG;
+
+#[derive(Default)]
+pub struct WindowsPlatform {
+    events: Mutex<Option<Sender<Sender<PlatformEvent>>>>,
+}
+
+impl WindowsPlatform {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Platform for WindowsPlatform {
+    fn capabilities(&self) -> Capabilities {
+        Capabilities {
+            inject_keys: true,
+            inject_text: true,
+            inject_mouse: true,
+            read_cursor: true,
+            global_hooks: true,
+            hook_can_consume: true,
+            overlay_topmost: true,
+            overlay_no_focus: true,
+            overlay_click_through: true,
+            reserve_edge: true,
+            per_monitor_dpi: true,
+            foreground_app: true,
+            // Elevated windows need `uiAccess` and a signed install (07, M4).
+            elevated_injection: false,
+        }
+    }
+
+    fn monitors(&self) -> Vec<MonitorInfo> {
+        monitors::monitors()
+    }
+
+    fn subscribe(&self, tx: Sender<PlatformEvent>) {
+        let mut events = self.events.lock().unwrap_or_else(|e| e.into_inner());
+        match events.as_ref() {
+            Some(add) => {
+                let _ = add.send(tx);
+            }
+            None => *events = Some(events::start(tx)),
+        }
+    }
+
+    fn inject_key(&self, key: Key, dir: KeyDir) -> Result<()> {
+        inject::key(key, dir)
+    }
+
+    fn type_text(&self, text: &str) -> Result<()> {
+        inject::text(text)
+    }
+
+    fn mouse_move_abs(&self, p: PhysPoint) -> Result<()> {
+        inject::move_abs(p, monitors::virtual_desktop())
+    }
+
+    fn mouse_move_rel(&self, dx: f64, dy: f64) -> Result<()> {
+        inject::move_rel(dx, dy)
+    }
+
+    fn mouse_button(&self, b: MouseButton, dir: KeyDir) -> Result<()> {
+        inject::button(b, dir)
+    }
+
+    fn mouse_scroll(&self, dx: f32, dy: f32) -> Result<()> {
+        inject::scroll(dx, dy)
+    }
+
+    fn cursor_pos(&self) -> Option<PhysPoint> {
+        let mut p = POINT { x: 0, y: 0 };
+        // SAFETY: out-pointer to a local.
+        (unsafe { GetCursorPos(&mut p) } != 0)
+            .then(|| PhysPoint::new(f64::from(p.x), f64::from(p.y)))
+    }
+
+    fn hook_keyboard(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>> {
+        hooks::keyboard(cb)
+    }
+
+    fn hook_mouse(&self, cb: HookCallback) -> Result<Box<dyn HookHandle>> {
+        hooks::mouse(cb)
+    }
+
+    fn launch(&self, path: &str, args: &[String]) -> Result<()> {
+        system::launch(path, args)
+    }
+
+    fn focus_window(&self, q: &WindowQuery) -> Result<()> {
+        system::focus(q)
+    }
+
+    fn foreground_app(&self) -> Option<String> {
+        system::foreground_app()
+    }
+
+    fn clipboard_chord(&self, op: ClipboardOp) -> Vec<Key> {
+        let key = match op {
+            ClipboardOp::Copy => Key::KeyC,
+            ClipboardOp::Paste => Key::KeyV,
+            ClipboardOp::Cut => Key::KeyX,
+        };
+        vec![Key::ControlLeft, key]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn monitors_are_reported() {
+        let m = WindowsPlatform::new().monitors();
+        assert!(!m.is_empty(), "at least one monitor");
+        assert!(
+            m.iter().filter(|m| m.primary).count() == 1,
+            "exactly one primary"
+        );
+        assert!(m
+            .iter()
+            .all(|m| m.scale_factor > 0.0 && m.bounds_phys.width > 0.0));
+    }
+}

@@ -482,6 +482,12 @@ dependencies = [
 [[package]]
 name = "uca-platform-windows"
 version = "0.1.0"
+dependencies = [
+ "tracing",
+ "uca-platform",
+ "uca-types",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "uca-render"

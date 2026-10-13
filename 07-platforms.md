@@ -78,6 +78,12 @@ Decided details:
 
 **Trait growth (decided):** like config keys and actions, the trait gains methods with the feature that needs them. M1 has output, hooks, monitors, events, overlay, system and `clipboard_chord`. `ui_targets` / `ui_invoke` arrive in M3, `key_label` in M4 and `request_permissions` with macOS.
 
+**Windows backend (decided):**
+- **Bindings:** the `windows-sys` crate.
+- **Absolute pointer moves:** `SendInput` with `MOUSEEVENTF_MOVE | ABSOLUTE | VIRTUALDESK`, normalised over the virtual desktop and tagged as UCA's own input (SAFETY-07).
+- **`app.launch`:** `ShellExecuteW`, so programs, documents, folders and URLs open as they do from Explorer.
+- **`window.focus`:** `title_contains` matches visible top-level windows ignoring case, and the topmost match in Z-order is focused. `next` focuses the next window in Alt+Tab order, skipping tool windows and UCA's own windows.
+
 ## Capability matrix (target)
 
 | Capability | Windows | Linux X11 | Linux Wayland | macOS |

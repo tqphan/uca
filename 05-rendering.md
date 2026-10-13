@@ -34,7 +34,7 @@ Platform emits `MonitorsChanged` on hot-plug, resolution or scale change → ren
 
 **Decision:** all UCA drawing uses `egui`.
 
-- **Integration.** Own `winit` event loop + `egui-winit` + `egui-wgpu`; no `eframe` (it hides the native windows the platform layer must configure). One `egui::Context` and wgpu surface per native window. If wgpu initialisation fails, fall back to the `egui_glow` (OpenGL) backend and log it at `warn`.
+- **Integration.** Own `winit` event loop + `egui-winit` + `egui-wgpu`; no `eframe` (it hides the native windows the platform layer must configure). One `egui::Context` and wgpu surface per native window. No OpenGL fallback (decided): wgpu is the only backend. On Windows it already falls back to the DX12 software renderer (WARP) when no GPU driver is present. If wgpu still cannot draw a window, that is logged at `error`.
 - **Painting boards.** `uca-render` does not use egui widgets for board items. It paints each item directly with `egui::Painter` (`epaint` shapes), from the resolved styles and rects in the `EngineSnapshot`, so every YAML property maps to an exact pixel result:
 
 | YAML property | epaint implementation |
@@ -57,10 +57,18 @@ Platform emits `MonitorsChanged` on hot-plug, resolution or scale change → ren
     - No system fonts by default: themes register font files (see `02`); system fonts are found with `fontdb`.
     - Font weight: each weight is a separate registered font, so `weight` selects the nearest registered file for that family.
     - Right-to-left and mixed-direction text: shaping works on egui ≥ 0.36, but bidi ordering and RTL caret placement are not yet in egui. `uca-render` applies a run-based bidi workaround, and RTL editing avoids `TextEdit`. See `17`.
-- **Version.** egui ≥ 0.36 (needed for `harfrust` text shaping, `17`). One `egui` / `egui-winit` / `egui-wgpu` version pinned in the workspace `Cargo.toml`; upgrades are a separate task with snapshot tests re-run. Decided: exactly `=0.36.2` for `egui`, `egui-winit`, `egui-wgpu`, `egui_glow` and `egui_kittest`.
+- **Version.** egui ≥ 0.36 (needed for `harfrust` text shaping, `17`). One `egui` / `egui-winit` / `egui-wgpu` version pinned in the workspace `Cargo.toml`; upgrades are a separate task with snapshot tests re-run. Decided: exactly `=0.36.2` for `egui`, `egui-winit`, `egui-wgpu` and `egui_kittest`.
 - **Async setup (decided):** egui-wgpu's async setup is driven by a small `block_on` of UCA's own (std only); no async runtime dependency.
 - **Tray icon (decided):** the `tray-icon` crate.
     - **Menu (M1):** Settings, Pause/Resume, Safe Board and Quit, with labels through Fluent. Quit releases everything first (SAFETY-08).
+- **Settings window (M1, decided):**
+    - **Opening:** the tray's Settings item, or the `settings.open` / `settings.close` actions (`04`). It also has its own Close button.
+    - **Window:** a normal, focusable window with a title bar and a taskbar entry, so carers can use it with a keyboard. Opening it takes keyboard focus, as any window does. It opens centred on the monitor the board is on, sized to its content. Its position is not remembered.
+    - **Alongside the board:** the board stays on screen and usable. The engine hit-tests both. Where they overlap, the board wins.
+    - **Engine items:** every interactive widget is an engine item of a virtual board (`settings`) registered each frame, so dwell and `select` work on it like on a board item, and Paused applies to it as well (`04`). Dwell progress is drawn over the widget with the profile theme's `dwell_indicator`, exactly as on boards.
+    - **Content (M1):** the profile name, read only (choosing a profile comes with multiple profiles in M2); "Start board": one button (≥ 48 logical px) per board in the profile, labelled with the board's `title`, or its id if it has none, with the current start board marked; Pause/Resume; Close.
+    - **Start board:** pressing a board button only sets `profile.start_board` in `profile.yaml` (targeted save, `02`). It takes effect the next time UCA starts; the board on screen does not change. If the save fails, a line under the buttons says why (the validator's own message where there is one), the file is left untouched, and the mark stays on the old board.
+    - **Wording (en-US):** window title "UCA Settings"; "Profile: { $name }"; "Start board", with the hint "Used the next time UCA starts."; "Pause" / "Resume" (as in the tray); "Close"; the error line "Could not save the start board: { $reason }"; the tray item "Settings".
     - **Image:** a 32 × 32 mark drawn in code until a designed logo exists: a rounded blue (#3b82f6) square with a white “U”.
 
 ## Frame scheduling

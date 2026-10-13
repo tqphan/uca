@@ -356,6 +356,7 @@ YAML form: `{ <action-name>: <args> }` or a list. Args may be a scalar shorthand
 | `select` | — | activate current hover item |
 | `zoom.at` | — | zoom-to-click at pointer |
 | `pause` / `resume` / `recalibrate` | — | |
+| `settings.open` / `settings.close` | — | open / close the Settings window (`05`); no-op if it is already open / closed (decided) |
 | `app.launch` | `{path, args}` | platform-dependent |
 | `window.focus` | `{title_contains}` or `next` | platform-dependent |
 | `clipboard.copy` / `.paste` / `.cut` | — | implemented as key chords per platform |

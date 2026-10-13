@@ -16,7 +16,6 @@ egui-winit = { workspace = true, features = ["accesskit"] }
 egui-wgpu = { workspace = true, features = ["winit"] }
 raw-window-handle.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
 tray-icon.workspace = true
 winit.workspace = true
 uca-actions = { path = "../uca-actions" }
@@ -24,6 +23,7 @@ uca-config = { path = "../uca-config" }
 uca-engine = { path = "../uca-engine" }
 uca-i18n = { path = "../uca-i18n" }
 uca-input = { path = "../uca-input" }
+uca-log = { path = "../uca-log" }
 uca-mapping = { path = "../uca-mapping" }
 uca-platform = { path = "../uca-platform" }
 uca-platform-windows = { path = "../uca-platform-windows" }

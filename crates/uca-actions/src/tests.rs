@@ -260,3 +260,24 @@ fn switching_output_releases_first() {
     );
     assert!(new.take().is_empty());
 }
+
+/// 11: typed text and typing keys never reach the log; special keys do.
+#[test]
+fn typed_text_and_keys_are_redacted_in_logs() {
+    let (mut e, _, _) = rig();
+    let lines = uca_log::capture("uca::actions=debug", || {
+        e.handle(&exec(
+            1,
+            vec![
+                Action::TextType("secret".into()),
+                Action::KeyTap(Key::KeyQ),
+                Action::KeyTap(Key::Enter),
+            ],
+        ));
+    });
+    let all = lines.join("\n");
+    assert!(!all.contains("secret") && !all.contains("KeyQ"), "{all}");
+    assert!(all.contains(r#""text":"<redacted:6 chars>""#), "{all}");
+    assert!(all.contains(r#""key":"<redacted key>""#), "{all}");
+    assert!(all.contains(r#""key":"Enter""#), "{all}");
+}

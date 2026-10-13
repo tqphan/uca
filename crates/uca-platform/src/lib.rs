@@ -165,6 +165,8 @@ pub trait Platform: Send + Sync {
     // System
     /// Where config lives (02 "Files"); `None` if the OS gives no place.
     fn config_dir(&self) -> Option<PathBuf>;
+    /// Where log files go (11); `None` if the OS gives no place.
+    fn log_dir(&self) -> Option<PathBuf>;
     fn launch(&self, path: &str, args: &[String]) -> Result<()>;
     fn focus_window(&self, q: &WindowQuery) -> Result<()>;
     fn foreground_app(&self) -> Option<String>;

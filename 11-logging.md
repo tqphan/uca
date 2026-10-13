@@ -6,6 +6,7 @@ UCA must be debuggable on a user's machine by a developer who is not there. Logs
 
 - `tracing` for all instrumentation; `tracing-subscriber` with `EnvFilter`; `tracing-appender` non-blocking writer.
 - One subscriber is set up in `uca-app` at start-up, before anything else runs. Library crates only emit events/spans, never configure output.
+- **Crate (decided):** the `Sensitive` marker types and the subscriber pieces (JSON formatter, rotating writer, redaction, ring buffer, filter precedence) live in `uca-log`. `uca-app` calls it to install the subscriber.
 - No `println!` / `eprintln!` outside `uca-app`'s CLI handling.
 
 ## Outputs
@@ -14,12 +15,14 @@ UCA must be debuggable on a user's machine by a developer who is not there. Logs
 | --- | --- | --- |
 | Log file | on, level `info` | JSON lines |
 | Console (stderr) | on in debug builds or when started with `--console` | human-readable, coloured |
-| In-memory ring buffer ("flight recorder") | always on, level `debug`, last 5,000 events | same as JSON lines |
+| In-memory ring buffer ("flight recorder") | always on, level `debug` for `uca` targets and `info` for other crates (`info,uca=debug`, decided; raised if the effective level is higher), last 5,000 events | same as JSON lines |
 | UI status area / toasts | `warn` and `error` from user-relevant targets | plain-language message only |
 
-Log directory: Windows `%LOCALAPPDATA%\UCA\logs`, Linux `$XDG_STATE_HOME/uca/logs` (fallback `~/.local/state/uca/logs`), macOS `~/Library/Logs/UCA`.
+Log directory: Windows `%LOCALAPPDATA%\UCA\logs`, Linux `$XDG_STATE_HOME/uca/logs` (fallback `~/.local/state/uca/logs`), macOS `~/Library/Logs/UCA`. It comes from `Platform::log_dir()` (decided). The console and ring buffer start on the first line of `main`; the log file is added as soon as the platform exists, and the ring buffer holds the events from before it.
 
-File naming and rotation: `uca.YYYY-MM-DD.log`; rotate daily or at 10 MB (`uca.YYYY-MM-DD.N.log`); keep 7 days and at most 100 MB total, deleting oldest first. Plugin process stdout/stderr go to `plugins/<plugin-id>.YYYY-MM-DD.log` in the same directory with the same rotation.
+**Console (decided):** `--console` always turns the console on. Otherwise `logging.console` in `app.yaml` decides when set; when not set, the console is on in debug builds and off in release builds.
+
+File naming and rotation: `uca.YYYY-MM-DD.log`; rotate daily or at 10 MB (`uca.YYYY-MM-DD.N.log`); keep 7 days and at most 100 MB total, deleting oldest first. The date is the UTC date, the same clock as `ts` (decided). Rotation and timestamp formatting are UCA's own code in `uca-log`, wrapped in `tracing-appender`'s non-blocking writer; no rotation or date crate is added (decided). Plugin process stdout/stderr go to `plugins/<plugin-id>.YYYY-MM-DD.log` in the same directory with the same rotation.
 
 JSON line fields: `ts` (RFC 3339, UTC, µs), `level`, `target`, `thread`, `span` (current span names joined by `:`), `msg`, plus structured fields. Example:
 
@@ -81,7 +84,7 @@ Rules:
 - **High-frequency data** (points at 30–250 Hz, analog face scores): at `debug`, log a 1-second summary per source (`rate_hz`, `dropped`, `mean_confidence`, `presence_ratio`). Individual samples only at `trace`.
 - **Spans** wrap units of work: `board{id}`, `assessment_test{name}`, `plugin{id}`, `locate{method}`. Use `#[instrument(skip_all, fields(...))]`; never let `instrument` capture arguments automatically (privacy).
 - **Hook threads never log directly** (Windows unhooks slow hooks). They send events through the existing channel; the engine thread logs them.
-- **Engine thread** logging must stay non-blocking (`tracing-appender` non-blocking writer, `lossy: true`). Dropped log lines are counted and the count is logged once per minute at `warn` if non-zero.
+- **Engine thread** logging must stay non-blocking (`tracing-appender` non-blocking writer, `lossy: true`). Dropped log lines are counted and the count is logged once per minute at `warn` if non-zero: the lines dropped in that minute plus the total so far; minutes without drops log nothing (decided).
 - Errors are logged once, where they are handled, with the full error chain (`{:#}`), not at every layer they pass through.
 
 ## Privacy and redaction (SAFETY-11)

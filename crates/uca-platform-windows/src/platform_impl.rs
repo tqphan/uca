@@ -142,6 +142,11 @@ impl Platform for WindowsPlatform {
         std::env::var_os("APPDATA").map(|d| std::path::PathBuf::from(d).join("UCA"))
     }
 
+    fn log_dir(&self) -> Option<std::path::PathBuf> {
+        // %LOCALAPPDATA%\UCA\logs (11).
+        std::env::var_os("LOCALAPPDATA").map(|d| std::path::PathBuf::from(d).join(r"UCA\logs"))
+    }
+
     fn launch(&self, path: &str, args: &[String]) -> Result<()> {
         system::launch(path, args)
     }

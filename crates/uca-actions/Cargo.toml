@@ -14,6 +14,7 @@ publish.workspace = true
 tracing.workspace = true
 uca-config = { path = "../uca-config" }
 uca-engine = { path = "../uca-engine" }
+uca-log = { path = "../uca-log" }
 uca-platform = { path = "../uca-platform" }
 uca-types = { path = "../uca-types" }
 

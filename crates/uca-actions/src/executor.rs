@@ -11,6 +11,7 @@ use std::sync::Arc;
 use uca_config::action::{self as cfg, Action, MonitorRef, MouseMove};
 use uca_config::values::Length;
 use uca_engine::{ActivationId, Intent};
+use uca_log::{Sensitive, SensitiveKey};
 use uca_platform::{ClipboardOp, Platform, PlatformError, WindowQuery};
 use uca_types::{Key, KeyDir, LogPoint, LogPx, MonitorInfo, MouseButton, PhysPoint};
 
@@ -267,7 +268,7 @@ impl Executor {
     }
 
     fn execute(&mut self, by: ActivationId, a: &Action) {
-        tracing::debug!(target: "uca::actions", activation = by.0, action = action_name(a), "execute");
+        log_execute(by, a);
         match a {
             Action::KeyTap(k) => self.tap(Pressable::Key(*k)),
             Action::KeyDown(k) => self.press(Pressable::Key(*k), Some(by)),
@@ -321,6 +322,111 @@ impl Executor {
             }
         }
     }
+}
+
+/// Arguments that could reveal typing are marked for redaction (11).
+fn log_execute(by: ActivationId, a: &Action) {
+    let (activation, action) = (by.0, action_name(a));
+    match a {
+        Action::KeyTap(k)
+        | Action::KeyDown(k)
+        | Action::KeyUp(k)
+        | Action::KeyHold(k)
+        | Action::KeyRelease(k)
+        | Action::KeyToggle(k)
+        | Action::KeyLatch(k) => {
+            if types_text(*k) {
+                tracing::debug!(target: "uca::actions", activation, action, key = ?SensitiveKey(k), "execute");
+            } else {
+                tracing::debug!(target: "uca::actions", activation, action, key = ?k, "execute");
+            }
+        }
+        Action::TextType(text) => {
+            tracing::debug!(target: "uca::actions", activation, action, text = %Sensitive(text), "execute");
+        }
+        _ => tracing::debug!(target: "uca::actions", activation, action, "execute"),
+    }
+}
+
+/// Keys that type a character; modifiers and special keys (Enter, Backspace,
+/// arrows, F-keys…) are logged plainly (11).
+fn types_text(k: Key) -> bool {
+    use Key::*;
+    matches!(
+        k,
+        Backquote
+            | Backslash
+            | BracketLeft
+            | BracketRight
+            | Comma
+            | Equal
+            | Minus
+            | Period
+            | Quote
+            | Semicolon
+            | Slash
+            | Space
+            | IntlBackslash
+            | IntlRo
+            | IntlYen
+            | Digit0
+            | Digit1
+            | Digit2
+            | Digit3
+            | Digit4
+            | Digit5
+            | Digit6
+            | Digit7
+            | Digit8
+            | Digit9
+            | KeyA
+            | KeyB
+            | KeyC
+            | KeyD
+            | KeyE
+            | KeyF
+            | KeyG
+            | KeyH
+            | KeyI
+            | KeyJ
+            | KeyK
+            | KeyL
+            | KeyM
+            | KeyN
+            | KeyO
+            | KeyP
+            | KeyQ
+            | KeyR
+            | KeyS
+            | KeyT
+            | KeyU
+            | KeyV
+            | KeyW
+            | KeyX
+            | KeyY
+            | KeyZ
+            | Numpad0
+            | Numpad1
+            | Numpad2
+            | Numpad3
+            | Numpad4
+            | Numpad5
+            | Numpad6
+            | Numpad7
+            | Numpad8
+            | Numpad9
+            | NumpadAdd
+            | NumpadComma
+            | NumpadDecimal
+            | NumpadDivide
+            | NumpadEqual
+            | NumpadHash
+            | NumpadMultiply
+            | NumpadParenLeft
+            | NumpadParenRight
+            | NumpadStar
+            | NumpadSubtract
+    )
 }
 
 /// The action's name only: arguments may be sensitive (11).

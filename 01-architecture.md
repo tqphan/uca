@@ -7,6 +7,7 @@ uca/
 ├─ Cargo.toml                  # workspace
 ├─ crates/
 │  ├─ uca-types/               # shared types: geometry, signals, ids, Clock trait
+│  ├─ uca-log/                 # logging (11): Sensitive markers, subscriber, JSON format, rotation, redaction, ring buffer
 │  ├─ uca-config/              # YAML loading, validation, cascade, hot reload
 │  ├─ uca-input/               # InputHub, source adapters, point filters
 │  ├─ uca-engine/              # interaction engine: hit-test, dwell, scanning, modes
@@ -35,7 +36,7 @@ uca/
 └─ assets/boards/              # default boards and themes
 ```
 
-Dependency rule: arrows only point down this list. `uca-engine` depends only on `uca-types`, `uca-config` and `uca-mapping`; `uca-mapping` depends only on `uca-types` and `uca-config` (decided: the engine runs sequences and uses mapping for binding resolution, see below).
+Dependency rule: arrows only point down this list. `uca-log` is the exception (decided): any crate may depend on it for the `Sensitive` markers, and it depends on no other UCA crate. `uca-engine` depends only on `uca-types`, `uca-config` and `uca-mapping`; `uca-mapping` depends only on `uca-types` and `uca-config` (decided: the engine runs sequences and uses mapping for binding resolution, see below).
 
 ## Event flow
 

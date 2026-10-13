@@ -5,14 +5,19 @@
 //! burst of file changes (02 "Hot reload", 01 "Threads").
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
+use crate::app::AppFile;
+use crate::error::ConfigError;
 use crate::store::{ConfigStore, ConfigUpdate};
+
+/// The app-level settings file in the config dir (02).
+pub const APP_FILE: &str = "app.yaml";
 
 /// Quiet time after the last file event before reloading (02, decided).
 pub const DEBOUNCE: Duration = Duration::from_millis(250);
@@ -52,21 +57,7 @@ fn run(
     events: &Receiver<notify::Result<notify::Event>>,
     updates: &Sender<ConfigUpdate>,
 ) {
-    loop {
-        // Wait for the first event of a burst.
-        let mut paths = BTreeSet::new();
-        match events.recv() {
-            Ok(event) => collect(&mut paths, event),
-            Err(_) => return,
-        }
-        // Then until the burst has been quiet for DEBOUNCE.
-        loop {
-            match events.recv_timeout(DEBOUNCE) {
-                Ok(event) => collect(&mut paths, event),
-                Err(RecvTimeoutError::Timeout) => break,
-                Err(RecvTimeoutError::Disconnected) => return,
-            }
-        }
+    while let Some(paths) = next_burst(events) {
         let changes: Vec<(PathBuf, Option<String>)> = paths
             .into_iter()
             .filter(|p| store.paths().classify(p).is_some())
@@ -83,6 +74,66 @@ fn run(
             return;
         }
     }
+}
+
+/// The paths of the next burst of file events, once it has been quiet for
+/// [`DEBOUNCE`]; `None` when the watcher has stopped.
+fn next_burst(events: &Receiver<notify::Result<notify::Event>>) -> Option<BTreeSet<PathBuf>> {
+    let mut paths = BTreeSet::new();
+    collect(&mut paths, events.recv().ok()?);
+    loop {
+        match events.recv_timeout(DEBOUNCE) {
+            Ok(event) => collect(&mut paths, event),
+            Err(RecvTimeoutError::Timeout) => return Some(paths),
+            Err(RecvTimeoutError::Disconnected) => return None,
+        }
+    }
+}
+
+/// A change to `app.yaml` (02, 11).
+#[derive(Debug)]
+pub enum AppChange {
+    Changed(AppFile),
+    /// The file is gone: the defaults apply, as at start-up.
+    Removed,
+    /// Not applied; the last valid settings stay (AGENTS.md rule 6).
+    Invalid(ConfigError),
+}
+
+/// Watches `app.yaml` in `config_dir` while alive.
+pub fn watch_app(config_dir: &Path, changes: Sender<AppChange>) -> notify::Result<ConfigWatcher> {
+    let (events_tx, events_rx) = mpsc::channel();
+    let mut watcher = notify::recommended_watcher(events_tx)?;
+    watcher.watch(config_dir, RecursiveMode::NonRecursive)?;
+    let file = config_dir.join(APP_FILE);
+    let thread = std::thread::Builder::new()
+        .name("app-watcher".into())
+        .spawn(move || {
+            while let Some(paths) = next_burst(&events_rx) {
+                if !paths
+                    .iter()
+                    .any(|p| p.file_name() == file.file_name() && p.parent() == file.parent())
+                {
+                    continue;
+                }
+                let change = match std::fs::read_to_string(&file) {
+                    Ok(text) => match crate::parse_app(&text, &file) {
+                        Ok(a) => AppChange::Changed(a),
+                        Err(e) => AppChange::Invalid(e),
+                    },
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => AppChange::Removed,
+                    Err(e) => AppChange::Invalid(ConfigError::at_file(&file, e.to_string())),
+                };
+                if changes.send(change).is_err() {
+                    return;
+                }
+            }
+        })
+        .map_err(|e| notify::Error::generic(&e.to_string()))?;
+    Ok(ConfigWatcher {
+        _watcher: watcher,
+        thread: Some(thread),
+    })
 }
 
 fn collect(paths: &mut BTreeSet<PathBuf>, event: notify::Result<notify::Event>) {
@@ -186,5 +237,27 @@ mod tests {
             panic!("the save should apply");
         };
         assert_eq!(live.profile.profile.start_board.0, "other");
+    }
+    /// app.yaml changes reach the app; a broken file is reported, not applied (11).
+    #[test]
+    fn app_yaml_changes_are_reported() {
+        let tmp = TempDir::new("watch-app");
+        let (tx, rx) = mpsc::channel();
+        let _watcher = watch_app(&tmp.0, tx).expect("watch");
+        let file = tmp.0.join(APP_FILE);
+        let next = || rx.recv_timeout(Duration::from_secs(10)).expect("a change");
+
+        std::fs::write(&file, "schema: uca/1\nlogging: { level: debug }\n").expect("write");
+        let AppChange::Changed(app) = next() else {
+            panic!("should parse");
+        };
+        assert_eq!(app.logging.and_then(|l| l.level).as_deref(), Some("debug"));
+
+        std::fs::write(&file, "schema: uca/1\nlogging: { levle: debug }\n").expect("break");
+        assert!(matches!(next(), AppChange::Invalid(_)));
+
+        std::fs::write(tmp.0.join("other.yaml"), "x").expect("other");
+        std::fs::remove_file(&file).expect("remove");
+        assert!(matches!(next(), AppChange::Removed));
     }
 }

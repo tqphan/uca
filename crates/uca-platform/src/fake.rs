@@ -232,6 +232,10 @@ impl Platform for FakePlatform {
         None
     }
 
+    fn log_dir(&self) -> Option<std::path::PathBuf> {
+        None
+    }
+
     fn launch(&self, path: &str, args: &[String]) -> Result<()> {
         self.record(FakeCall::Launch(path.to_owned(), args.to_vec()))
     }

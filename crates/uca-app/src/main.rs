@@ -25,13 +25,36 @@ use crate::threads::{Msg, Shared};
 use crate::ui::{App, ProxyWaker, UserEvent};
 
 fn main() -> ExitCode {
-    init_tracing();
+    let logging = Arc::new(uca_log::install(log_options()));
+    let code = run(&logging);
+    tracing::info!(target: "uca::app", "stopped");
+    code
+}
+
+fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
+    tracing::info!(
+        target: "uca::app",
+        version = env!("CARGO_PKG_VERSION"),
+        os = std::env::consts::OS,
+        arch = std::env::consts::ARCH,
+        build = if cfg!(debug_assertions) { "debug" } else { "release" },
+        "started"
+    );
     let Some(platform) = uca_platform_windows::new_platform() else {
         tracing::error!(target: "uca::app", "this platform is not supported yet");
         return ExitCode::FAILURE;
     };
     let config_dir = platform.config_dir();
     let app_file = config_dir.as_deref().and_then(read_app_file);
+    let app_logging = app_logging(app_file.as_ref());
+    logging.apply_app(&app_logging);
+    match platform.log_dir() {
+        Some(dir) => logging.start_file(&dir, &app_logging),
+        None => tracing::warn!(target: "uca::app", "no log directory; logging to a file is off"),
+    }
+    let _app_watcher = config_dir
+        .as_deref()
+        .and_then(|d| watch_app_file(d, logging.clone()));
     let language = uca_i18n::choose_ui_language(
         app_file.as_ref().and_then(|a| a.ui_language.as_deref()),
         platform.ui_locale().as_deref(),
@@ -121,18 +144,69 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Console output for now; files, ring buffer and redaction arrive with the
-/// logging task (11). `UCA_LOG` takes EnvFilter syntax.
-fn init_tracing() {
-    use tracing_subscriber::EnvFilter;
-    let filter = EnvFilter::try_from_env("UCA_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
-    let console = cfg!(debug_assertions) || std::env::args().any(|a| a == "--console");
-    if console {
-        tracing_subscriber::fmt()
-            .with_env_filter(filter)
-            .with_writer(std::io::stderr)
-            .init();
+/// `--log "<filter>"` and `--console` (11).
+fn log_options() -> uca_log::Options {
+    let mut options = uca_log::Options::default();
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        match a.as_str() {
+            "--console" => options.console_flag = true,
+            "--log" => options.cli_filter = args.next(),
+            _ => {}
+        }
     }
+    options
+}
+
+fn app_logging(app: Option<&uca_config::app::AppFile>) -> uca_log::AppLogging {
+    let Some(l) = app.and_then(|a| a.logging.as_ref()) else {
+        return uca_log::AppLogging::default();
+    };
+    uca_log::AppLogging {
+        level: l.level.clone(),
+        targets: l.targets.clone().into_iter().collect(),
+        console: l.console,
+        file: l.file,
+        ring_buffer_events: l.ring_buffer_events,
+        max_file_mb: l.max_file_mb,
+        keep_days: l.keep_days,
+        max_total_mb: l.max_total_mb,
+    }
+}
+
+/// `app.yaml` logging settings apply live (11); a broken file keeps the last
+/// valid settings.
+fn watch_app_file(
+    config_dir: &Path,
+    logging: Arc<uca_log::Logging>,
+) -> Option<uca_config::watcher::ConfigWatcher> {
+    use uca_config::watcher::AppChange;
+    let (tx, rx) = mpsc::channel();
+    let watcher = match uca_config::watcher::watch_app(config_dir, tx) {
+        Ok(w) => w,
+        Err(e) => {
+            tracing::warn!(target: "uca::config", error = %e, "app.yaml changes need a restart");
+            return None;
+        }
+    };
+    let spawned = std::thread::Builder::new()
+        .name("app-bridge".into())
+        .spawn(move || {
+            for change in rx {
+                match change {
+                    AppChange::Changed(a) => logging.apply_app(&app_logging(Some(&a))),
+                    AppChange::Removed => logging.apply_app(&app_logging(None)),
+                    AppChange::Invalid(e) => {
+                        tracing::warn!(target: "uca::config", error = %e, "app.yaml is invalid; keeping the last valid settings");
+                    }
+                }
+            }
+        });
+    if let Err(e) = spawned {
+        tracing::warn!(target: "uca::config", error = %e, "app.yaml changes need a restart");
+        return None;
+    }
+    Some(watcher)
 }
 
 fn read_app_file(config_dir: &Path) -> Option<uca_config::app::AppFile> {

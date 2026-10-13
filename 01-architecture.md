@@ -55,7 +55,7 @@ Dependency rule: arrows only point down this list. `uca-engine` depends only on 
 | Main / UI | `winit` event loop, all native windows, one `egui::Context` per window, `uca-render`, `uca-ui` | receives `EngineSnapshot` (latest-value channel, e.g. `arc-swap` or `watch`); the engine thread wakes the loop with an `EventLoopProxy` user event when a new snapshot is published. UI screens send `Control` / config changes back to the engine over a channel; they never mutate engine state directly. |
 | Input threads (1 per source) | Device reads, OS hooks | send `Signal` to the engine over its bounded `std::sync::mpsc::sync_channel` (decided: one std channel for signals, config and controls; no crossbeam). Capacity 1024. When it is full, a `Point` sample is dropped and counted (logged once a second at `warn`, `11`). Triggers, status, config and controls are never dropped: their senders wait, and hook threads hand off to their adapter thread first so they never block. |
 | Engine thread | InputHub dispatch, PointPipeline, Engine, Mapping | event-driven loop; also wakes on next timer deadline (dwell/scan) |
-| Executor thread | ActionExecutor | receives `Vec<Action>`; serializes OS injection |
+| Executor thread | ActionExecutor | receives intents over an unbounded `std::sync::mpsc` channel, so intents are never dropped and the engine never waits on injection; serializes OS injection |
 | Plugin host (async, tokio) | IPC with plugin processes | forwards plugin signals into the input channel |
 | Config watcher | File watching (`notify`) | sends `ConfigUpdate` to engine thread over a `std::sync::mpsc` channel (decided) |
 

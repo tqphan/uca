@@ -26,6 +26,10 @@ allow = [
     # Fonts embedded by egui (epaint_default_fonts), decided in 18.
     "OFL-1.1",
     "Ubuntu-font-1.0",
+    # egui-winit clipboard (arboard -> clipboard-win), decided in 18.
+    "BSL-1.0",
+    # target-lexicon, build helper of tray-icon's Linux GTK bindings, decided in 18.
+    "Apache-2.0 WITH LLVM-exception",
 ]
 
 # Dependencies come only from crates.io: no git dependencies, no other registries.

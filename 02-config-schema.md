@@ -142,6 +142,11 @@ layers:      [ Layer ]
   `position` is used only with `anchor: free`; the validator warns if it is set otherwise. The example above therefore means: on the bottom edge, full width, 40 % high.
 - **`%` on a board** is a percentage of the monitor's full bounds, taskbar included.
 - **Defaults:** a board without `anchor` is `center`, and a board without `monitor` uses the `primary` monitor.
+- **`click_through` (decided):** a board without it is `none`: the whole board rectangle catches clicks.
+- **`reserve_space` (decided):**
+  - A board without it reserves space when its anchor is `top`, `bottom`, `left` or `right`, and never when it is `center` or `free`.
+  - `reserve_space: true` with anchor `center` or `free` has no edge to reserve. The validator warns, the board still loads, and nothing is reserved.
+  - The reserved strip is the board's thickness along that edge of the monitor's full bounds. The window stays exactly at the board's layout rect, even where that overlaps the taskbar; the shell's adjusted position is not used, so drawing and hit-testing always match.
 - **Default sizes:**
   - A board without `size` covers 100 % × 100 % of its monitor.
   - A layer without `size` fills its board's content box (inside the board's padding).

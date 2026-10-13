@@ -7,14 +7,14 @@
 use uca_platform::{Edge, OverlayOptions, PlatformError, RawWindowHandle, RectPhys, Result};
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::UI::Shell::{
-    SHAppBarMessage, ABE_BOTTOM, ABE_LEFT, ABE_RIGHT, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE,
-    ABM_SETPOS, APPBARDATA,
+    SHAppBarMessage, ABE_BOTTOM, ABE_LEFT, ABE_RIGHT, ABE_TOP, ABM_NEW, ABM_REMOVE, ABM_SETPOS,
+    APPBARDATA,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
-    HWND_TOPMOST, LWA_ALPHA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-    WS_EX_TRANSPARENT,
+    GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    GWL_EXSTYLE, HWND_TOPMOST, LWA_ALPHA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SW_HIDE, SW_SHOWNOACTIVATE, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_EX_TOPMOST, WS_EX_TRANSPARENT,
 };
 
 fn hwnd(w: RawWindowHandle) -> Result<HWND> {
@@ -62,6 +62,13 @@ pub fn configure(w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
     Ok(())
 }
 
+pub fn show(w: RawWindowHandle, visible: bool) -> Result<()> {
+    let h = hwnd(w)?;
+    // SAFETY: shows or hides our own window; SW_SHOWNOACTIVATE never takes focus.
+    unsafe { ShowWindow(h, if visible { SW_SHOWNOACTIVATE } else { SW_HIDE }) };
+    Ok(())
+}
+
 pub fn click_through(w: RawWindowHandle, through: bool) -> Result<()> {
     let h = hwnd(w)?;
     if through {
@@ -98,6 +105,8 @@ pub fn reserve_edge(w: RawWindowHandle, edge: Edge, monitor: RectPhys, size: u32
     // SAFETY: registering our own window as an app bar; repeated ABM_NEW is harmless.
     unsafe { SHAppBarMessage(ABM_NEW, &mut d) };
     let size = size as i32;
+    // The strip on the full bounds; the shell's adjusted position is not used and
+    // the window is not moved (02, decided), so drawing and hit-testing match.
     let mut r = rect(monitor);
     d.uEdge = match edge {
         Edge::Top => ABE_TOP,
@@ -105,10 +114,6 @@ pub fn reserve_edge(w: RawWindowHandle, edge: Edge, monitor: RectPhys, size: u32
         Edge::Left => ABE_LEFT,
         Edge::Right => ABE_RIGHT,
     };
-    d.rc = r;
-    // SAFETY: the shell adjusts `d.rc` to a free position on the edge.
-    unsafe { SHAppBarMessage(ABM_QUERYPOS, &mut d) };
-    r = d.rc;
     match edge {
         Edge::Top => r.bottom = r.top + size,
         Edge::Bottom => r.top = r.bottom - size,
@@ -116,19 +121,8 @@ pub fn reserve_edge(w: RawWindowHandle, edge: Edge, monitor: RectPhys, size: u32
         Edge::Right => r.left = r.right - size,
     }
     d.rc = r;
-    // SAFETY: reserves the rectangle and moves our window into it.
-    unsafe {
-        SHAppBarMessage(ABM_SETPOS, &mut d);
-        SetWindowPos(
-            h,
-            HWND_TOPMOST,
-            d.rc.left,
-            d.rc.top,
-            d.rc.right - d.rc.left,
-            d.rc.bottom - d.rc.top,
-            SWP_NOACTIVATE,
-        );
-    }
+    // SAFETY: reserves the rectangle for our own app bar.
+    unsafe { SHAppBarMessage(ABM_SETPOS, &mut d) };
     Ok(())
 }
 

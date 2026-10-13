@@ -63,6 +63,7 @@ config-unknown-group = There is no group called “{ $name }”. The item is tre
 config-unknown-font = The font “{ $family }” is not declared in the theme. The default font is used.
 config-free-item-without-size = Items in a free layer need a size with both width and height.
 config-position-ignored = The board's position is only used when its anchor is free.
+config-reserve-without-edge = Only a board docked to an edge (top, bottom, left or right) can reserve screen space, so none is reserved.
 config-grid-unit-outside-grid = The grid unit can only be used inside a grid layer.
 config-grid-overflow = Some items in the layer “{ $layer }” do not fit its rows and are not shown.
 config-single-also-fires = “{ $pattern }” is a double press, but the same input is also bound on its own, which fires on the first press of every double.

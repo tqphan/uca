@@ -97,6 +97,34 @@ pub enum Anchor {
     Free,
 }
 
+impl Anchor {
+    /// Docked against a monitor edge.
+    pub fn is_edge(self) -> bool {
+        matches!(
+            self,
+            Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right
+        )
+    }
+}
+
+impl Board {
+    /// The board's anchor, `center` when absent (02).
+    pub fn anchor_or_default(&self) -> Anchor {
+        self.anchor.unwrap_or(Anchor::Center)
+    }
+
+    /// `click_through`, `none` when absent (02, decided).
+    pub fn click_through_or_default(&self) -> ClickThrough {
+        self.click_through.unwrap_or(ClickThrough::None)
+    }
+
+    /// Whether the board reserves screen space (02, decided): only with an edge
+    /// anchor, and by default there.
+    pub fn reserves_space(&self) -> bool {
+        self.anchor_or_default().is_edge() && self.reserve_space != Some(false)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum ClickThrough {

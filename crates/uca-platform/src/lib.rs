@@ -138,9 +138,12 @@ pub trait Platform: Send + Sync {
 
     // Overlay windows (05)
     fn configure_overlay(&self, w: RawWindowHandle, opts: OverlayOptions) -> Result<()>;
+    /// Shows or hides an overlay without ever activating it (05: never takes focus).
+    fn show_overlay(&self, w: RawWindowHandle, visible: bool) -> Result<()>;
     /// Lets mouse clicks pass through the whole window (used outside items, 05).
     fn set_click_through(&self, w: RawWindowHandle, through: bool) -> Result<()>;
-    /// Reserves `size_phys` pixels at `edge` of `monitor` so apps aren't covered; moves `w` there.
+    /// Reserves a `size_phys` strip at `edge` of the monitor's full bounds so apps
+    /// aren't covered. `w` is not moved: it stays at the board's layout rect (02, decided).
     fn reserve_edge(
         &self,
         w: RawWindowHandle,

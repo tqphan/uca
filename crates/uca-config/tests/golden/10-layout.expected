@@ -1,3 +1,4 @@
 boards/main.yaml board.position: warning: position is only used with anchor: free
 boards/main.yaml board: error: the grid unit can only be used inside a grid layer
 boards/main.yaml layers[1].items[0]: error: the grid unit can only be used inside a grid layer
+boards/centred.yaml board.reserve_space: warning: reserve_space needs an edge anchor (top, bottom, left or right); nothing is reserved

@@ -26,6 +26,7 @@ pub const MISSING: &str = "\u{2026}";
 
 /// The en-US catalogue, embedded so English always works.
 pub const EN_US_FILES: &[(&str, &str)] = &[
+    ("app.ftl", include_str!("../../../locales/en-US/app.ftl")),
     (
         "config.ftl",
         include_str!("../../../locales/en-US/config.ftl"),

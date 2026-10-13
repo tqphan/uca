@@ -128,6 +128,7 @@ pub enum ProblemKind {
     },
     FreeItemWithoutSize,
     PositionIgnored,
+    ReserveWithoutEdge,
     GridUnitOutsideGrid,
     GridOverflow {
         layer: String,
@@ -175,6 +176,7 @@ impl ProblemKind {
             UnknownFont { .. } => "config-unknown-font",
             FreeItemWithoutSize => "config-free-item-without-size",
             PositionIgnored => "config-position-ignored",
+            ReserveWithoutEdge => "config-reserve-without-edge",
             GridUnitOutsideGrid => "config-grid-unit-outside-grid",
             GridOverflow { .. } => "config-grid-overflow",
             SingleAlsoFires { .. } => "config-single-also-fires",
@@ -217,7 +219,9 @@ impl ProblemKind {
             CellOverlap { other } => vec![("other", other.clone())],
             NoWayOut { board } => vec![("board", board.clone())],
             UnknownFont { family } => vec![("family", family.clone())],
-            FreeItemWithoutSize | PositionIgnored | GridUnitOutsideGrid => vec![],
+            FreeItemWithoutSize | PositionIgnored | ReserveWithoutEdge | GridUnitOutsideGrid => {
+                vec![]
+            }
             GridOverflow { layer } => vec![("layer", layer.clone())],
             SingleAlsoFires { pattern } => vec![("pattern", pattern.clone())],
         }
@@ -313,6 +317,10 @@ impl fmt::Display for ProblemKind {
             }
             FreeItemWithoutSize => write!(f, "items in a free layer need a size with width and height"),
             PositionIgnored => write!(f, "position is only used with anchor: free"),
+            ReserveWithoutEdge => write!(
+                f,
+                "reserve_space needs an edge anchor (top, bottom, left or right); nothing is reserved"
+            ),
             GridUnitOutsideGrid => write!(f, "the grid unit can only be used inside a grid layer"),
             SingleAlsoFires { pattern } => write!(
                 f,
@@ -773,6 +781,9 @@ impl<'a> Validator<'a> {
         let b = &file.board;
         if b.position.is_some() && b.anchor != Some(crate::board::Anchor::Free) {
             self.warn("board.position", ProblemKind::PositionIgnored);
+        }
+        if b.reserve_space == Some(true) && !b.anchor.is_some_and(|a| a.is_edge()) {
+            self.warn("board.reserve_space", ProblemKind::ReserveWithoutEdge);
         }
         if lengths_of(BaseLengths::from(b), &b.states).any(|l| matches!(l, Length::Grid(_))) {
             self.error("board", ProblemKind::GridUnitOutsideGrid);
@@ -1534,6 +1545,7 @@ mod tests {
             UnknownFont { family: s() },
             FreeItemWithoutSize,
             PositionIgnored,
+            ReserveWithoutEdge,
             GridUnitOutsideGrid,
             GridOverflow { layer: s() },
             SingleAlsoFires { pattern: s() },

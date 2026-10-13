@@ -21,8 +21,8 @@ use crate::layout::{choose_monitor, layout_board, BoardLayout};
 use crate::safe_board::{safe_board, SAFE_ITEMS};
 use crate::sets::{SetStack, DEFAULT_SET};
 use crate::types::{
-    ActivationId, BoardSnapshot, Control, EngineInput, EngineSnapshot, Intent, ItemSnapshot, Latch,
-    LayerSnapshot, SafeItem,
+    ActivationId, BoardSnapshot, Control, EngineControl, EngineInput, EngineSnapshot, Intent,
+    ItemSnapshot, Latch, LayerSnapshot, SafeItem,
 };
 
 /// An item on the shown board: layer index and item index.
@@ -216,6 +216,17 @@ impl Engine {
         self.layer_visible.clear();
         self.cooldown_until.clear();
         self.show_top();
+    }
+
+    /// Requests from outside the input path (tray menu, settings).
+    pub fn control(&mut self, c: EngineControl, clock: &dyn Clock) {
+        let now = clock.now();
+        self.advance_to(now);
+        match c {
+            EngineControl::TogglePause if self.mode == Mode::Paused => self.mode = Mode::Direct,
+            EngineControl::TogglePause => self.pause(now),
+            EngineControl::OpenSafeBoard => self.open_safe_board(now),
+        }
     }
 
     pub fn set_monitors(&mut self, monitors: Vec<MonitorInfo>) {

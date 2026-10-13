@@ -24,6 +24,13 @@ pub enum EngineInput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ActivationId(pub u64);
 
+/// Requests to the engine from outside the input path (tray menu, settings).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineControl {
+    TogglePause,
+    OpenSafeBoard,
+}
+
 /// Requests handled outside the engine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Control {

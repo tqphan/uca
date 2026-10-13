@@ -50,7 +50,7 @@ The README and `LICENSE` notice state this. It only applies to the plugin protoc
 
 ## Dependencies (enforced in CI)
 
-- `cargo deny` with a licence allow-list of GPL-3.0-compatible licences: MIT, Apache-2.0, BSD-2/3-Clause, ISC, Zlib, Unicode-3.0, MPL-2.0, LGPL-2.1/3.0, GPL-3.0, CC0-1.0 (added for `notify`, decided), OFL-1.1 and Ubuntu-font-1.0 (added for the fonts egui embeds as fallback, `epaint_default_fonts`, decided).
+- `cargo deny` with a licence allow-list of GPL-3.0-compatible licences: MIT, Apache-2.0, BSD-2/3-Clause, ISC, Zlib, Unicode-3.0, MPL-2.0, LGPL-2.1/3.0, GPL-3.0, CC0-1.0 (added for `notify`, decided), OFL-1.1 and Ubuntu-font-1.0 (added for the fonts egui embeds as fallback, `epaint_default_fonts`, decided), BSL-1.0 (added for egui-winit's clipboard support, `arboard` → `clipboard-win`, decided) and `Apache-2.0 WITH LLVM-exception` (added for `target-lexicon`, a build helper of tray-icon's Linux GTK bindings, decided).
 - **Rejected:** GPL-2.0-only (incompatible with GPL-3.0), proprietary, "non-commercial", SSPL and unknown licences.
 - The plugin interface crates use a stricter list (permissive only), so they stay usable under any licence.
 - **Reputable sources only (decided):** Rust dependencies come only from crates.io. Git dependencies and other registries are rejected by `cargo deny check sources`. Tools come only from their official publishers: rustup from rust-lang.org, Python packages such as `reuse` from PyPI, and GitHub Actions only from GitHub's own `actions/*` org. Prefer well-maintained crates from known maintainers or organisations.

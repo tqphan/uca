@@ -24,6 +24,7 @@ pub enum FakeCall {
     Launch(String, Vec<String>),
     Focus(WindowQuery),
     Overlay(OverlayOptions),
+    ShowOverlay(bool),
     ClickThrough(bool),
     ReserveEdge(Edge, u32),
     ReleaseEdge,
@@ -195,6 +196,10 @@ impl Platform for FakePlatform {
 
     fn configure_overlay(&self, _w: RawWindowHandle, opts: OverlayOptions) -> Result<()> {
         self.record(FakeCall::Overlay(opts))
+    }
+
+    fn show_overlay(&self, _w: RawWindowHandle, visible: bool) -> Result<()> {
+        self.record(FakeCall::ShowOverlay(visible))
     }
 
     fn set_click_through(&self, _w: RawWindowHandle, through: bool) -> Result<()> {

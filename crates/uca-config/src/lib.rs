@@ -12,6 +12,7 @@ pub mod error;
 pub mod load;
 pub mod pattern;
 pub mod profile;
+pub mod save;
 pub mod schema;
 mod setting;
 pub mod settings_registry;

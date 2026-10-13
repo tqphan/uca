@@ -87,3 +87,8 @@ config-parse-unknown-key = There is no key called “{ $name }”.{ $suggestion 
     }
 config-parse-out-of-range = { $what }: { $value } is outside the allowed range { $min }–{ $max }.
 config-parse-other = The file could not be read: { $message }
+
+# Targeted saves (02): the reason after “Could not save the start board:”.
+
+config-save-not-editable = start_board in profile.yaml is written in a form that cannot be changed safely. Change it in the file.
+config-save-write-failed = The file could not be written: { $message }

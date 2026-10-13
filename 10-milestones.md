@@ -4,7 +4,7 @@ Implement in order. A milestone is done only when all its acceptance criteria pa
 
 ## M1 — Core on Windows
 
-Goal: a mouse/keyboard/switch user can type with a YAML-defined on-screen keyboard using dwell or a switch, and play a simple windowed game with held keys.
+Goal: a mouse/keyboard/switch user can type with a YAML-defined on-screen keyboard using dwell or a switch.
 
 - [ ] Workspace skeleton, CI (fmt, clippy -D warnings, tests) — `01`
 - [ ] Licensing set-up: `LICENSE` files, `NOTICE.md` with the plugin permission, SPDX headers / REUSE, `license` in every `Cargo.toml`, `cargo deny` + `reuse lint` + DCO check in CI — `18`
@@ -25,8 +25,7 @@ Goal: a mouse/keyboard/switch user can type with a YAML-defined on-screen keyboa
 - [x] Logging: subscriber setup, JSON log files with rotation, `app.yaml` + `UCA_LOG` + `--log`, target naming, redaction layer, ring buffer + crash file, debug sessions, debug overlay — `11`
 - [ ] Crash monitor: minidump via `crash-handler` / `minidumper` in a small out-of-process monitor, and on Windows the unhandled-exception filter (moved out of the logging item, decided) — `11`
 - [x] Diagnostics bundle export and `uca-replay` recording/replay tool; the notices after a crash ("export diagnostics?") and after a crash loop (SAFETY-05 "shows why"), moved here from the logging item (decided) — `11`, `09`
-- [ ] Game outputs, part 1: scan-code key injection, `key.hold` / `release` / `toggle`, hold-while-active via start stages, zone items (`zone: true`) in free layers, exclusive-fullscreen tip, latency benchmark — `12`
-- [ ] Default assets: `themes/default.yaml`, `themes/high-contrast.yaml`, `boards/qwerty.yaml`, `boards/mouse.yaml`, `boards/game-pointer.yaml`, `boards/game-wasd-zones.yaml`, default profile — `02`, `12`
+- [ ] Default assets: `themes/default.yaml`, `themes/high-contrast.yaml`, `boards/qwerty.yaml`, `boards/mouse.yaml`, default profile — `02`
 
 **Accept when:** all unit/golden tests in `02`, `03`, `04`, `09` pass; manual: type "Hello world." into Notepad using only mouse dwell, then using mouse pointing + F13 as the select trigger (single-switch scanning arrives in M3); editing the board YAML while running updates it within 1 s; breaking the YAML shows an error and keeps the board working.
 
@@ -50,6 +49,7 @@ Goal: a mouse/keyboard/switch user can type with a YAML-defined on-screen keyboa
 - [ ] Fixation detection, magnetism, presence handling — `03`, SAFETY-03
 - [ ] Pointer mode with click-type bar, zoom-to-click (Windows Magnification or desktop duplication) — `04`, `07`
 - [ ] Fallback on pointer source loss — SAFETY-06
+- [ ] Game outputs, part 1 (moved from M1, decided): scan-code key injection, `key.hold` / `release` / `toggle`, hold-while-active via start stages, zone items (`zone: true`) in free layers, exclusive-fullscreen tip, latency benchmark; default boards `boards/game-pointer.yaml` and `boards/game-wasd-zones.yaml`; play a simple windowed game with held keys — `12`
 - [ ] Game outputs, part 2: `HeadPose` signal from `head-provider` plugins, `mouse.look` (offset and head modes), per-game profiles on foreground-app change, `game-headlook` board — `12`
 - [ ] Request a pid.codes product ID for the HID bridge; use it in release firmware and discovery — `14`
 - [ ] HID bridge firmware (`firmware/uca-hid-bridge/`, Pico reference + ATmega32U4): composite CDC + keyboard + mouse + absolute pointer + gamepad, frame parser, 300 ms watchdog, CI builds attached to Releases — `14`

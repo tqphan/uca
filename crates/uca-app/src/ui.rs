@@ -26,7 +26,8 @@ use uca_platform::{Edge, OverlayOptions, Platform};
 use uca_render::BoardModel;
 use uca_types::{LogPoint, LogPx, MonitorId, MonitorInfo, RectLog};
 use uca_ui::{
-    BoardChoice, DiagnosticsView, SettingsCommand, SettingsView, StartBoardView, SETTINGS_BOARD_ID,
+    BoardChoice, DiagnosticsView, SettingsCommand, SettingsView, StartBoardView, VoiceChoice,
+    VoiceNumber, VoiceSectionView, SETTINGS_BOARD_ID,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -167,6 +168,8 @@ pub struct App {
     debug_overlay: Option<DebugOverlay>,
     /// The input side of the debug overlay, from the engine thread.
     debug_info: DebugInfo,
+    /// The voice worker, for the Settings Voice section (13).
+    voice: Arc<uca_voice::Voice>,
 }
 
 /// The app's threads, and what it needs for logging and debug sessions.
@@ -180,6 +183,7 @@ pub struct AppRuntime {
     pub cli_record: Option<std::path::PathBuf>,
     /// Notices to show at start: a crash, or the safe profile (11).
     pub startup_notices: Vec<Notice>,
+    pub voice: Arc<uca_voice::Voice>,
 }
 
 impl App {
@@ -214,6 +218,7 @@ impl App {
             recording: false,
             export_result: None,
             notices: runtime.startup_notices.into(),
+            voice: runtime.voice,
             notice_window: None,
             notice_since: None,
             diagnostics: DiagnosticsView {
@@ -641,6 +646,7 @@ impl App {
             s.raise();
             return;
         }
+        self.voice.refresh_devices();
         let monitor = self.board_monitor();
         let Some(window) = SettingsWindow::open(
             event_loop,
@@ -696,8 +702,13 @@ impl App {
             .collect();
         let indicator = self.settings_indicator();
         let snapshot = self.snapshot.as_ref();
+        let catalog = self.voice.catalog();
+        let voices = voice_choices(&catalog.voices, profile.language.as_deref());
         let settings = self.settings.as_mut()?;
         let save_error = settings.save_error.clone();
+        let voice_error = settings.voice_error.clone();
+        let v = &profile.voice;
+        let number = |n: VoiceNumber| voice_number(v, n);
         let export_result = self.export_result.clone();
         let view = SettingsView {
             profile_name: &profile.name,
@@ -705,6 +716,17 @@ impl App {
                 boards: &boards,
                 current: &profile.start_board.0,
                 save_error: save_error.as_deref(),
+            }),
+            voice: self.profile.as_ref().map(|_| VoiceSectionView {
+                devices: &catalog.devices,
+                speaker: &v.speaker_device,
+                cue: v.cue_device.as_ref(),
+                voices: &voices,
+                voice_id: v.voice_id.as_deref(),
+                rate: number(VoiceNumber::Rate),
+                pitch: number(VoiceNumber::Pitch),
+                volume: number(VoiceNumber::Volume),
+                save_error: voice_error.as_deref(),
             }),
             diagnostics: DiagnosticsView {
                 active: self.sessions.active().is_some(),
@@ -726,6 +748,33 @@ impl App {
                     }
                 }
                 SettingsCommand::SetStartBoard(id) => self.save_start_board(&id),
+                SettingsCommand::SetSpeaker(d) => {
+                    let mut new = profile.voice.clone();
+                    new.speaker_device = d;
+                    self.save_voice(new, "speaker_device");
+                }
+                SettingsCommand::SetCue(d) => {
+                    let mut new = profile.voice.clone();
+                    new.cue_device = d;
+                    self.save_voice(new, "cue_device");
+                }
+                SettingsCommand::SetVoice(id) => {
+                    let mut new = profile.voice.clone();
+                    new.voice_id = Some(id);
+                    self.save_voice(new, "voice_id");
+                }
+                SettingsCommand::StepVoice { number, up } => {
+                    let mut new = profile.voice.clone();
+                    let value = step_voice_number(&new, number, up);
+                    let slot = match number {
+                        VoiceNumber::Rate => &mut new.rate,
+                        VoiceNumber::Pitch => &mut new.pitch,
+                        VoiceNumber::Volume => &mut new.volume,
+                    };
+                    *slot = Some(uca_config::settings_registry::SettingValue::Number(value));
+                    self.save_voice(new, number.key());
+                }
+                SettingsCommand::TestVoice => self.voice.test(&t!("voice-test-sentence")),
                 SettingsCommand::SessionMinutes(m) => self.diagnostics.minutes = m,
                 SettingsCommand::SessionTrace(trace) => self.diagnostics.trace = trace,
                 SettingsCommand::ToggleSensitive => {
@@ -756,6 +805,49 @@ impl App {
         }
         if let Some(s) = &mut self.settings {
             s.save_error = result
+                .err()
+                .map(|e| uca_i18n::translate_args(e.message_id(), &e.args()));
+            s.request_redraw();
+        }
+    }
+
+    /// Saves one `profile.voice` key from `new` and applies it at once; the
+    /// watcher then reloads the profile (05 "Voice", 13).
+    fn save_voice(&mut self, new: uca_config::profile::Voice, key: &str) {
+        use uca_config::profile::AudioDevice;
+        use uca_config::save::{save_profile_value, Value};
+        use uca_config::settings_registry::SettingValue;
+        let Some(paths) = &self.profile else { return };
+        let device = |d: &AudioDevice| match d {
+            AudioDevice::Default => "default".to_owned(),
+            AudioDevice::Named(n) => n.clone(),
+        };
+        let speaker = device(&new.speaker_device);
+        let cue = new.cue_device.as_ref().map(device);
+        let number = |v: Option<SettingValue>| match v {
+            Some(SettingValue::Number(n)) => Value::Number(n),
+            _ => Value::Null,
+        };
+        let value = match key {
+            "speaker_device" => Value::Str(&speaker),
+            "cue_device" => cue.as_deref().map_or(Value::Null, Value::Str),
+            "voice_id" => new.voice_id.as_deref().map_or(Value::Null, Value::Str),
+            "rate" => number(new.rate),
+            "pitch" => number(new.pitch),
+            _ => number(new.volume),
+        };
+        let path = ["profile", "voice", key];
+        let result = save_profile_value(paths, &path, value, |c| c.profile.profile.voice == new);
+        match &result {
+            Ok(()) => self
+                .voice
+                .set_settings(uca_voice::VoiceSettings::from_profile(&new)),
+            Err(e) => {
+                tracing::warn!(target: "uca::app", key, error = %e, "voice setting not saved")
+            }
+        }
+        if let Some(s) = &mut self.settings {
+            s.voice_error = result
                 .err()
                 .map(|e| uca_i18n::translate_args(e.message_id(), &e.args()));
             s.request_redraw();
@@ -1380,3 +1472,92 @@ fn readme(with_config: bool) -> String {
 /// Gap between the notice and the work area's top or the debug strip, in
 /// logical px (11).
 const NOTICE_GAP: f64 = 8.0;
+
+/// Installed voices for the Voice section: those of the profile's language
+/// when it is set (matched on the language subtag, so `en-GB` lists `en-US`
+/// voices), all of them otherwise or when none match (05 "Voice").
+fn voice_choices(voices: &[uca_voice::VoiceInfo], language: Option<&str>) -> Vec<VoiceChoice> {
+    let primary = |tag: &str| {
+        tag.split(['-', '_'])
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase()
+    };
+    let wanted = language.map(primary);
+    let matching: Vec<&uca_voice::VoiceInfo> = voices
+        .iter()
+        .filter(|v| wanted.as_ref().is_none_or(|w| primary(&v.language) == *w))
+        .collect();
+    let shown = if matching.is_empty() {
+        voices.iter().collect()
+    } else {
+        matching
+    };
+    shown
+        .into_iter()
+        .map(|v| VoiceChoice {
+            id: v.id.clone(),
+            label: v.name.clone(),
+        })
+        .collect()
+}
+
+/// A voice number as set, or the registry default.
+fn voice_number(v: &uca_config::profile::Voice, n: VoiceNumber) -> f64 {
+    let s = uca_voice::VoiceSettings::from_profile(v);
+    match n {
+        VoiceNumber::Rate => s.speak.rate,
+        VoiceNumber::Pitch => s.speak.pitch,
+        VoiceNumber::Volume => s.speak.volume,
+    }
+}
+
+/// One "−" / "+" step of 0.1, kept in the registry range (05 "Voice").
+fn step_voice_number(v: &uca_config::profile::Voice, n: VoiceNumber, up: bool) -> f64 {
+    const STEP: f64 = 0.1;
+    let now = voice_number(v, n);
+    let next = if up { now + STEP } else { now - STEP };
+    let next = (next * 10.0).round() / 10.0;
+    match uca_config::settings_registry::get(&format!("voice.{}", n.key())) {
+        Ok(def) => next.clamp(def.min, def.max),
+        Err(_) => now,
+    }
+}
+
+#[cfg(test)]
+mod voice_tests {
+    use super::*;
+
+    fn info(id: &str, language: &str) -> uca_voice::VoiceInfo {
+        uca_voice::VoiceInfo {
+            id: id.into(),
+            name: id.into(),
+            language: language.into(),
+            gender: None,
+            engine: "windows".into(),
+        }
+    }
+
+    #[test]
+    fn voices_follow_the_profile_language() {
+        let all = [info("zira", "en-US"), info("hortense", "fr-FR")];
+        let ids = |l: Option<&str>| -> Vec<String> {
+            voice_choices(&all, l).into_iter().map(|c| c.id).collect()
+        };
+        assert_eq!(ids(None), ["zira", "hortense"]);
+        assert_eq!(ids(Some("en-GB")), ["zira"]);
+        assert_eq!(ids(Some("fr")), ["hortense"]);
+        assert_eq!(ids(Some("de-DE")), ["zira", "hortense"], "none match: all");
+    }
+
+    #[test]
+    fn steps_stay_in_range() {
+        let mut v = uca_config::profile::Voice::default();
+        assert_eq!(step_voice_number(&v, VoiceNumber::Rate, true), 1.1);
+        assert_eq!(step_voice_number(&v, VoiceNumber::Volume, true), 1.0);
+        v.volume = Some(uca_config::settings_registry::SettingValue::Number(0.05));
+        assert_eq!(step_voice_number(&v, VoiceNumber::Volume, false), 0.0);
+        v.pitch = Some(uca_config::settings_registry::SettingValue::Number(0.5));
+        assert_eq!(step_voice_number(&v, VoiceNumber::Pitch, false), 0.5);
+    }
+}

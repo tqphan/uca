@@ -74,7 +74,8 @@ Platform emits `MonitorsChanged` on hot-plug, resolution or scale change → ren
     - **Voice (M2, decided, `13`):** a "Voice" heading with rows:
         - "Speaker": one button per output device, starting with "System default"; under it the hint "Speech is not an emergency alert. Do not rely on it as the only way to get help."
         - "Cue device (for scanning cues)": one button per output device, starting with "Off".
-        - "Voice": one button per installed voice, filtered to the profile's `language` when it is set (all voices otherwise).
+        - "Voice": one button per installed voice, filtered to the profile's `language` when it is set (all voices otherwise). Matching is on the language subtag (`en-GB` lists `en-US` voices); when no voice matches, all are listed (decided).
+        - The section is shown only with a profile on disk, like the start-board row (decided).
         - "Speed", "Pitch", "Volume": the value between "−" and "+" buttons (≥ 48 logical px), step 0.1, clamped to the registry range.
         - "Test": speaks "This is my voice." on the speaker and the cue device.
         - The current choice is marked. A change applies at once and is saved to `profile.yaml` with a targeted save (`02`), which adds keys missing from the file (such as a missing `voice:` section) and keeps every other byte. A failed save shows "Could not save the voice setting: { $reason }" under the section, and the file is left untouched.

@@ -14,7 +14,7 @@ pub mod settings;
 
 pub use settings::{
     BoardChoice, DiagnosticsView, SettingsCommand, SettingsFrame, SettingsView, StartBoardView,
-    SETTINGS_BOARD_ID,
+    VoiceChoice, VoiceNumber, VoiceSectionView, SETTINGS_BOARD_ID,
 };
 
 /// Smallest hit target of a `uca-ui` widget, in logical px (05).

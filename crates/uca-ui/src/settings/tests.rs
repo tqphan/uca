@@ -18,6 +18,7 @@ struct State {
     /// A profile on disk: the start-board row is shown.
     with_boards: bool,
     save_error: Option<String>,
+    voice_error: Option<String>,
     diagnostics: DiagnosticsView,
     export_result: Option<String>,
     dwell: Option<VirtualSnapshot>,
@@ -60,41 +61,103 @@ fn boards() -> Vec<BoardChoice> {
     ]
 }
 
+const VOICE_ITEMS: [&str; 14] = [
+    "speaker:default",
+    "speaker:Speakers",
+    "speaker:Headphones",
+    "cue:off",
+    "cue:Speakers",
+    "cue:Headphones",
+    "voice:zira",
+    "voice:david",
+    "rate:-",
+    "rate:+",
+    "pitch:-",
+    "pitch:+",
+    "volume:-",
+    "volume:+",
+];
+
+fn devices() -> Vec<String> {
+    vec!["Speakers".into(), "Headphones".into()]
+}
+
+fn voices() -> Vec<VoiceChoice> {
+    vec![
+        VoiceChoice {
+            id: "zira".into(),
+            label: "Microsoft Zira".into(),
+        },
+        VoiceChoice {
+            id: "david".into(),
+            label: "Microsoft David".into(),
+        },
+    ]
+}
+
+fn voice_view<'a>(
+    devices: &'a [String],
+    voices: &'a [VoiceChoice],
+    cue: &'a AudioDevice,
+    error: Option<&'a str>,
+) -> VoiceSectionView<'a> {
+    VoiceSectionView {
+        devices,
+        speaker: &AudioDevice::Default,
+        cue: Some(cue),
+        voices,
+        voice_id: Some("david"),
+        rate: 1.2,
+        pitch: 1.0,
+        volume: 0.8,
+        save_error: error,
+    }
+}
+
 fn harness(paused: bool) -> Harness<'static, State> {
     let boards = boards();
+    let (devices, voices) = (devices(), voices());
+    let cue = AudioDevice::Named("Headphones".into());
     let indicator = theme_dwell_indicator(None);
-    Harness::new_ui_state(
-        move |ui, s: &mut State| {
-            let view = SettingsView {
-                profile_name: "Alex",
-                start_board: s.with_boards.then(|| StartBoardView {
-                    boards: &boards,
-                    current: "qwerty",
-                    save_error: s.save_error.as_deref(),
-                }),
-                diagnostics: s.diagnostics,
-                export_result: s.export_result.as_deref(),
-                paused: s.paused,
-                dwell: s.dwell.as_ref(),
-                indicator: &indicator,
-            };
-            let pressed = std::mem::take(&mut s.pressed);
-            let frame = show(ui, &view, &pressed);
-            s.commands.extend(frame.commands);
-            s.widgets = frame.widgets.into_iter().map(|(id, _)| id).collect();
-        },
-        State {
-            paused,
-            with_boards: true,
-            save_error: None,
-            diagnostics: DIAGNOSTICS,
-            export_result: None,
-            dwell: None,
-            pressed: Vec::new(),
-            commands: Vec::new(),
-            widgets: Vec::new(),
-        },
-    )
+    // Tall enough for every section: the real window grows to its content (05).
+    Harness::builder()
+        .with_size(egui::vec2(800.0, 1600.0))
+        .build_ui_state(
+            move |ui, s: &mut State| {
+                let view = SettingsView {
+                    profile_name: "Alex",
+                    start_board: s.with_boards.then(|| StartBoardView {
+                        boards: &boards,
+                        current: "qwerty",
+                        save_error: s.save_error.as_deref(),
+                    }),
+                    voice: s
+                        .with_boards
+                        .then(|| voice_view(&devices, &voices, &cue, s.voice_error.as_deref())),
+                    diagnostics: s.diagnostics,
+                    export_result: s.export_result.as_deref(),
+                    paused: s.paused,
+                    dwell: s.dwell.as_ref(),
+                    indicator: &indicator,
+                };
+                let pressed = std::mem::take(&mut s.pressed);
+                let frame = show(ui, &view, &pressed);
+                s.commands.extend(frame.commands);
+                s.widgets = frame.widgets.into_iter().map(|(id, _)| id).collect();
+            },
+            State {
+                paused,
+                with_boards: true,
+                save_error: None,
+                voice_error: None,
+                diagnostics: DIAGNOSTICS,
+                export_result: None,
+                dwell: None,
+                pressed: Vec::new(),
+                commands: Vec::new(),
+                widgets: Vec::new(),
+            },
+        )
 }
 
 /// 05: every interactive widget is registered, so scanning and dwell reach it.
@@ -105,6 +168,8 @@ fn every_interactive_widget_is_registered() {
     let buttons = h.query_all_by_role(Role::Button).count();
     assert_eq!(h.state().widgets.len(), buttons);
     let mut expected = vec!["board:qwerty", "board:mouse"];
+    expected.extend(VOICE_ITEMS);
+    expected.push("voice-test");
     expected.extend(SESSION_ITEMS);
     expected.extend(["pause", "close"]);
     assert_eq!(h.state().widgets, expected);
@@ -113,6 +178,8 @@ fn every_interactive_widget_is_registered() {
 #[test]
 fn widgets_are_at_least_48_px() {
     let boards = boards();
+    let (devices, voices) = (devices(), voices());
+    let cue = AudioDevice::Named("Headphones".into());
     let indicator = theme_dwell_indicator(None);
     let mut rects = Vec::new();
     let mut h = Harness::new_ui(|ui| {
@@ -123,6 +190,7 @@ fn widgets_are_at_least_48_px() {
                 current: "qwerty",
                 save_error: None,
             }),
+            voice: Some(voice_view(&devices, &voices, &cue, None)),
             diagnostics: DIAGNOSTICS,
             export_result: None,
             paused: false,
@@ -273,4 +341,77 @@ fn export_controls() {
     h.state_mut().export_result = Some("Saved to C:\\Docs\\uca.zip".into());
     h.run();
     h.get_by_label("Saved to C:\\Docs\\uca.zip");
+}
+
+/// 05 "Voice": choices, steps and Test give their commands, by mouse and by
+/// the engine; values and the save error are shown.
+#[test]
+fn voice_section_gives_commands() {
+    let mut h = harness(false);
+    h.state_mut().voice_error = Some("denied".into());
+    h.run();
+    for label in ["System default", "Off", "Microsoft Zira", "Test"] {
+        h.get_by_label(label).click();
+        h.run();
+    }
+    h.state_mut().pressed = vec![
+        "speaker:Headphones".into(),
+        "cue:Speakers".into(),
+        "rate:+".into(),
+        "volume:-".into(),
+    ];
+    h.run();
+    assert_eq!(
+        h.state().commands,
+        vec![
+            SettingsCommand::SetSpeaker(AudioDevice::Default),
+            SettingsCommand::SetCue(None),
+            SettingsCommand::SetVoice("zira".into()),
+            SettingsCommand::TestVoice,
+            SettingsCommand::SetSpeaker(AudioDevice::Named("Headphones".into())),
+            SettingsCommand::SetCue(Some(AudioDevice::Named("Speakers".into()))),
+            SettingsCommand::StepVoice {
+                number: VoiceNumber::Rate,
+                up: true
+            },
+            SettingsCommand::StepVoice {
+                number: VoiceNumber::Volume,
+                up: false
+            },
+        ]
+    );
+    h.get_by_label("1.2");
+    h.get_by_label("0.8");
+    h.get_by_label(
+        "Speech is not an emergency alert. Do not rely on it as the only way to get help.",
+    );
+    h.get_by_label("Could not save the voice setting: denied");
+}
+
+/// A chosen device that is unplugged still shows, marked, so the user sees it.
+#[test]
+fn a_missing_chosen_device_is_listed() {
+    let devices = devices();
+    let voices = voices();
+    let cue = AudioDevice::Named("Old headset".into());
+    let mut ids = Vec::new();
+    let indicator = theme_dwell_indicator(None);
+    let mut h = Harness::new_ui(|ui| {
+        let view = SettingsView {
+            profile_name: "Alex",
+            start_board: None,
+            voice: Some(voice_view(&devices, &voices, &cue, None)),
+            diagnostics: DIAGNOSTICS,
+            export_result: None,
+            paused: false,
+            dwell: None,
+            indicator: &indicator,
+        };
+        ids = show(ui, &view, &[]).widgets;
+    });
+    h.run();
+    drop(h);
+    let ids: Vec<String> = ids.into_iter().map(|(id, _)| id).collect();
+    assert!(ids.contains(&"cue:Old headset".to_owned()), "{ids:?}");
+    assert!(!ids.contains(&"speaker:Old headset".to_owned()), "{ids:?}");
 }

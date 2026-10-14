@@ -110,7 +110,9 @@ profile:
     ] {
         assert_eq!(
             replace(text, "mouse"),
-            Err(SaveError::NotEditable),
+            Err(SaveError::NotEditable {
+                key: "start_board".into()
+            }),
             "{text}"
         );
     }
@@ -205,7 +207,9 @@ fn a_broken_set_on_disk_is_not_written_over() {
 #[test]
 fn every_save_message_has_en_us_text() {
     let errors = [
-        SaveError::NotEditable,
+        SaveError::NotEditable {
+            key: "start_board".into(),
+        },
         SaveError::Write {
             message: "denied".into(),
         },
@@ -228,4 +232,129 @@ fn every_save_message_has_en_us_text() {
             );
         }
     }
+}
+
+// ------------------------------------------------------------ set_scalar (05 "Voice")
+
+const RATE: [&str; 3] = ["profile", "voice", "rate"];
+
+fn set(text: &str, path: &[&str], value: Value<'_>) -> Result<String, SaveError> {
+    set_scalar(text, path, value)
+}
+
+#[test]
+fn adds_a_key_to_an_existing_block_mapping() {
+    let text = "profile:\n  name: A\n  voice:\n    rate: 1.2   # fast\n  other: x\n";
+    assert_eq!(
+        set(text, &["profile", "voice", "pitch"], Value::Number(0.9)).expect("edit"),
+        "profile:\n  name: A\n  voice:\n    rate: 1.2   # fast\n    pitch: 0.9\n  other: x\n"
+    );
+}
+
+#[test]
+fn adds_a_missing_section() {
+    let text = "schema: uca/1\nprofile:\n  name: Alex\n  safety: { escape: x }\n# end\n";
+    assert_eq!(
+        set(text, &RATE, Value::Number(1.5)).expect("edit"),
+        "schema: uca/1\nprofile:\n  name: Alex\n  safety: { escape: x }\n  voice:\n    rate: 1.5\n# end\n"
+    );
+}
+
+#[test]
+fn adds_at_the_end_of_a_file_without_a_newline() {
+    assert_eq!(
+        set("profile:\n  name: A", &RATE, Value::Number(1.5)).expect("edit"),
+        "profile:\n  name: A\n  voice:\n    rate: 1.5\n"
+    );
+}
+
+#[test]
+fn follows_the_file_indentation() {
+    assert_eq!(
+        set("profile:\n    name: A\n", &RATE, Value::Number(2.0)).expect("edit"),
+        "profile:\n    name: A\n    voice:\n        rate: 2\n"
+    );
+}
+
+#[test]
+fn adds_after_a_nested_entry_and_keeps_comments() {
+    let text = "profile:\n  inputs:\n    switches:\n      s1: \"key:F13\"\n  # trailing comment\n";
+    assert_eq!(
+        set(text, &RATE, Value::Number(1.1)).expect("edit"),
+        "profile:\n  inputs:\n    switches:\n      s1: \"key:F13\"\n  voice:\n    rate: 1.1\n  # trailing comment\n"
+    );
+}
+
+#[test]
+fn adds_after_a_flow_collection_on_several_lines() {
+    let text = "profile:\n  bindings: [\n    a,\n  ]\n";
+    assert_eq!(
+        set(text, &RATE, Value::Number(1.0)).expect("edit"),
+        "profile:\n  bindings: [\n    a,\n  ]\n  voice:\n    rate: 1\n"
+    );
+}
+
+#[test]
+fn replaces_with_strings_numbers_and_null() {
+    let text = "profile:\n  voice:\n    cue_device: Headphones\n    rate: 1.0\n";
+    let cue = ["profile", "voice", "cue_device"];
+    assert_eq!(
+        set(text, &cue, Value::Null).expect("edit"),
+        "profile:\n  voice:\n    cue_device: null\n    rate: 1.0\n"
+    );
+    assert_eq!(
+        set(text, &cue, Value::Str("Speakers (USB)")).expect("edit"),
+        "profile:\n  voice:\n    cue_device: \"Speakers (USB)\"\n    rate: 1.0\n"
+    );
+    assert_eq!(
+        set(text, &RATE, Value::Number(1.1 + 0.1)).expect("edit"),
+        "profile:\n  voice:\n    cue_device: Headphones\n    rate: 1.2\n"
+    );
+    // Added strings are quoted where plain text would change meaning.
+    assert_eq!(
+        set("profile:\n  name: A\n", &cue, Value::Str("no")).expect("edit"),
+        "profile:\n  name: A\n  voice:\n    cue_device: \"no\"\n"
+    );
+}
+
+#[test]
+fn unsafe_insertions_are_refused() {
+    let refused = |text: &str| {
+        assert_eq!(
+            set(text, &RATE, Value::Number(1.5)),
+            Err(SaveError::NotEditable { key: "rate".into() }),
+            "{text}"
+        );
+    };
+    // Flow mapping in the way.
+    refused("profile: { name: A }\n");
+    refused("profile:\n  voice: { pitch: 1 }\n");
+    // A block scalar last: its end is not on its own line.
+    refused("profile:\n  name: |\n    A\n");
+    // Not a mapping in the way.
+    refused("profile:\n  voice: off\n");
+    refused("profile:\n  voice:\n");
+    // Broken YAML.
+    refused("profile: { name: A\n");
+}
+
+#[test]
+fn saves_a_profile_value_with_a_new_section() {
+    let (_tmp, paths) = profile("save-voice");
+    save_profile_value(&paths, &RATE, Value::Number(1.3), |c| {
+        c.profile.profile.voice.rate == Some(crate::settings_registry::SettingValue::Number(1.3))
+    })
+    .expect("save");
+    assert_eq!(
+        read(&paths),
+        PROFILE.to_owned() + "  voice:\n    rate: 1.3\n"
+    );
+    // Out of range: the validator refuses and nothing is written.
+    let err =
+        save_profile_value(&paths, &RATE, Value::Number(9.0), |_| true).expect_err("out of range");
+    assert!(matches!(err, SaveError::Invalid(_)), "{err:?}");
+    assert_eq!(
+        read(&paths),
+        PROFILE.to_owned() + "  voice:\n    rate: 1.3\n"
+    );
 }

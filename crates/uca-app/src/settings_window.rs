@@ -33,6 +33,8 @@ pub struct SettingsWindow {
     pressed: Vec<String>,
     /// Why the last start-board save failed, translated.
     pub save_error: Option<String>,
+    /// Why the last voice setting save failed, translated (05 "Voice").
+    pub voice_error: Option<String>,
     /// The last frame's widgets, in window points.
     widgets: Vec<(String, Rect)>,
     /// What the engine has now.
@@ -100,6 +102,7 @@ impl SettingsWindow {
             painter,
             pressed: Vec::new(),
             save_error: None,
+            voice_error: None,
             widgets: Vec::new(),
             registered: None,
         })

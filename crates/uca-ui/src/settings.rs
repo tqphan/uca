@@ -1,11 +1,16 @@
 // SPDX-FileCopyrightText: The UCA contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! The M1 Settings window content (05 "Settings window"): the profile name,
-//! the start board, Diagnostics, Pause/Resume and Close.
+//! The Settings window content (05 "Settings window"): the profile name,
+//! the start board, Voice (M2), Diagnostics, Pause/Resume and Close.
+
+mod voice;
+
+pub use voice::{VoiceChoice, VoiceNumber, VoiceSectionView};
 
 use egui::{Align, Button, Layout, Rect, RichText, Ui, Vec2};
 use uca_config::cascade::ResolvedDwellIndicator;
+use uca_config::profile::AudioDevice;
 use uca_engine::VirtualSnapshot;
 use uca_i18n::{strip_isolation, t, ui_dir};
 
@@ -60,6 +65,8 @@ pub struct DiagnosticsView {
 pub struct SettingsView<'a> {
     pub profile_name: &'a str,
     pub start_board: Option<StartBoardView<'a>>,
+    /// Shown with a profile on disk, like the start board (05).
+    pub voice: Option<VoiceSectionView<'a>>,
     pub diagnostics: DiagnosticsView,
     /// The last export's result line, already translated (11).
     pub export_result: Option<&'a str>,
@@ -73,6 +80,17 @@ pub struct SettingsView<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SettingsCommand {
     SetStartBoard(String),
+    SetSpeaker(AudioDevice),
+    /// `None`: cues off.
+    SetCue(Option<AudioDevice>),
+    /// An engine voice id.
+    SetVoice(String),
+    StepVoice {
+        number: VoiceNumber,
+        up: bool,
+    },
+    /// Speak the test sentence on each device (13).
+    TestVoice,
     SessionMinutes(u32),
     SessionTrace(bool),
     ToggleSensitive,
@@ -143,6 +161,10 @@ pub fn show(ui: &mut Ui, view: &SettingsView<'_>, pressed: &[String]) -> Setting
         ui.add_space(MIN_TARGET / 4.0);
         if let Some(start) = &view.start_board {
             start_board(ui, view, start, row, pressed, &mut frame);
+            ui.add_space(MIN_TARGET / 4.0);
+        }
+        if let Some(v) = &view.voice {
+            voice::section(ui, view, v, row, pressed, &mut frame);
             ui.add_space(MIN_TARGET / 4.0);
         }
         diagnostics(ui, view, row, pressed, &mut frame);

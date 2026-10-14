@@ -180,6 +180,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         cli_session: debug_session_arg(),
         cli_record: record_arg(),
         startup_notices: startup_notices(log_dir.as_deref(), safe_mode),
+        voice: voice.clone(),
         debug_area: debug_area(app_file.as_ref()),
     };
     let mut app = App::new(

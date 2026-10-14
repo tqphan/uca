@@ -34,6 +34,21 @@ settings-include-config = Include my boards and profile
 settings-export = Export diagnostics
 settings-export-saved = Saved to { $path }
 settings-export-failed = Could not export: { $reason }
+settings-voice = Voice
+settings-voice-speaker = Speaker
+settings-voice-emergency = Speech is not an emergency alert. Do not rely on it as the only way to get help.
+settings-voice-cue = Cue device (for scanning cues)
+settings-voice-voice = Voice
+settings-voice-speed = Speed
+settings-voice-pitch = Pitch
+settings-voice-volume = Volume
+settings-voice-system-default = System default
+settings-voice-off = Off
+settings-voice-less = −
+settings-voice-more = +
+settings-voice-test = Test
+settings-voice-save-error = Could not save the voice setting: { $reason }
+voice-test-sentence = This is my voice.
 
 # The debug-session indicator strip (11).
 

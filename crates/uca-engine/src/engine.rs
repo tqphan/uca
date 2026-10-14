@@ -20,6 +20,7 @@ use uca_types::{Clock, FilteredPoint, Key, MonitorInfo, SourceStatus, TriggerEve
 use crate::layout::{choose_monitor, layout_board, BoardLayout};
 use crate::safe_board::{safe_board, SAFE_ITEMS};
 use crate::sets::{SetStack, DEFAULT_SET};
+use crate::speech::{ComposeKey, KeyLayout, Speech, SpeechIntent};
 use crate::types::{
     ActivationId, BoardSnapshot, Control, DebugSnapshot, DwellSnapshot, EngineControl, EngineInput,
     EngineSnapshot, Intent, ItemSnapshot, Latch, LayerSnapshot, SafeItem, VirtualBoard,
@@ -142,6 +143,7 @@ pub struct Engine {
     mapping: Mapping,
     escape: Option<Mapping>,
     intents: Vec<Intent>,
+    speech: Speech,
 }
 
 struct Shown {
@@ -187,6 +189,7 @@ impl Engine {
             mapping,
             escape,
             intents: Vec::new(),
+            speech: Speech::default(),
         };
         engine.show_top();
         engine
@@ -325,6 +328,21 @@ impl Engine {
 
     pub fn safe_board_open(&self) -> bool {
         self.safe_open
+    }
+
+    /// Whether `key.tap` and `text.type` go to the compose buffer (13).
+    pub fn composing(&self) -> bool {
+        self.speech.composing()
+    }
+
+    /// The current keyboard layout's characters, for compose (13 "Layout").
+    pub fn set_key_layout(&mut self, layout: KeyLayout) {
+        self.speech.set_layout(layout);
+    }
+
+    /// The OS Caps Lock state, given before each input while composing (13).
+    pub fn set_caps_lock(&mut self, on: bool) {
+        self.speech.set_caps_lock(on);
     }
 
     // ------------------------------------------------------------ time
@@ -745,6 +763,8 @@ impl Engine {
         }
         tracing::info!(target: "uca::engine", "safe board opened");
         self.safety_event(t);
+        // 13 "Safety": the Safe Board stops speech.
+        self.intents.push(Intent::Speech(SpeechIntent::Stop));
         // SAFETY-14: the action-set stack resets.
         self.sets.reset();
         self.safe_open = true;
@@ -1251,6 +1271,49 @@ impl Engine {
                     None => self.latched.remove(k),
                 };
             }
+            Action::KeyTap(k) if self.speech.composing() => {
+                let shift = self
+                    .latched
+                    .keys()
+                    .any(|m| matches!(m, Key::ShiftLeft | Key::ShiftRight));
+                let other = self
+                    .latched
+                    .keys()
+                    .any(|m| !matches!(m, Key::ShiftLeft | Key::ShiftRight));
+                match self.speech.compose_key(*k, shift, other) {
+                    ComposeKey::Text(s) => {
+                        let s = s.to_owned();
+                        self.speech.append(&s);
+                    }
+                    ComposeKey::Backspace => self.speech.backspace(),
+                    ComposeKey::Ignored => {
+                        tracing::debug!(target: "uca::engine", key = ?k, "key ignored in compose mode");
+                    }
+                }
+                self.latched.retain(|_, l| *l == Latch::Locked);
+            }
+            Action::TextType(s) if self.speech.composing() => self.speech.append(s),
+            Action::SpeechBufferAppend(s) => self.speech.append(s),
+            Action::SpeechBufferBackspace => self.speech.backspace(),
+            Action::SpeechBufferClear => self.speech.clear(),
+            Action::SpeechBufferWordBack => self.speech.word_back(),
+            Action::SpeechComposeOn => self.set_compose(true),
+            Action::SpeechComposeOff => self.set_compose(false),
+            Action::SpeechComposeToggle => self.set_compose(!self.speech.composing()),
+            Action::SpeechSay(text) => {
+                let i = self.speech.say(text, &self.config.profile.profile.voice);
+                self.speech_intent(i);
+            }
+            Action::SpeechSpeakBuffer => {
+                let i = self.speech.speak_buffer(&self.config.profile.profile.voice);
+                self.speech_intent(i);
+            }
+            Action::SpeechRepeat => {
+                let i = self.speech.repeat(&self.config.profile.profile.voice);
+                self.speech_intent(i);
+            }
+            Action::SpeechStop => self.speech_intent(Some(SpeechIntent::Stop)),
+            Action::SpeechVoice(v) => self.speech_intent(Some(SpeechIntent::Voice(v.clone()))),
             Action::KeyTap(k) if !self.latched.is_empty() => {
                 // Latched modifiers wrap the tap, then non-locked latches clear (04).
                 let mods: Vec<Key> = self.latched.keys().copied().collect();
@@ -1264,6 +1327,23 @@ impl Engine {
             device => return Some(vec![device.clone()]),
         }
         None
+    }
+
+    fn set_compose(&mut self, on: bool) {
+        tracing::debug!(target: "uca::engine", on, "compose mode");
+        self.speech.set_compose(on);
+        if on {
+            // The app refreshes the key layout when compose turns on (13 "Layout").
+            self.intents
+                .push(Intent::Control(Control::RefreshKeyLayout));
+        }
+    }
+
+    fn speech_intent(&mut self, i: Option<SpeechIntent>) {
+        if let Some(i) = i {
+            tracing::debug!(target: "uca::engine", intent = ?i, "speech");
+            self.intents.push(Intent::Speech(i));
+        }
     }
 
     fn pause(&mut self, t: Instant) {
@@ -1331,6 +1411,7 @@ impl Engine {
                         .collect(),
                 })
                 .collect(),
+            speech: self.speech.snapshot(),
             debug: self.debug_snapshot(now),
         }
     }

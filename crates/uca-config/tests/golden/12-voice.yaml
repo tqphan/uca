@@ -1,0 +1,30 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+  voice:
+    engine: windows
+    voice_id: "MSTTS_V110_enUS_ZiraM"
+    rate: 1.2
+    pitch: 0.9
+    volume: 0.8
+    speaker_device: default
+    cue_device: "Headphones (USB Audio)"
+    max_chars: 500
+  bindings:
+    - { when: "key:F14", do: { speech.stop: } }
+---
+schema: uca/1
+board: { id: main }
+layers:
+  - id: l
+    layout: { type: row }
+    items:
+      - { id: say, action: { speech.say: "I need a break" } }
+      - { id: speak, action: { speech.speak_buffer: } }
+      - { id: add, action: { speech.buffer.append: "want " } }
+      - { id: back, action: { speech.buffer.word_back: } }
+      - { id: compose, action: { speech.compose.toggle: } }
+      - { id: again, action: { speech.repeat: } }
+      - { id: voice, action: { speech.voice: "MSTTS_V110_enUS_DavidM" } }

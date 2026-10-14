@@ -39,6 +39,8 @@ pub enum Control {
     /// `settings.open` / `settings.close` (05 "Settings window").
     OpenSettings,
     CloseSettings,
+    /// Compose mode turned on: rebuild the key layout (13 "Layout").
+    RefreshKeyLayout,
 }
 
 /// What the engine asks the executor and app to do (04 "Engine state").
@@ -59,6 +61,8 @@ pub enum Intent {
         board: String,
         item: String,
     },
+    /// For the voice worker (13).
+    Speech(crate::speech::SpeechIntent),
 }
 
 /// A `uca-ui` screen registered with the engine as a virtual board, so dwell
@@ -120,6 +124,8 @@ pub struct EngineSnapshot {
     pub virtual_boards: Vec<VirtualSnapshot>,
     /// What the debug overlay shows about hover and dwell (11).
     pub debug: DebugSnapshot,
+    /// The compose buffer, compose mode and history (13).
+    pub speech: crate::speech::SpeechSnapshot,
 }
 
 /// Hover and dwell for the debug overlay (11). Items are named

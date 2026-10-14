@@ -60,9 +60,23 @@ pub enum Action {
     DebugOverlay,
     DebugRecord,
     DebugExport,
+    /// Speech output (13). Texts are typed text: log them only as `Sensitive`.
+    SpeechSay(String),
+    SpeechSpeakBuffer,
+    SpeechBufferAppend(String),
+    SpeechBufferBackspace,
+    SpeechBufferClear,
+    SpeechBufferWordBack,
+    SpeechComposeOn,
+    SpeechComposeOff,
+    SpeechComposeToggle,
+    SpeechRepeat,
+    SpeechStop,
+    /// An engine voice id.
+    SpeechVoice(String),
 }
 
-/// Every action name accepted in M1, for "Did you mean" suggestions.
+/// Every action name accepted, for "Did you mean" suggestions.
 pub const ACTION_NAMES: &[&str] = &[
     "key.tap",
     "key.down",
@@ -109,6 +123,18 @@ pub const ACTION_NAMES: &[&str] = &[
     "debug.overlay",
     "debug.record",
     "debug.export",
+    "speech.say",
+    "speech.speak_buffer",
+    "speech.buffer.append",
+    "speech.buffer.backspace",
+    "speech.buffer.clear",
+    "speech.buffer.word_back",
+    "speech.compose.on",
+    "speech.compose.off",
+    "speech.compose.toggle",
+    "speech.repeat",
+    "speech.stop",
+    "speech.voice",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
@@ -302,6 +328,18 @@ fn action_args<'de, A: MapAccess<'de>>(name: &str, map: &mut A) -> Result<Action
         "debug.overlay" => none!(Action::DebugOverlay),
         "debug.record" => none!(Action::DebugRecord),
         "debug.export" => none!(Action::DebugExport),
+        "speech.say" => Action::SpeechSay(arg!(String)),
+        "speech.speak_buffer" => none!(Action::SpeechSpeakBuffer),
+        "speech.buffer.append" => Action::SpeechBufferAppend(arg!(String)),
+        "speech.buffer.backspace" => none!(Action::SpeechBufferBackspace),
+        "speech.buffer.clear" => none!(Action::SpeechBufferClear),
+        "speech.buffer.word_back" => none!(Action::SpeechBufferWordBack),
+        "speech.compose.on" => none!(Action::SpeechComposeOn),
+        "speech.compose.off" => none!(Action::SpeechComposeOff),
+        "speech.compose.toggle" => none!(Action::SpeechComposeToggle),
+        "speech.repeat" => none!(Action::SpeechRepeat),
+        "speech.stop" => none!(Action::SpeechStop),
+        "speech.voice" => Action::SpeechVoice(arg!(String)),
         other => {
             let hint = closest(other, ACTION_NAMES.iter().copied())
                 .map(|s| format!(". Did you mean {s:?}?"))
@@ -626,8 +664,11 @@ mod tests {
             err.contains("unknown action \"key.tapp\". Did you mean \"key.tap\"?"),
             "{err}"
         );
-        let err = act("speech.say: hi").unwrap_err();
-        assert!(err.contains("unknown action \"speech.say\""), "{err}");
+        let err = act("speech.sya: hi").unwrap_err();
+        assert!(
+            err.contains("unknown action \"speech.sya\". Did you mean \"speech.say\"?"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -771,6 +812,34 @@ mod tests {
                 sensitive: false
             }))
         );
+    }
+
+    #[test]
+    fn speech_actions() {
+        assert_eq!(
+            act("speech.say: \"I need help\""),
+            Ok(Action::SpeechSay("I need help".into()))
+        );
+        assert_eq!(act("speech.speak_buffer:"), Ok(Action::SpeechSpeakBuffer));
+        assert_eq!(
+            act("speech.buffer.append: \"want \""),
+            Ok(Action::SpeechBufferAppend("want ".into()))
+        );
+        assert_eq!(
+            act("speech.buffer.word_back: {}"),
+            Ok(Action::SpeechBufferWordBack)
+        );
+        assert_eq!(
+            act("speech.compose.toggle:"),
+            Ok(Action::SpeechComposeToggle)
+        );
+        assert_eq!(act("speech.stop:"), Ok(Action::SpeechStop));
+        assert_eq!(
+            act("speech.voice: \"Microsoft Zira\""),
+            Ok(Action::SpeechVoice("Microsoft Zira".into()))
+        );
+        assert!(act("speech.stop: now").is_err());
+        assert!(act("speech.say: { text: hi }").is_err());
     }
 
     #[test]

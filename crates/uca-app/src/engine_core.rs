@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use uca_config::store::LoadedConfig;
-use uca_engine::{Engine, EngineControl, EngineInput, Intent, VirtualBoard};
+use uca_engine::{Engine, EngineControl, EngineInput, Intent, KeyLayout, VirtualBoard};
 use uca_input::{HubOutput, InputHub};
 use uca_types::{Clock, MonitorInfo, PhysPoint, Signal, SourceId};
 
@@ -22,13 +22,25 @@ pub enum CoreInput {
     Control(EngineControl),
     /// A `uca-ui` screen's widgets by board id, or `None` to remove them.
     Virtual(String, Option<VirtualBoard>),
+    /// The keyboard layout's characters, for speech compose (13).
+    KeyLayout(KeyLayout),
     Tick,
+}
+
+/// What the core asks the platform while handling a message. The live thread
+/// asks the platform, a replay answers from the recording (11).
+pub trait Queries {
+    /// Whether another window covers a UCA board at a point (02 `ignore_covered`).
+    fn covered(&mut self, p: PhysPoint) -> bool;
+    /// The OS Caps Lock state; asked only while composing (13).
+    fn caps_lock(&mut self) -> bool;
 }
 
 pub struct EngineCore {
     hub: InputHub,
     engine: Engine,
     monitors: Vec<MonitorInfo>,
+    key_layout: KeyLayout,
 }
 
 impl EngineCore {
@@ -37,7 +49,13 @@ impl EngineCore {
             hub: InputHub::new(&config.profile.profile.inputs, monitors.clone()),
             engine: Engine::new(config, monitors.clone()),
             monitors,
+            key_layout: KeyLayout::default(),
         }
+    }
+
+    /// The layout last given, so a recording can start with it (11).
+    pub fn key_layout(&self) -> &KeyLayout {
+        &self.key_layout
     }
 
     pub fn engine(&self) -> &Engine {
@@ -59,15 +77,13 @@ impl EngineCore {
             .min()
     }
 
-    /// Handles one message. `covered` says whether another window covers a
-    /// UCA board at a filtered point (02 `ignore_covered`); the live thread
-    /// asks the platform, a replay answers from the recording.
-    pub fn handle(
-        &mut self,
-        input: CoreInput,
-        clock: &dyn Clock,
-        covered: &mut dyn FnMut(PhysPoint) -> bool,
-    ) {
+    /// Handles one message, asking `q` what only the platform knows.
+    pub fn handle(&mut self, input: CoreInput, clock: &dyn Clock, q: &mut dyn Queries) {
+        if self.engine.composing() && !matches!(input, CoreInput::KeyLayout(_)) {
+            let caps = q.caps_lock();
+            self.engine.set_caps_lock(caps);
+        }
+        let covered = &mut |p| q.covered(p);
         match input {
             CoreInput::Signal(s) => {
                 for out in self.hub.on_signal(s) {
@@ -85,6 +101,10 @@ impl EngineCore {
             }
             CoreInput::Control(c) => self.engine.control(c, clock),
             CoreInput::Virtual(id, board) => self.engine.set_virtual_board(&id, board, clock),
+            CoreInput::KeyLayout(layout) => {
+                self.key_layout = layout.clone();
+                self.engine.set_key_layout(layout);
+            }
             CoreInput::Tick => {
                 for out in self.hub.on_tick(clock.now()) {
                     self.engine.on_signal(engine_input(out, covered), clock);

@@ -17,11 +17,13 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WINEVENT_OUTOFCONTEXT, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_SETTINGCHANGE, WNDCLASSW, WS_POPUP,
 };
 
-use crate::{monitors, system};
+use crate::{layout, monitors, system};
 
 struct State {
     subscribers: Vec<Sender<PlatformEvent>>,
     monitors: Vec<MonitorInfo>,
+    /// The foreground keyboard layout last seen (07 `key_label`).
+    layout: usize,
 }
 
 thread_local! {
@@ -71,6 +73,18 @@ unsafe extern "system" fn foreground(
     _: u32,
 ) {
     emit(PlatformEvent::ForegroundAppChanged(system::foreground_app()));
+    // No event exists for a layout switch; it is checked on each foreground change (07).
+    let now = layout::foreground_layout() as usize;
+    let changed = STATE.with(|s| match s.borrow_mut().as_mut() {
+        Some(s) if s.layout != now => {
+            s.layout = now;
+            true
+        }
+        _ => false,
+    });
+    if changed {
+        emit(PlatformEvent::KeyboardLayoutChanged);
+    }
 }
 
 /// Starts the event thread with its first subscriber.
@@ -83,6 +97,7 @@ pub fn start(first: Sender<PlatformEvent>) -> std::sync::mpsc::Sender<Sender<Pla
                 *s.borrow_mut() = Some(State {
                     subscribers: vec![first],
                     monitors: monitors::monitors(),
+                    layout: layout::foreground_layout() as usize,
                 })
             });
             let class: Vec<u16> = "UcaPlatformEvents\0".encode_utf16().collect();

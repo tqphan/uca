@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     Capabilities, ClipboardOp, Edge, HookCallback, HookDecision, HookEvent, HookHandle, Key,
-    KeyDir, MonitorInfo, MouseButton, OverlayOptions, PhysPoint, Platform, PlatformEvent,
-    RawWindowHandle, RectPhys, Result, WindowQuery,
+    KeyDir, Modifiers, MonitorInfo, MouseButton, OverlayOptions, PhysPoint, Platform,
+    PlatformEvent, RawWindowHandle, RectPhys, Result, WindowQuery,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -38,6 +38,7 @@ struct Inner {
     keyboard_hooks: Vec<HookCallback>,
     mouse_hooks: Vec<HookCallback>,
     subscribers: Vec<Sender<PlatformEvent>>,
+    caps_lock: bool,
 }
 
 /// A platform that does nothing but record.
@@ -74,6 +75,10 @@ impl FakePlatform {
 
     pub fn set_cursor(&self, p: Option<PhysPoint>) {
         self.lock().cursor = p;
+    }
+
+    pub fn set_caps_lock(&self, on: bool) {
+        self.lock().caps_lock = on;
     }
 
     pub fn set_foreground(&self, app: Option<String>) {
@@ -267,6 +272,26 @@ impl Platform for FakePlatform {
 
     fn os_version(&self) -> Option<String> {
         Some("Fake 1.0".into())
+    }
+
+    /// US letters and digits only; Shift on digits gives nothing.
+    fn key_label(&self, key: Key, mods: Modifiers) -> Option<String> {
+        let code = key.code();
+        if let Some(letter) = code.strip_prefix("Key") {
+            let upper = mods.shift != mods.caps_lock;
+            return Some(if upper {
+                letter.to_owned()
+            } else {
+                letter.to_lowercase()
+            });
+        }
+        code.strip_prefix("Digit")
+            .filter(|_| !mods.shift)
+            .map(str::to_owned)
+    }
+
+    fn caps_lock(&self) -> bool {
+        self.lock().caps_lock
     }
 }
 

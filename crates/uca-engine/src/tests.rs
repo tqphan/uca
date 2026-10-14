@@ -81,13 +81,13 @@ layers:
       - { id: back, size: { width: 100 }, action: { board.back: } }
 "#;
 
-fn config(main: &str) -> Arc<LoadedConfig> {
+fn config_with(profile: &str, main: &str) -> Arc<LoadedConfig> {
     let p = ProfilePaths {
         config_dir: PathBuf::from("cfg"),
         profile_id: "t".into(),
     };
     let mut s = Sources::default();
-    s.set(&p, &p.profile_file(), Some(PROFILE.into()));
+    s.set(&p, &p.profile_file(), Some(profile.into()));
     s.set(&p, &p.boards_dir().join("main.yaml"), Some(main.into()));
     s.set(&p, &p.boards_dir().join("second.yaml"), Some(SECOND.into()));
     match ConfigStore::from_sources(p, s).1 {
@@ -123,8 +123,12 @@ impl Rig {
     }
 
     fn with(main: &str) -> Self {
+        Self::with_profile(PROFILE, main)
+    }
+
+    fn with_profile(profile: &str, main: &str) -> Self {
         Rig {
-            e: Engine::new(config(main), vec![monitor()]),
+            e: Engine::new(config_with(profile, main), vec![monitor()]),
             clock: FakeClock::new(),
             log: Vec::new(),
             covered: false,
@@ -911,4 +915,213 @@ fn several_virtual_boards() {
     let snap = r.e.snapshot(&r.clock);
     assert_eq!(snap.virtual_boards.len(), 1);
     assert_eq!(snap.virtual_boards[0].id, "settings");
+}
+
+// ---------------------------------------------------------------- speech (13)
+
+/// Items in a row, 100 px each; see the constants below.
+const SPEECH: &str = r#"schema: uca/1
+board: { id: main, anchor: free, size: { width: 1500, height: 100 }, behavior: { dwell_ms: 800, dwell_grace_ms: 150, cooldown_ms: 300 } }
+layers:
+  - id: l
+    layout: { type: row }
+    items:
+      - { id: compose, size: { width: 100 }, action: { speech.compose.toggle: } }
+      - { id: q, size: { width: 100 }, action: { key.tap: q } }
+      - { id: shift, size: { width: 100 }, action: { key.latch: shift } }
+      - { id: speak, size: { width: 100 }, action: { speech.speak_buffer: } }
+      - { id: type, size: { width: 100 }, action: { text.type: "hi " } }
+      - { id: enter, size: { width: 100 }, action: { key.tap: enter } }
+      - { id: bksp, size: { width: 100 }, action: { key.tap: backspace } }
+      - { id: say, size: { width: 100 }, action: { speech.say: "Hello" } }
+      - { id: again, size: { width: 100 }, action: { speech.repeat: } }
+      - { id: ctrl, size: { width: 100 }, action: { key.latch: ctrl } }
+      - { id: left, size: { width: 100 }, action: { key.tap: left } }
+      - { id: stop, size: { width: 100 }, action: { speech.stop: } }
+      - { id: wordback, size: { width: 100 }, action: { speech.buffer.word_back: } }
+      - { id: voice, size: { width: 100 }, action: { speech.voice: "v2" } }
+      - { id: next, size: { width: 100 }, action: { board.open: second } }
+"#;
+
+const COMPOSE: usize = 0;
+const Q: usize = 1;
+const SHIFT: usize = 2;
+const SPEAK: usize = 3;
+const TYPE: usize = 4;
+const ENTER: usize = 5;
+const BKSP: usize = 6;
+const SAY: usize = 7;
+const AGAIN: usize = 8;
+const CTRL: usize = 9;
+const LEFT: usize = 10;
+const STOP: usize = 11;
+const WORDBACK: usize = 12;
+const VOICE: usize = 13;
+
+fn speech_profile(voice: &str) -> String {
+    format!("{PROFILE}  voice: {voice}\n")
+}
+
+fn speech_rig(voice: &str) -> Rig {
+    let mut r = Rig::with_profile(&speech_profile(voice), SPEECH);
+    let mut layout = crate::KeyLayout::default();
+    layout.keys.insert(
+        Key::KeyQ,
+        crate::KeyChars {
+            plain: Some("q".into()),
+            shift: Some("Q".into()),
+            caps: Some("Q".into()),
+            shift_caps: Some("q".into()),
+        },
+    );
+    r.e.set_key_layout(layout);
+    r
+}
+
+impl Rig {
+    /// Dwells on item `n` until it activates, then leaves.
+    fn activate(&mut self, n: usize) {
+        let t = self.ms() + 400;
+        self.on(t, n);
+        self.off(t + 900);
+        self.run_to(t + 1000);
+    }
+
+    fn speech(&self) -> Vec<crate::SpeechIntent> {
+        self.log
+            .iter()
+            .filter_map(|(_, i)| match i {
+                Intent::Speech(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn buffer(&self) -> String {
+        self.e.snapshot(&self.clock).speech.buffer
+    }
+}
+
+/// 13: in compose, `key.tap q` goes to the buffer, not to the executor;
+/// turning compose off restores normal output.
+#[test]
+fn compose_routes_keys_to_the_buffer() {
+    use crate::SpeechIntent::Say;
+    let mut r = speech_rig("{}");
+    r.activate(COMPOSE);
+    assert!(r.e.composing());
+    assert!(r
+        .log
+        .iter()
+        .any(|(_, i)| *i == Intent::Control(Control::RefreshKeyLayout)));
+    for n in [Q, SHIFT, Q, TYPE, ENTER, LEFT, Q, BKSP] {
+        r.activate(n);
+    }
+    assert_eq!(r.buffer(), "qQhi \n");
+    assert!(r.executed().is_empty(), "{:?}", r.executed());
+    r.activate(SPEAK);
+    assert_eq!(r.speech(), vec![Say("qQhi \n".into())]);
+    assert_eq!(r.buffer(), "");
+    r.activate(COMPOSE);
+    assert!(!r.e.composing());
+    r.activate(Q);
+    assert_eq!(r.taps().len(), 1);
+    assert_eq!(r.taps()[0].1, "KeyQ");
+}
+
+/// 13: Caps Lock follows the OS; Ctrl combinations are ignored and clear the latch.
+#[test]
+fn compose_caps_lock_and_other_modifiers() {
+    let mut r = speech_rig("{}");
+    r.activate(COMPOSE);
+    r.e.set_caps_lock(true);
+    r.activate(Q);
+    r.activate(SHIFT);
+    r.activate(Q);
+    r.e.set_caps_lock(false);
+    r.activate(CTRL);
+    r.activate(Q);
+    assert_eq!(r.buffer(), "Qq");
+    assert!(r.e.snapshot(&r.clock).latched.is_empty());
+    assert!(r.executed().is_empty());
+}
+
+#[test]
+fn say_repeat_stop_and_voice() {
+    use crate::SpeechIntent::{Say, Stop, Voice};
+    let mut r = speech_rig("{}");
+    r.activate(AGAIN);
+    assert!(r.speech().is_empty(), "nothing to repeat yet");
+    r.activate(SAY);
+    r.activate(AGAIN);
+    r.activate(STOP);
+    r.activate(VOICE);
+    assert_eq!(
+        r.speech(),
+        vec![
+            Say("Hello".into()),
+            Say("Hello".into()),
+            Stop,
+            Voice("v2".into())
+        ]
+    );
+    assert_eq!(r.e.snapshot(&r.clock).speech.history, vec!["Hello"]);
+}
+
+#[test]
+fn speaking_an_empty_buffer_does_nothing() {
+    let mut r = speech_rig("{}");
+    r.activate(SPEAK);
+    assert!(r.speech().is_empty());
+    assert!(r.e.snapshot(&r.clock).speech.history.is_empty());
+}
+
+/// 13: speech turned off or over max_chars speaks nothing and keeps the buffer.
+#[test]
+fn refused_speech_keeps_the_buffer() {
+    use crate::SpeechIntent::{Say, TooLong, TurnedOff};
+    let mut r = speech_rig("{ enabled: false }");
+    r.activate(COMPOSE);
+    r.activate(Q);
+    r.activate(SPEAK);
+    r.activate(SAY);
+    assert_eq!(r.speech(), vec![TurnedOff, TurnedOff]);
+    assert_eq!(r.buffer(), "q");
+
+    let mut r = speech_rig("{ max_chars: 2 }");
+    r.activate(COMPOSE);
+    r.activate(TYPE);
+    r.activate(SPEAK);
+    assert_eq!(r.buffer(), "hi ");
+    r.activate(WORDBACK);
+    r.activate(Q);
+    r.activate(SPEAK);
+    assert_eq!(r.speech(), vec![TooLong { max: 2 }, Say("q".into())]);
+}
+
+/// 13 "Safety": the Safe Board stops speech; presence loss does not.
+#[test]
+fn safe_board_stops_speech_presence_loss_does_not() {
+    use crate::SpeechIntent::{Say, Stop};
+    let mut r = speech_rig("{}");
+    r.activate(SAY);
+    let t = r.ms() + 10;
+    r.point(t, 1500.0, false);
+    assert_eq!(r.speech(), vec![Say("Hello".into())]);
+    let t = r.ms() + 10;
+    r.trigger(t, "key:F12", Phase::Down, true);
+    r.run_to(t + 3100);
+    assert!(r.e.safe_board_open());
+    assert_eq!(r.speech(), vec![Say("Hello".into()), Stop]);
+}
+
+/// The buffer and compose mode survive a config reload.
+#[test]
+fn buffer_survives_a_reload() {
+    let mut r = speech_rig("{}");
+    r.activate(COMPOSE);
+    r.activate(Q);
+    r.e.on_config(config_with(&speech_profile("{}"), SPEECH), &r.clock);
+    assert_eq!(r.buffer(), "q");
+    assert!(r.e.composing());
 }

@@ -50,6 +50,15 @@ pub enum PlatformEvent {
     MonitorsChanged(Vec<MonitorInfo>),
     /// The executable name of the new foreground app (11: names only by default).
     ForegroundAppChanged(Option<String>),
+    /// The foreground window's keyboard layout changed (07 `key_label`).
+    KeyboardLayoutChanged,
+}
+
+/// Modifier state for [`Platform::key_label`] (07, decided: Shift and Caps Lock; no AltGr).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Modifiers {
+    pub shift: bool,
+    pub caps_lock: bool,
 }
 
 /// What a global hook sees (07, decided).
@@ -181,4 +190,9 @@ pub trait Platform: Send + Sync {
     fn documents_dir(&self) -> Option<PathBuf>;
     /// The OS name and version for `system.json`, e.g. "Windows 10.0.26100" (11).
     fn os_version(&self) -> Option<String>;
+    /// The character `key` types under the foreground window's keyboard
+    /// layout (07, 17); `None` for keys that type nothing and dead keys.
+    fn key_label(&self, key: Key, mods: Modifiers) -> Option<String>;
+    /// Whether Caps Lock is on; speech compose follows it (13).
+    fn caps_lock(&self) -> bool;
 }

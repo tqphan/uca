@@ -852,6 +852,8 @@ impl ApplicationHandler<UserEvent> for App {
                 self.restart = true;
                 self.quit(event_loop);
             }
+            // Handled on the engine thread.
+            UserEvent::Control(Control::RefreshKeyLayout) => {}
             UserEvent::Crashed => self.quit(event_loop),
             UserEvent::App(action) => self.on_app_action(action),
             UserEvent::Exported {

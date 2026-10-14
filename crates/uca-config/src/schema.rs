@@ -274,7 +274,22 @@ impl JsonSchema for Action {
             ),
             ("debug.overlay", none.clone()),
             ("debug.record", none.clone()),
-            ("debug.export", none),
+            ("debug.export", none.clone()),
+            ("speech.say", json!({ "type": "string" })),
+            ("speech.speak_buffer", none.clone()),
+            ("speech.buffer.append", json!({ "type": "string" })),
+            ("speech.buffer.backspace", none.clone()),
+            ("speech.buffer.clear", none.clone()),
+            ("speech.buffer.word_back", none.clone()),
+            ("speech.compose.on", none.clone()),
+            ("speech.compose.off", none.clone()),
+            ("speech.compose.toggle", none.clone()),
+            ("speech.repeat", none.clone()),
+            ("speech.stop", none),
+            (
+                "speech.voice",
+                json!({ "type": "string", "minLength": 1, "description": "An engine voice id." }),
+            ),
         ];
         let variants: Vec<Value> = args
             .into_iter()

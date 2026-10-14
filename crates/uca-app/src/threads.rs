@@ -8,14 +8,16 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use uca_actions::{Executor, SoftwareOutput};
-use uca_app::engine_core::{CoreInput, EngineCore};
+use uca_app::engine_core::{CoreInput, EngineCore, Queries};
 use uca_app::recording::{config_hash, Entry, Header, Recorder, FORMAT};
 use uca_config::store::{ConfigUpdate, LoadedConfig};
-use uca_engine::{Control, Engine, EngineControl, EngineSnapshot, Intent, VirtualBoard};
+use uca_engine::{
+    Control, Engine, EngineControl, EngineSnapshot, Intent, KeyChars, KeyLayout, VirtualBoard,
+};
 use uca_input::{SignalSender, SourceStats, StatsCollector};
 use uca_platform::sources::ConsumeSet;
-use uca_platform::Platform;
-use uca_types::{Clock, MonitorInfo, PhysPoint, Signal, SourceId, SystemClock};
+use uca_platform::{Modifiers, Platform};
+use uca_types::{Clock, Key, MonitorInfo, PhysPoint, Signal, SourceId, SystemClock};
 
 /// Everything that reaches the engine thread (01: one channel).
 #[derive(Debug)]
@@ -29,6 +31,8 @@ pub enum Msg {
     Virtual(String, Option<VirtualBoard>),
     /// Start recording into the file, or stop with `None` (11).
     Record(Option<std::path::PathBuf>),
+    /// The foreground keyboard layout changed (07): rebuild the compose table (13).
+    KeyLayoutChanged,
     Quit,
 }
 
@@ -90,6 +94,15 @@ pub fn run_engine(
     let mut stats = StatsCollector::default();
     let mut debug = DebugInfo::default();
     let mut recorder: Option<Recorder> = None;
+    core.handle(
+        CoreInput::KeyLayout(key_layout(platform.as_ref())),
+        &clock,
+        &mut Live {
+            platform: platform.as_ref(),
+            recorder: &mut recorder,
+            now: clock.now(),
+        },
+    );
     let mut frame = publish(
         core.engine(),
         &shared,
@@ -143,10 +156,16 @@ pub fn run_engine(
             )),
             Ok(Msg::Record(target)) => {
                 recorder = target.and_then(|path| start_recording(&path, &core, &current));
-                if recorder.is_none() {
-                    tracing::info!(target: "uca::app", "recording stopped");
+                match &mut recorder {
+                    // Compose characters depend on it, so a replay needs it first (13).
+                    Some(r) => r.record(clock.now(), Entry::KeyLayout(core.key_layout().clone())),
+                    None => tracing::info!(target: "uca::app", "recording stopped"),
                 }
                 None
+            }
+            Ok(Msg::KeyLayoutChanged) => {
+                let l = key_layout(platform.as_ref());
+                Some((CoreInput::KeyLayout(l.clone()), Entry::KeyLayout(l)))
             }
             Ok(Msg::Quit) | Err(RecvTimeoutError::Disconnected) => break,
             Err(RecvTimeoutError::Timeout) => Some((CoreInput::Tick, Entry::Tick)),
@@ -156,17 +175,28 @@ pub fn run_engine(
             if let Some(r) = &mut recorder {
                 r.record(now, entry);
             }
-            let rec = &mut recorder;
-            core.handle(input, &clock, &mut |p| {
-                let covered = platform.overlay_covered_at(p);
-                if let Some(r) = rec.as_mut() {
-                    r.record(now, Entry::Covered(covered));
-                }
-                covered
-            });
+            let mut q = Live {
+                platform: platform.as_ref(),
+                recorder: &mut recorder,
+                now,
+            };
+            core.handle(input, &clock, &mut q);
         }
         for intent in core.drain_intents() {
             match intent {
+                Intent::Control(Control::RefreshKeyLayout) => {
+                    let l = key_layout(platform.as_ref());
+                    let now = clock.now();
+                    if let Some(r) = &mut recorder {
+                        r.record(now, Entry::KeyLayout(l.clone()));
+                    }
+                    let mut q = Live {
+                        platform: platform.as_ref(),
+                        recorder: &mut recorder,
+                        now,
+                    };
+                    core.handle(CoreInput::KeyLayout(l), &clock, &mut q);
+                }
                 Intent::Control(c) => waker.control(c),
                 Intent::Virtual { board, item } => waker.virtual_item(board, item),
                 intent => {
@@ -189,6 +219,53 @@ pub fn run_engine(
     }
     // SAFETY-08 on exit: the executor releases everything when this sender drops.
     let _ = intents.send(Intent::ReleaseAll);
+}
+
+/// Asks the platform and records each answer while recording (11).
+struct Live<'a> {
+    platform: &'a dyn Platform,
+    recorder: &'a mut Option<Recorder>,
+    now: Instant,
+}
+
+impl Queries for Live<'_> {
+    fn covered(&mut self, p: PhysPoint) -> bool {
+        let covered = self.platform.overlay_covered_at(p);
+        if let Some(r) = self.recorder.as_mut() {
+            r.record(self.now, Entry::Covered(covered));
+        }
+        covered
+    }
+
+    fn caps_lock(&mut self) -> bool {
+        let on = self.platform.caps_lock();
+        if let Some(r) = self.recorder.as_mut() {
+            r.record(self.now, Entry::CapsLock(on));
+        }
+        on
+    }
+}
+
+/// What each typing key types under the foreground layout (13 "Layout").
+pub fn key_layout(platform: &dyn Platform) -> KeyLayout {
+    let label = |k: Key, shift: bool, caps_lock: bool| {
+        platform.key_label(k, Modifiers { shift, caps_lock })
+    };
+    let keys = Key::ALL
+        .iter()
+        .filter(|k| k.types_text())
+        .map(|&k| {
+            let chars = KeyChars {
+                plain: label(k, false, false),
+                shift: label(k, true, false),
+                caps: label(k, false, true),
+                shift_caps: label(k, true, true),
+            };
+            (k, chars)
+        })
+        .filter(|(_, c)| *c != KeyChars::default())
+        .collect();
+    KeyLayout { keys }
 }
 
 /// Opens `path` and starts a recorder whose lines a writer thread writes, so

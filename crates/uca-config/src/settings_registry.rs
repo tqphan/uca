@@ -22,11 +22,13 @@ pub enum Unit {
     Samples,
     /// A unitless filter parameter.
     Factor,
+    /// A count of text characters.
+    Characters,
 }
 
 impl Unit {
     pub fn is_integer(self) -> bool {
-        matches!(self, Unit::Millis | Unit::Samples)
+        matches!(self, Unit::Millis | Unit::Samples | Unit::Characters)
     }
 }
 
@@ -124,6 +126,7 @@ impl fmt::Display for Unit {
             Unit::PxPerSecond => "px/s",
             Unit::Samples => "samples",
             Unit::Factor => "factor",
+            Unit::Characters => "characters",
         })
     }
 }
@@ -151,7 +154,7 @@ const fn def(
 use SettingValue::{Number as N, Off};
 use Unit::*;
 
-/// The registry. Values are decided in 02 "M1 registry entries".
+/// The registry. Values are decided in 02 "M1 registry entries" and 13 "Profile settings".
 pub static SETTINGS: &[SettingDef] = &[
     def(
         "behavior.dwell_ms",
@@ -341,6 +344,42 @@ pub static SETTINGS: &[SettingDef] = &[
         600_000.0,
         Some(OffEncoding::Zero),
         "setting-notice-timeout-ms",
+    ),
+    def(
+        "voice.rate",
+        Factor,
+        N(1.0),
+        0.5,
+        2.0,
+        None,
+        "setting-voice-rate",
+    ),
+    def(
+        "voice.pitch",
+        Factor,
+        N(1.0),
+        0.5,
+        2.0,
+        None,
+        "setting-voice-pitch",
+    ),
+    def(
+        "voice.volume",
+        Ratio,
+        N(1.0),
+        0.0,
+        1.0,
+        None,
+        "setting-voice-volume",
+    ),
+    def(
+        "voice.max_chars",
+        Characters,
+        N(1_000.0),
+        1.0,
+        10_000.0,
+        None,
+        "setting-voice-max-chars",
     ),
 ];
 

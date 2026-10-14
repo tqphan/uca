@@ -44,6 +44,128 @@ pub struct Profile {
     #[serde(default, deserialize_with = "setting::notice_timeout_ms")]
     #[schemars(schema_with = "crate::setting::schema::notice_timeout_ms")]
     pub notice_timeout_ms: Option<SettingValue>,
+    /// Speech output (13).
+    #[serde(default)]
+    pub voice: Voice,
+}
+
+/// Speech output settings (13 "Profile settings").
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Voice {
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    /// `None`: the platform's built-in engine.
+    pub engine: Option<VoiceEngine>,
+    /// An engine voice id; `None`: the engine's default voice.
+    pub voice_id: Option<String>,
+    #[serde(default, deserialize_with = "setting::voice_rate")]
+    #[schemars(schema_with = "crate::setting::schema::voice_rate")]
+    pub rate: Option<SettingValue>,
+    #[serde(default, deserialize_with = "setting::voice_pitch")]
+    #[schemars(schema_with = "crate::setting::schema::voice_pitch")]
+    pub pitch: Option<SettingValue>,
+    #[serde(default, deserialize_with = "setting::voice_volume")]
+    #[schemars(schema_with = "crate::setting::schema::voice_volume")]
+    pub volume: Option<SettingValue>,
+    #[serde(default)]
+    pub speaker_device: AudioDevice,
+    /// Headphones for auditory-scanning cues; `None`: cues off.
+    pub cue_device: Option<AudioDevice>,
+    /// A different voice for cues; `None`: the speaking voice.
+    pub cue_voice_id: Option<String>,
+    #[serde(default, deserialize_with = "setting::voice_max_chars")]
+    #[schemars(schema_with = "crate::setting::schema::voice_max_chars")]
+    pub max_chars: Option<SettingValue>,
+}
+
+impl Default for Voice {
+    fn default() -> Self {
+        Voice {
+            enabled: true,
+            engine: None,
+            voice_id: None,
+            rate: None,
+            pitch: None,
+            volume: None,
+            speaker_device: AudioDevice::Default,
+            cue_device: None,
+            cue_voice_id: None,
+            max_chars: None,
+        }
+    }
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// `windows`, `macos` or `plugin:<id>`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VoiceEngine {
+    Windows,
+    Macos,
+    Plugin(String),
+}
+
+impl<'de> Deserialize<'de> for VoiceEngine {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        match s.as_str() {
+            "windows" => Ok(VoiceEngine::Windows),
+            "macos" => Ok(VoiceEngine::Macos),
+            _ => match s.strip_prefix("plugin:") {
+                Some(id) if !id.is_empty() => Ok(VoiceEngine::Plugin(id.to_owned())),
+                _ => Err(de::Error::custom(format!(
+                    "unknown voice engine {s:?}: expected windows, macos or plugin:<id>"
+                ))),
+            },
+        }
+    }
+}
+
+impl schemars::JsonSchema for VoiceEngine {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "VoiceEngine".into()
+    }
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "description": "windows, macos or plugin:<id>.",
+            "type": "string",
+            "pattern": "^(windows|macos|plugin:.+)$"
+        })
+    }
+}
+
+/// `default` (the system default output) or a device name.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum AudioDevice {
+    #[default]
+    Default,
+    Named(String),
+}
+
+impl<'de> Deserialize<'de> for AudioDevice {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        Ok(match s.as_str() {
+            "default" => AudioDevice::Default,
+            _ => AudioDevice::Named(s),
+        })
+    }
+}
+
+impl schemars::JsonSchema for AudioDevice {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AudioDevice".into()
+    }
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "description": "default (the system default output) or a device name.",
+            "type": "string",
+            "minLength": 1
+        })
+    }
 }
 
 /// Method ids from 08.

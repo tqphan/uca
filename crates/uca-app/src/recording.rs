@@ -13,10 +13,10 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use uca_config::store::LoadedConfig;
-use uca_engine::{EngineControl, Intent, VirtualBoard};
-use uca_types::{Clock, FakeClock, MonitorInfo, Signal};
+use uca_engine::{EngineControl, Intent, KeyLayout, VirtualBoard};
+use uca_types::{Clock, FakeClock, MonitorInfo, PhysPoint, Signal};
 
-use crate::engine_core::{CoreInput, EngineCore};
+use crate::engine_core::{CoreInput, EngineCore, Queries};
 
 /// The `.ucarec` format version.
 pub const FORMAT: u32 = 1;
@@ -51,6 +51,10 @@ pub enum Entry {
     Tick,
     /// The platform's answer to "is this point covered?", in order.
     Covered(bool),
+    /// The keyboard layout's characters for compose (13); not typed text.
+    KeyLayout(KeyLayout),
+    /// The platform's answer to "is Caps Lock on?" while composing (13).
+    CapsLock(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -178,6 +182,7 @@ pub fn replay(text: &str, config: Arc<LoadedConfig>) -> Result<Replayed, String>
             Entry::Control(c) => CoreInput::Control(*c),
             Entry::Virtual { id, board } => CoreInput::Virtual(id.clone(), board.clone()),
             Entry::Tick => CoreInput::Tick,
+            Entry::KeyLayout(l) => CoreInput::KeyLayout(l.clone()),
             Entry::Redacted => {
                 redacted += 1;
                 continue;
@@ -189,22 +194,22 @@ pub fn replay(text: &str, config: Arc<LoadedConfig>) -> Result<Replayed, String>
                 ));
                 continue;
             }
-            Entry::Covered(_) => {
+            Entry::Covered(_) | Entry::CapsLock(_) => {
                 out.warnings.push(format!(
-                    "an unexpected covered answer at {} ms",
+                    "an unexpected platform answer at {} ms",
                     line.t_us / 1000
                 ));
                 continue;
             }
         };
-        // The covered answers recorded while this message was handled.
-        let mut answers: VecDeque<bool> = VecDeque::new();
-        while let Some(Line {
-            entry: Entry::Covered(c),
-            ..
-        }) = parsed.get(i)
-        {
-            answers.push_back(*c);
+        // The platform's answers recorded while this message was handled.
+        let mut answers = Answers::default();
+        while let Some(line) = parsed.get(i) {
+            match line.entry {
+                Entry::Covered(c) => answers.covered.push_back(c),
+                Entry::CapsLock(c) => answers.caps.push_back(c),
+                _ => break,
+            }
             i += 1;
         }
         let target = clock.start() + Duration::from_micros(line.t_us.max(0).unsigned_abs());
@@ -212,16 +217,10 @@ pub fn replay(text: &str, config: Arc<LoadedConfig>) -> Result<Replayed, String>
         if target > now {
             clock.advance(target - now);
         }
-        let mut missing = false;
-        core.handle(input, &clock, &mut |_| {
-            answers.pop_front().unwrap_or_else(|| {
-                missing = true;
-                false
-            })
-        });
-        if missing {
+        core.handle(input, &clock, &mut answers);
+        if answers.missing {
             out.warnings.push(format!(
-                "a covered answer was missing at {} ms",
+                "a platform answer was missing at {} ms",
                 line.t_us / 1000
             ));
         }
@@ -239,6 +238,30 @@ pub fn replay(text: &str, config: Arc<LoadedConfig>) -> Result<Replayed, String>
     Ok(out)
 }
 
+/// Recorded platform answers for one message, in order.
+#[derive(Default)]
+struct Answers {
+    covered: VecDeque<bool>,
+    caps: VecDeque<bool>,
+    missing: bool,
+}
+
+impl Queries for Answers {
+    fn covered(&mut self, _: PhysPoint) -> bool {
+        self.covered.pop_front().unwrap_or_else(|| {
+            self.missing = true;
+            false
+        })
+    }
+
+    fn caps_lock(&mut self) -> bool {
+        self.caps.pop_front().unwrap_or_else(|| {
+            self.missing = true;
+            false
+        })
+    }
+}
+
 /// One engine decision, for the replay output.
 pub fn describe(i: &Intent) -> String {
     match i {
@@ -250,6 +273,8 @@ pub fn describe(i: &Intent) -> String {
         Intent::ReleaseAll => "release-all".into(),
         Intent::Control(c) => format!("control {c:?}"),
         Intent::Virtual { board, item } => format!("virtual {board}/{item}"),
+        // Its Debug shows lengths only (11).
+        Intent::Speech(s) => format!("speech {s:?}"),
     }
 }
 
@@ -296,6 +321,27 @@ mod tests {
         core: EngineCore,
         rec: Recorder,
         intents: Vec<String>,
+        caps: bool,
+    }
+
+    /// Answers "not covered" and the given Caps Lock state, and records
+    /// them, as the live thread would.
+    struct Recording<'a> {
+        rec: &'a mut Recorder,
+        now: Instant,
+        caps: bool,
+    }
+
+    impl Queries for Recording<'_> {
+        fn covered(&mut self, _: PhysPoint) -> bool {
+            self.rec.record(self.now, Entry::Covered(false));
+            false
+        }
+
+        fn caps_lock(&mut self) -> bool {
+            self.rec.record(self.now, Entry::CapsLock(self.caps));
+            self.caps
+        }
     }
 
     impl Live {
@@ -319,14 +365,16 @@ mod tests {
             let entry = match &input {
                 CoreInput::Signal(s) => Entry::Signal(s.clone()),
                 CoreInput::Tick => Entry::Tick,
+                CoreInput::KeyLayout(l) => Entry::KeyLayout(l.clone()),
                 other => panic!("not used here: {other:?}"),
             };
             self.rec.record(now, entry);
-            let rec = &mut self.rec;
-            self.core.handle(input, &self.clock, &mut |_| {
-                rec.record(now, Entry::Covered(false));
-                false
-            });
+            let mut q = Recording {
+                rec: &mut self.rec,
+                now,
+                caps: self.caps,
+            };
+            self.core.handle(input, &self.clock, &mut q);
             let ms = (now - self.clock.start()).as_millis();
             for i in self.core.drain_intents() {
                 self.intents.push(format!("{ms} {}", describe(&i)));
@@ -372,6 +420,7 @@ mod tests {
             clock,
             rec,
             intents: Vec::new(),
+            caps: false,
         };
         // Find a board item to dwell on: the first visible item's centre.
         let snap = live.core.engine().snapshot(&live.clock);
@@ -394,6 +443,105 @@ mod tests {
         );
 
         let text = lines.lock().unwrap().join("\n");
+        let replayed = replay(&text, config).expect("replay");
+        assert_eq!(replayed.output, live.intents);
+        assert!(replayed.warnings.is_empty(), "{:?}", replayed.warnings);
+    }
+
+    fn compose_config() -> Arc<LoadedConfig> {
+        use uca_config::store::{ConfigStore, ConfigUpdate, ProfilePaths, Sources};
+        let p = ProfilePaths {
+            config_dir: std::path::PathBuf::from("cfg"),
+            profile_id: "t".into(),
+        };
+        let profile = r#"schema: uca/1
+profile:
+  name: t
+  start_board: main
+  safety: { escape: "key:F12 hold(3000)" }
+  bindings:
+    - { when: "key:F13", do: { speech.compose.on: } }
+    - { when: "key:F14", do: { key.tap: q } }
+    - { when: "key:F15", do: { speech.speak_buffer: } }
+"#;
+        let board = r#"schema: uca/1
+board: { id: main }
+layers: [ { id: l, layout: { type: row }, items: [ { id: b, action: { board.back: } } ] } ]
+"#;
+        let mut s = Sources::default();
+        s.set(&p, &p.profile_file(), Some(profile.into()));
+        s.set(&p, &p.boards_dir().join("main.yaml"), Some(board.into()));
+        match ConfigStore::from_sources(p, s).1 {
+            ConfigUpdate::Applied(c) => c,
+            ConfigUpdate::Rejected(i) => panic!("{i:#?}"),
+        }
+    }
+
+    /// 13 + 11: compose depends on the key layout and Caps Lock, which the
+    /// recording carries, so a replay speaks the same text.
+    #[test]
+    fn compose_replays_with_layout_and_caps_lock() {
+        let config = compose_config();
+        let lines = Arc::new(Mutex::new(Vec::<String>::new()));
+        let sink = lines.clone();
+        let clock = FakeClock::new();
+        let header = Header {
+            format: FORMAT,
+            uca_version: "test".into(),
+            started: String::new(),
+            profile_id: "t".into(),
+            config_hash: config_hash(&config),
+            monitors: vec![monitor()],
+        };
+        let rec = Recorder::start(
+            clock.start(),
+            &header,
+            Box::new(move |l| sink.lock().unwrap().push(l)),
+        );
+        let mut live = Live {
+            core: EngineCore::new(config.clone(), vec![monitor()]),
+            clock,
+            rec,
+            intents: Vec::new(),
+            caps: true,
+        };
+        let mut layout = KeyLayout::default();
+        layout.keys.insert(
+            uca_types::Key::KeyQ,
+            uca_engine::KeyChars {
+                plain: Some("q".into()),
+                caps: Some("Q".into()),
+                ..Default::default()
+            },
+        );
+        live.step(CoreInput::KeyLayout(layout));
+        for (ms, key) in [(10, "F13"), (500, "F14"), (1000, "F14"), (1500, "F15")] {
+            live.run_to(ms);
+            for phase in [uca_types::Phase::Down, uca_types::Phase::Up] {
+                let t = live.clock.now();
+                live.step(CoreInput::Signal(Signal::Trigger(
+                    uca_types::TriggerEvent {
+                        t,
+                        source: SourceId("keyboard".into()),
+                        trigger: uca_types::TriggerId::parse(&format!("key:{key}")).unwrap(),
+                        phase,
+                    },
+                )));
+            }
+        }
+        live.run_to(2000);
+        assert!(
+            live.intents
+                .iter()
+                .any(|i| i.contains("speech Say(<2 chars>)")),
+            "{:?}",
+            live.intents
+        );
+        let text = lines.lock().unwrap().join(
+            "
+",
+        );
+        assert!(text.contains(r#""kind":"caps-lock","data":true"#), "{text}");
         let replayed = replay(&text, config).expect("replay");
         assert_eq!(replayed.output, live.intents);
         assert!(replayed.warnings.is_empty(), "{:?}", replayed.warnings);

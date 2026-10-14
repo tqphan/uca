@@ -24,3 +24,7 @@ setting-presence-resume-delay-ms = After you are detected again, how long to wai
 setting-behavior-enter-delay-ms = How long the pointer must be inside a game zone before it acts, so a passing glance does nothing.
 setting-behavior-active-flash-ms = How long a selected item flashes, so you can see it was chosen. 0 turns the flash off.
 setting-notice-timeout-ms = How long a message about an export stays on screen. 0 keeps it until you dismiss it.
+setting-voice-rate = How fast the voice speaks. 1 is the voice's normal speed.
+setting-voice-pitch = How high or low the voice sounds. 1 is the voice's normal pitch.
+setting-voice-volume = How loud the voice is, as a share of the speaker's volume (0 to 1).
+setting-voice-max-chars = The longest message that will be spoken, in characters. Longer messages are not spoken and a notice says why.

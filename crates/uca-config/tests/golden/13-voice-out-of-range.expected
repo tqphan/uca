@@ -1,0 +1,1 @@
+parse error: profile.yaml:7:5 profile.voice: voice.rate: 2.5 is out of range 0.5–2

@@ -34,6 +34,7 @@ pub trait Platform: Send + Sync {
     fn clipboard_chord(&self, op: ClipboardOp) -> Vec<Key>;
     fn ui_locale(&self) -> Option<String>;              // decided: the OS UI locale as BCP-47, default for `ui_language` (17)  // decided: keys for copy/paste/cut (e.g. ctrl+c; macOS meta+c), pressed by the executor on the chosen output
     fn key_label(&self, key: Key, mods: Modifiers) -> Option<String>; // character this key produces under the current OS keyboard layout (`17`)
+    fn caps_lock(&self) -> bool;                        // decided (M2): the OS Caps Lock state; speech compose follows it (`13`)
     // also emits PlatformEvent::KeyboardLayoutChanged
 
     // Accessibility targets (switch pointer "targets" method, see 04)
@@ -77,7 +78,8 @@ Decided details:
   An unknown name is an error with a "Did you mean" suggestion.
 - **Generic modifier aliases** mean the left key everywhere. `shift` is `ShiftLeft` both for output and as a trigger: `key:shift` matches only ShiftLeft.
 
-**Trait growth (decided):** like config keys and actions, the trait gains methods with the feature that needs them. M1 has output, hooks, monitors, events, overlay, system and `clipboard_chord`. `ui_targets` / `ui_invoke` arrive in M3, `key_label` in M4 and `request_permissions` with macOS.
+**Trait growth (decided):** like config keys and actions, the trait gains methods with the feature that needs them. M1 has output, hooks, monitors, events, overlay, system and `clipboard_chord`. `ui_targets` / `ui_invoke` arrive in M3, `key_label` in M2 (moved from M4 for speech compose, decided; `label: auto` on board items stays in M4) and `request_permissions` with macOS.
+- **`key_label` (decided):** the character the key types under the **foreground window's** keyboard layout (Windows: `ToUnicodeEx` with `GetKeyboardLayout` of the foreground thread), with `Modifiers { shift, caps_lock }`; AltGr is not covered. `None` for keys that type nothing and for dead keys (the dead-key state is cleared). `PlatformEvent::KeyboardLayoutChanged` is sent when the foreground layout differs from the last one seen, checked on start and on each foreground change; there is no polling, so a layout switch inside one app is seen at the next foreground change or `speech.compose.on`.
 
 **Overlay windows (decided):** the overlay methods take a `raw-window-handle` `RawWindowHandle`. The config dir (`02`) comes from `Platform::config_dir()` and the log directory (`11`) from `Platform::log_dir()` (decided), so OS paths stay in platform crates. `Platform::documents_dir()` and `Platform::os_version()` (decided) serve the diagnostics bundle (`11`). `OverlayOptions.display_only` (decided) marks windows that only draw (the debug strip and overlay, `11`): same topmost/no-focus flags, but they never count as a board for `overlay_covered_at`.
 

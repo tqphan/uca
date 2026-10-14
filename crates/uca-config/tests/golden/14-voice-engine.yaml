@@ -1,0 +1,11 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+  voice:
+    engine: "plugin:"
+---
+schema: uca/1
+board: { id: main }
+layers: [ { id: l, layout: { type: row }, items: [ { id: b, action: { speech.stop: } } ] } ]

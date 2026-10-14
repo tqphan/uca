@@ -69,6 +69,10 @@ setting_fns! {
     resume_delay_ms => "presence.resume_delay_ms",
     active_flash_ms => "behavior.active_flash_ms",
     notice_timeout_ms => "profile.notice_timeout_ms",
+    voice_rate => "voice.rate",
+    voice_pitch => "voice.pitch",
+    voice_volume => "voice.volume",
+    voice_max_chars => "voice.max_chars",
 }
 
 #[cfg(test)]

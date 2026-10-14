@@ -461,7 +461,8 @@ fn start_watcher(
     Some(watcher)
 }
 
-/// Monitor changes go to the engine (layout) and the UI (window placement).
+/// Monitor changes go to the engine (layout) and the UI (window placement);
+/// keyboard layout changes go to the engine (13).
 fn forward_platform_events(
     platform: &dyn Platform,
     engine: SyncSender<Msg>,
@@ -473,11 +474,19 @@ fn forward_platform_events(
         .name("platform-events".into())
         .spawn(move || {
             for event in rx {
-                if let PlatformEvent::MonitorsChanged(m) = event {
-                    if engine.send(Msg::Monitors(m.clone())).is_err() {
-                        return;
+                match event {
+                    PlatformEvent::MonitorsChanged(m) => {
+                        if engine.send(Msg::Monitors(m.clone())).is_err() {
+                            return;
+                        }
+                        let _ = proxy.send_event(UserEvent::Monitors(m));
                     }
-                    let _ = proxy.send_event(UserEvent::Monitors(m));
+                    PlatformEvent::KeyboardLayoutChanged => {
+                        if engine.send(Msg::KeyLayoutChanged).is_err() {
+                            return;
+                        }
+                    }
+                    PlatformEvent::ForegroundAppChanged(_) => {}
                 }
             }
         });

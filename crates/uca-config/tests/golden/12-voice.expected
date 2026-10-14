@@ -1,0 +1,1 @@
+boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)

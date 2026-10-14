@@ -805,6 +805,233 @@
           "required": [
             "debug.export"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.say": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.say"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.speak_buffer": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.speak_buffer"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.buffer.append": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.buffer.append"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.buffer.backspace": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.buffer.backspace"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.buffer.clear": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.buffer.clear"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.buffer.word_back": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.buffer.word_back"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.compose.on": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.compose.on"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.compose.off": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.compose.off"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.compose.toggle": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.compose.toggle"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.repeat": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.repeat"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.stop": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.stop"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "speech.voice": {
+              "description": "An engine voice id.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "speech.voice"
+          ]
         }
       ]
     },
@@ -1036,6 +1263,11 @@
           "const": "work"
         }
       ]
+    },
+    "AudioDevice": {
+      "description": "default (the system default output) or a device name.",
+      "type": "string",
+      "minLength": 1
     },
     "Behavior": {
       "description": "Behavior (02). Numbers are checked against the settings registry.",
@@ -2674,6 +2906,10 @@
         },
         "start_board": {
           "$ref": "#/$defs/Id"
+        },
+        "voice": {
+          "description": "Speech output (13).",
+          "$ref": "#/$defs/Voice"
         }
       },
       "additionalProperties": false,
@@ -2997,6 +3233,85 @@
         }
       },
       "additionalProperties": false
+    },
+    "Voice": {
+      "description": "Speech output settings (13 \"Profile settings\").",
+      "type": "object",
+      "properties": {
+        "cue_device": {
+          "description": "Headphones for auditory-scanning cues; `None`: cues off.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AudioDevice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cue_voice_id": {
+          "description": "A different voice for cues; `None`: the speaking voice.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "engine": {
+          "description": "`None`: the platform's built-in engine.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VoiceEngine"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_chars": {
+          "description": "Setting `voice.max_chars` (characters)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 1.0
+        },
+        "pitch": {
+          "description": "Setting `voice.pitch` (factor)",
+          "type": "number",
+          "maximum": 2.0,
+          "minimum": 0.5
+        },
+        "rate": {
+          "description": "Setting `voice.rate` (factor)",
+          "type": "number",
+          "maximum": 2.0,
+          "minimum": 0.5
+        },
+        "speaker_device": {
+          "$ref": "#/$defs/AudioDevice"
+        },
+        "voice_id": {
+          "description": "An engine voice id; `None`: the engine's default voice.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "volume": {
+          "description": "Setting `voice.volume` (ratio)",
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "VoiceEngine": {
+      "description": "windows, macos or plugin:<id>.",
+      "type": "string",
+      "pattern": "^(windows|macos|plugin:.+)$"
     }
   }
 }

@@ -3,12 +3,12 @@
 
 //! The Windows `Platform` implementation.
 
-use crate::{events, hooks, inject, monitors, overlay, system};
+use crate::{events, hooks, inject, layout, monitors, overlay, system};
 use std::sync::mpsc::Sender;
 use std::sync::Mutex;
 
 use uca_platform::{
-    Capabilities, ClipboardOp, Edge, HookCallback, HookHandle, Key, KeyDir, MonitorInfo,
+    Capabilities, ClipboardOp, Edge, HookCallback, HookHandle, Key, KeyDir, Modifiers, MonitorInfo,
     MouseButton, OverlayOptions, PhysPoint, Platform, PlatformEvent, RawWindowHandle, RectPhys,
     Result, WindowQuery,
 };
@@ -181,6 +181,14 @@ impl Platform for WindowsPlatform {
 
     fn os_version(&self) -> Option<String> {
         system::os_version()
+    }
+
+    fn key_label(&self, key: Key, mods: Modifiers) -> Option<String> {
+        layout::key_label(key, mods)
+    }
+
+    fn caps_lock(&self) -> bool {
+        layout::caps_lock()
     }
 }
 

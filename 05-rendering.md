@@ -71,6 +71,13 @@ Platform emits `MonitorsChanged` on hot-plug, resolution or scale change → ren
     - **Diagnostics (decided):** a "Diagnostics" heading; "Debug session" with duration buttons "15 min" / "60 min" / "4 hours" (60 marked by default), level buttons "Debug" / "Trace" (Debug by default), a toggle "Sensitive logging (records typed text)" (off by default), and one button "Start debug session" / "Stop debug session" (`11`). Like every widget, each is a virtual-board item.
     - **Start board:** pressing a board button only sets `profile.start_board` in `profile.yaml` (targeted save, `02`). It takes effect the next time UCA starts; the board on screen does not change. If the save fails, a line under the buttons says why (the validator's own message where there is one), the file is left untouched, and the mark stays on the old board.
     - **Wording (en-US):** window title "UCA Settings"; "Profile: { $name }"; "Start board", with the hint "Used the next time UCA starts."; "Pause" / "Resume" (as in the tray); "Close"; the error line "Could not save the start board: { $reason }", where the reason is the validator's message, "The file could not be written: { $message }" (the OS error), or "start_board in profile.yaml is written in a form that cannot be changed safely. Change it in the file." (an alias or block scalar); the tray item "Settings".
+    - **Voice (M2, decided, `13`):** a "Voice" heading with rows:
+        - "Speaker": one button per output device, starting with "System default"; under it the hint "Speech is not an emergency alert. Do not rely on it as the only way to get help."
+        - "Cue device (for scanning cues)": one button per output device, starting with "Off".
+        - "Voice": one button per installed voice, filtered to the profile's `language` when it is set (all voices otherwise).
+        - "Speed", "Pitch", "Volume": the value between "−" and "+" buttons (≥ 48 logical px), step 0.1, clamped to the registry range.
+        - "Test": speaks "This is my voice." on the speaker and the cue device.
+        - The current choice is marked. A change applies at once and is saved to `profile.yaml` with a targeted save (`02`), which adds keys missing from the file (such as a missing `voice:` section) and keeps every other byte. A failed save shows "Could not save the voice setting: { $reason }" under the section, and the file is left untouched.
     - **Image:** a 32 × 32 mark drawn in code until a designed logo exists: a rounded blue (#3b82f6) square with a white “U”.
 
 ## Frame scheduling

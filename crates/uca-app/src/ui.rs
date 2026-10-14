@@ -62,6 +62,8 @@ pub enum UserEvent {
     App(uca_config::action::Action),
     /// `app.yaml` → `debug.area` changed (11).
     DebugArea(uca_config::board::Area),
+    /// A speech notice (13).
+    Speech(crate::notices::SpeechNotice),
     /// A diagnostics export finished: the bundle's path, or why it failed.
     /// Exports started from Settings show their result there only (11).
     Exported {
@@ -89,6 +91,10 @@ impl UiWaker for ProxyWaker {
 
     fn virtual_item(&self, board: String, item: String) {
         let _ = self.0.send_event(UserEvent::Virtual { board, item });
+    }
+
+    fn speech_notice(&self, n: crate::notices::SpeechNotice) {
+        let _ = self.0.send_event(UserEvent::Speech(n));
     }
 }
 
@@ -854,6 +860,14 @@ impl ApplicationHandler<UserEvent> for App {
             }
             // Handled on the engine thread.
             UserEvent::Control(Control::RefreshKeyLayout) => {}
+            UserEvent::Speech(n) => {
+                let notice = Notice::Speech(n);
+                // The same notice is not shown twice at once (13).
+                if !self.notices.contains(&notice) {
+                    tracing::info!(target: "uca::app", notice = ?n, "speech notice");
+                    self.notices.push_back(notice);
+                }
+            }
             UserEvent::Crashed => self.quit(event_loop),
             UserEvent::App(action) => self.on_app_action(action),
             UserEvent::Exported {

@@ -4247,6 +4247,7 @@ dependencies = [
  "uca-render",
  "uca-types",
  "uca-ui",
+ "uca-voice",
  "winit",
 ]
 
@@ -4368,6 +4369,17 @@ dependencies = [
  "uca-i18n",
  "uca-render",
  "uca-types",
+]
+
+[[package]]
+name = "uca-voice"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "tracing",
+ "uca-config",
+ "uca-log",
+ "windows",
 ]
 
 [[package]]

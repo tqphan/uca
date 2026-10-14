@@ -138,7 +138,7 @@ impl schemars::JsonSchema for VoiceEngine {
 }
 
 /// `default` (the system default output) or a device name.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub enum AudioDevice {
     #[default]
     Default,

@@ -110,6 +110,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     let shared = Arc::new(Mutex::new(Shared::default()));
     let consume = threads::new_consume_set();
     let monitors = platform.monitors();
+    let voice = start_voice(&config, proxy.clone());
 
     let mut threads = Vec::new();
     let exec_platform = platform.clone();
@@ -143,6 +144,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     );
     let waker = ProxyWaker(proxy.clone());
     let engine_platform = platform.clone();
+    let engine_voice = voice.clone();
     match std::thread::Builder::new()
         .name("engine".into())
         .spawn(move || {
@@ -153,6 +155,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
                 shared: engine_shared,
                 consume: engine_consume,
                 senders: engine_senders,
+                voice: engine_voice,
             };
             threads::run_engine(config, engine_monitors, links, waker)
         }) {
@@ -493,6 +496,39 @@ fn forward_platform_events(
     if let Err(e) = spawned {
         tracing::warn!(target: "uca::app", error = %e, "monitor changes will not be followed");
     }
+}
+
+/// Starts the voice worker (13); its events become notices.
+fn start_voice(config: &LoadedConfig, proxy: EventLoopProxy<UserEvent>) -> Arc<uca_voice::Voice> {
+    use crate::notices::SpeechNotice;
+    use uca_voice::VoiceEvent;
+    let settings = &config.profile.profile.voice;
+    let (engine, output) = uca_voice::system_factories(settings.engine.as_ref());
+    let (tx, rx) = mpsc::channel();
+    let voice = uca_voice::Voice::spawn(
+        engine,
+        output,
+        uca_voice::VoiceSettings::from_profile(settings),
+        tx,
+    );
+    let spawned = std::thread::Builder::new()
+        .name("voice-events".into())
+        .spawn(move || {
+            for event in rx {
+                let notice = match event {
+                    VoiceEvent::SpeakerFallback => SpeechNotice::SpeakerFallback,
+                    VoiceEvent::VoiceMissing => SpeechNotice::VoiceMissing,
+                    VoiceEvent::Failed => SpeechNotice::Failed,
+                };
+                if proxy.send_event(UserEvent::Speech(notice)).is_err() {
+                    return;
+                }
+            }
+        });
+    if let Err(e) = spawned {
+        tracing::error!(target: "uca::app", error = %e, "speech notices will not be shown");
+    }
+    Arc::new(voice)
 }
 
 /// Safe Board "Restart" (09): a new instance with the same arguments.

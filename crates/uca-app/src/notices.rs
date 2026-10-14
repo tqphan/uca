@@ -22,6 +22,18 @@ pub enum Notice {
     SafeProfile { newest: Option<String> },
     /// A diagnostics export finished.
     Exported(Result<PathBuf, String>),
+    /// Speech output (13).
+    Speech(SpeechNotice),
+}
+
+/// The speech notices (13, decided wording).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpeechNotice {
+    TurnedOff,
+    TooLong { max: u32 },
+    SpeakerFallback,
+    VoiceMissing,
+    Failed,
 }
 
 impl Notice {
@@ -35,6 +47,13 @@ impl Notice {
             Notice::Exported(Err(reason)) => {
                 t!("notice-export-failed", reason = reason.clone())
             }
+            Notice::Speech(SpeechNotice::TurnedOff) => t!("notice-speech-off"),
+            Notice::Speech(SpeechNotice::TooLong { max }) => {
+                t!("notice-speech-too-long", max = max.to_string())
+            }
+            Notice::Speech(SpeechNotice::SpeakerFallback) => t!("notice-speech-fallback"),
+            Notice::Speech(SpeechNotice::VoiceMissing) => t!("notice-speech-voice-missing"),
+            Notice::Speech(SpeechNotice::Failed) => t!("notice-speech-failed"),
         }
     }
 
@@ -44,13 +63,13 @@ impl Notice {
             Notice::Crash { .. } | Notice::SafeProfile { .. } => {
                 vec![(EXPORT, t!("notice-export")), dismiss]
             }
-            Notice::Exported(_) => vec![dismiss],
+            Notice::Exported(_) | Notice::Speech(_) => vec![dismiss],
         }
     }
 
-    /// Only the export result times out (11, decided).
+    /// The export result (11) and speech notices (13) time out (decided).
     pub fn times_out(&self) -> bool {
-        matches!(self, Notice::Exported(_))
+        matches!(self, Notice::Exported(_) | Notice::Speech(_))
     }
 
     /// The crash file this notice answers for, to mark seen once it is used.
@@ -58,7 +77,7 @@ impl Notice {
         match self {
             Notice::Crash { newest } => Some(newest),
             Notice::SafeProfile { newest } => newest.as_deref(),
-            Notice::Exported(_) => None,
+            Notice::Exported(_) | Notice::Speech(_) => None,
         }
     }
 }

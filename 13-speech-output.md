@@ -118,10 +118,12 @@ voice:
 
 - **Registry entries (decided):** `voice.rate` 1.0 (0.5–2.0), `voice.pitch` 1.0 (0.5–2.0), `voice.volume` 1.0 (0.0–1.0, a fraction of the device volume, no boost), `voice.max_chars` 1 000 (1–10 000).
 - **Turned off (decided):** with `voice.enabled: false`, `speech.say` and `speech.speak_buffer` speak nothing and show the notice "Speech is turned off."; the buffer is kept, not cleared.
-- **Setup screen (decided):** a "Voice" section in the Settings window (a scannable virtual board, `05`): speaker device, cue device, voice, rate, pitch, volume, and a "Test" button that speaks "This is my voice." on each chosen device.
+- **Setup screen (decided):** a "Voice" section in the Settings window (a scannable virtual board, `05`): speaker device, cue device, voice, rate, pitch, volume, and a "Test" button that speaks "This is my voice." on each chosen device. Layout, controls, saving and wording are in `05` "Settings window".
 - **Notices (decided, en-US):**
     - device fallback: "Speaker not found. Speaking through the default output instead."
     - over `max_chars`: "This message is too long to speak (limit: { $max } characters)."
+    - missing voice (decided): "Your chosen voice is not installed. Using the default voice." When `voice_id` (or a `speech.voice` id) is not installed, UCA speaks with the default voice and shows this once per profile load.
+    - All speech notices time out after `profile.notice_timeout_ms`, like the export result (decided), and the same notice is not shown twice at once.
     - failure: "Speech is not working." The full-screen `message.show` on failure (`16`) is added with the message bar item; the text then becomes "Speech is not working. Your message is shown on screen."
 - **`keep_history` (decided):** deferred. History is in memory only until it is added together with the automatic backups (`16`).
 

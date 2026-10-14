@@ -12,12 +12,16 @@ use uca_app::engine_core::{CoreInput, EngineCore, Queries};
 use uca_app::recording::{config_hash, Entry, Header, Recorder, FORMAT};
 use uca_config::store::{ConfigUpdate, LoadedConfig};
 use uca_engine::{
-    Control, Engine, EngineControl, EngineSnapshot, Intent, KeyChars, KeyLayout, VirtualBoard,
+    Control, Engine, EngineControl, EngineSnapshot, Intent, KeyChars, KeyLayout, SpeechIntent,
+    VirtualBoard,
 };
 use uca_input::{SignalSender, SourceStats, StatsCollector};
 use uca_platform::sources::ConsumeSet;
 use uca_platform::{Modifiers, Platform};
 use uca_types::{Clock, Key, MonitorInfo, PhysPoint, Signal, SourceId, SystemClock};
+use uca_voice::{Voice, VoiceSettings};
+
+use crate::notices::SpeechNotice;
 
 /// Everything that reaches the engine thread (01: one channel).
 #[derive(Debug)]
@@ -59,6 +63,8 @@ pub trait UiWaker: Send + 'static {
     fn control(&self, c: Control);
     /// A virtual board item was activated (05 "Settings window").
     fn virtual_item(&self, board: String, item: String);
+    /// Nothing was spoken, or speech fell back (13).
+    fn speech_notice(&self, n: SpeechNotice);
 }
 
 /// What the engine thread talks to.
@@ -70,6 +76,8 @@ pub struct EngineLinks {
     pub consume: ConsumeSet,
     /// Each source's sender, to read its dropped samples (01, 11).
     pub senders: Vec<(SourceId, SignalSender)>,
+    /// The voice worker (13).
+    pub voice: Arc<Voice>,
 }
 
 /// The engine loop (01): signals, config, controls and timers in one place.
@@ -86,6 +94,7 @@ pub fn run_engine(
         shared,
         consume,
         senders,
+        voice,
     } = links;
     let clock = SystemClock;
     let mut current = config.clone();
@@ -134,6 +143,7 @@ pub fn run_engine(
             }
             Ok(Msg::Config(ConfigUpdate::Applied(c))) => {
                 set_consume(&consume, &c);
+                voice.set_settings(VoiceSettings::from_profile(&c.profile.profile.voice));
                 current = c.clone();
                 new_config = Some(c.clone());
                 let hash = if recorder.is_some() {
@@ -199,6 +209,15 @@ pub fn run_engine(
                 }
                 Intent::Control(c) => waker.control(c),
                 Intent::Virtual { board, item } => waker.virtual_item(board, item),
+                Intent::Speech(s) => match s {
+                    SpeechIntent::Say(text) => voice.say(&text),
+                    SpeechIntent::Stop => voice.stop(),
+                    SpeechIntent::Voice(id) => voice.set_voice(&id),
+                    SpeechIntent::TurnedOff => waker.speech_notice(SpeechNotice::TurnedOff),
+                    SpeechIntent::TooLong { max } => {
+                        waker.speech_notice(SpeechNotice::TooLong { max })
+                    }
+                },
                 intent => {
                     if intents.send(intent).is_err() {
                         return;

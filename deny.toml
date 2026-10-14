@@ -30,11 +30,14 @@ allow = [
     "BSL-1.0",
     # target-lexicon, build helper of tray-icon's Linux GTK bindings, decided in 18.
     "Apache-2.0 WITH LLVM-exception",
+    # augur, the prediction engine, decided in 16 and 18.
+    "GPL-2.0-or-later",
 ]
 
-# Dependencies come only from crates.io: no git dependencies, no other registries.
+# Dependencies come only from crates.io, plus one git exception: augur, the
+# prediction engine, pinned to a rev (16, 18). No other registries.
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+allow-git = ["https://github.com/tqphan/augur"]

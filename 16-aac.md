@@ -46,14 +46,25 @@ Vocabulary is made of ordinary boards (`02`) whose items use `message.*` actions
 ## Word prediction (built in)
 
 **Decision:** word prediction is built into UCA, not plugin-only. Crate `uca-predict`.
+- **Prediction engine (decided): augur** (`https://github.com/tqphan/augur`, GPL-2.0-or-later). It is a git dependency pinned to one commit (`rev`), so `deny.toml` allows exactly that repository (`18`). `uca-predict` wraps `augur::Engine`; no other UCA crate depends on augur. Moving to a newer augur means bumping the `rev`.
 - **Base word list (decided): wordfreq.** Single-word frequencies from the wordfreq project's data. That data is CC BY-SA 4.0, covers 44 languages, and blends subtitles, Wikipedia, news, books, web and social media text.
     - The data is a frozen snapshot (usage up to about 2021) and won't be updated upstream. That is acceptable, because common words change slowly and the user's own learning adds the rest.
     - Attribution: wordfreq's README lists sources with their own attribution terms, such as Google Books Ngrams and SUBTLEX. Copy those attributions into each language pack's prediction licence file and into the third-party notices.
-- **Next-word pairs (decided): learned only from the user.** No bundled word-pair data. The model learns pairs (bigrams) and new words from the user's own messages and saved phrases. Book-based pairs (e.g. Google Books 2-grams, CC BY 3.0) could be added later for the languages they cover, but not in v1.
-- **Ranking:** suggestions combine the user's learned pair counts for the previous word, the user's own word counts, and wordfreq's base frequency, in that order of weight. Exact weights are settings (`02`).
-- **Learning:** learns from the user's own messages, opt-in, on by default for AAC profiles. Stored in the profile folder, never sent anywhere, and resettable from settings. A user can also remove single words from suggestions (e.g. a typo that was learned).
-- **Building the base data:** `tools/build-prediction/` takes a wordfreq release and a language, keeps the top 50,000 words, and writes a compact file into `locales/<tag>/prediction/`. It also writes a `LICENSE` (CC BY-SA 4.0 + upstream attributions) and a `SOURCE.txt` (wordfreq version, date, word count). The generated files are committed. Raw upstream data is not.
-- **Board slots:** shown in `prediction` slots via the `item-provider` mechanism (`06`). Default 6 slots above the keyboard. Selecting a prediction completes the word and adds a space.
+    - wordfreq words are lower case, so the base model has no casing. augur capitalizes sentence starts and "I"; other capitals (names) come from the user's own typing once learned.
+- **Next-word pairs (decided): learned only from the user.** No bundled word-pair data: the base model is single words only (a 1-gram model). The user model learns words, pairs and triples (augur's user model counts 1–3-grams) from the user's own text. Book-based pairs (e.g. Google Books 2-grams, CC BY 3.0) could be added later for the languages they cover, but not in v1.
+- **Ranking (decided):** augur interpolates three predictors linearly: the base model, the user model and recently typed words. Their weights are the settings `prediction.weights.model` (default 0.6), `.user` (0.3) and `.recent` (0.1), each 0–1 and relative to each other (`02`). Not all three may be 0.
+- **Learning (decided):**
+    - `prediction.learning` turns learning on or off, **default off** (strict opt-in, for every profile). Off means no learning at all, including recently typed words; what was learned before is still used for suggestions.
+    - `prediction.learn_on` says when the text is learned: `word` (default) learns each word as soon as a space or punctuation follows it; `spoken` learns the whole message when it is spoken (`speech.speak_buffer`). Saved phrases are learned when they are saved, in both modes, once saved phrases exist (message bar item).
+    - Stored in the profile folder, `profiles/<id>/prediction/user.redb` (augur's user store), never sent anywhere.
+    - **Reset learning** in Settings (with confirmation) forgets everything learned.
+    - **Remove a word (decided):** two ways. (1) The action `prediction.forget` arms "remove" mode: the next prediction-slot selection removes that word from suggestions instead of inserting it, then the mode ends. Selecting `prediction.forget` again cancels it; there is no timeout. While armed, the `prediction.forget` item shows `latched` and every prediction slot shows the `forget` state (`05`). (2) Settings has a field to type a word and remove it.
+- **Building the base data (decided):** `tools/build-prediction/build.py` (Python, no third-party packages) reads `large_<lang>.msgpack.gz` from a wordfreq release, keeps the top 50,000 words, writes a 1-gram ARPA file, and compiles it with `augur-train compile` (built from the pinned augur `rev`) into `locales/<tag>/prediction/model.bin`. It also writes a `LICENSE` (CC BY-SA 4.0 + upstream attributions) and a `SOURCE.txt` (wordfreq version, date, word count). The generated files are committed. Raw upstream data and the ARPA file are not.
+- **Model lookup (decided):** the model is chosen by the profile's `language`, along `17`'s fallback chain (`en-GB` → `en` → `en-US`). With no model, prediction slots stay blank and Settings says why (degrade, don't fail).
+- **Where it runs (decided):** a prediction worker thread in `uca-predict` (`01`). The engine stays pure: when the compose text changes and prediction slots are shown, it emits `Intent::Prediction(Predict { rev, before, max })`; the worker answers with an engine input `Predictions { rev, items }`, and answers for an older `rev` are dropped. Learning, forgetting and reset are also `Intent::Prediction` messages. The answers are recorded in signal recordings (`11`), so replay shows the same slots.
+- **Scope (decided):** predictions work on the compose buffer only (`13`). Outside compose, prediction slots are blank. Typing into other apps gets no predictions in v1.
+- **Board slots (decided):** one item per slot, `prediction: <n>` (1-based, `02`). Each slot is an ordinary item with its own cell and style, so positions never move (motor planning). The number of slot items on the shown boards is how many suggestions are asked for; there is no `slots` setting. An empty slot is drawn with its style and no label, and selecting it does nothing (no dwell starts). The qwerty board ships a row of 6 slots above its keys.
+- **Inserting (decided):** selecting a slot appends the rest of the word to what the user typed, keeping the letters and case already typed (`lon` + `don`). Then it adds one space if `prediction.add_space` is on (default on). A suggestion that does not start with the typed letters (ignoring case) is not offered. With no word in progress, the whole word is appended.
 - **Performance:** suggestions must update within 30 ms of each keystroke.
 - **Prediction plugins:** plugins can provide predictions through the `predictor` contract (`06`). Examples: other languages, phrase prediction, domain vocabularies, or a language-model predictor. Profile settings:
   ```yaml
@@ -63,8 +74,12 @@ Vocabulary is made of ordinary boards (`02`) whose items use `message.*` actions
       - plugin: com.example.phrases
     mode: merge                    # merge | first (first provider that answers) | replace (plugins only, builtin off)
     plugin_wait_ms: 80
-    slots: 6
+    learning: false                # built-in predictor, see above
+    learn_on: word                 # word | spoken
+    add_space: true
+    weights: { model: 0.6, user: 0.3, recent: 0.1 }
   ```
+  `providers`, `mode` and `plugin_wait_ms` arrive with the `predictor` contract; the built-in keys arrive with built-in prediction (config keys grow with features, `02`).
     - In `merge` mode, results are de-duplicated and ranked by provider order, then score. One provider can never fill every slot if another has results (at least one slot each).
     - If a plugin fails, times out repeatedly or is disabled, the built-in predictor is used, so prediction never disappears.
     - Learning, `Forget` and reset apply to every provider that supports them.

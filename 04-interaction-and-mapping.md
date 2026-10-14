@@ -335,6 +335,7 @@ YAML form: `{ <action-name>: <args> }` or a list. Args may be a scalar shorthand
 | `mouse.look` / `mouse.look.on` / `.off` / `.toggle` / `.recenter` | `{source, mode, dead_zone, curve, max_speed}` | relative mouse camera control (see `12`) |
 | `pad.button` / `pad.stick` / `pad.trigger` / `pad.hat` | `{button, down}` / `{stick, x, y}` / `{trigger, value}` / `direction` | gamepad output via the HID bridge (`14`) or a `gamepad-output` plugin (`06`); config warning and runtime no-op if no provider |
 | `speech.say`, `speech.speak_buffer`, `speech.buffer.*`, `speech.compose.*`, `speech.repeat`, `speech.stop`, `speech.voice` | see `13` | text-to-speech: speaking aloud |
+| `prediction.forget` | — | arm or cancel "remove a word": the next prediction-slot selection removes that word from suggestions (`16`) |
 | `message.add`, `message.morph`, `message.speak`, `message.clear` / `.delete_word` / `.delete_letter` / `.undo`, `message.show`, `message.save_phrase`, `board.home` | see `16` | AAC message bar and vocabulary |
 | `key.latch` | modifier | each activation moves the modifier off → latched → locked → off (decided; no time window). A latch clears after the next `key.tap`; a lock stays until the item is activated again |
 | `text.type` | string | Unicode text injection, layout-independent |

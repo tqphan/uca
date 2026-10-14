@@ -72,7 +72,7 @@ Every file starts with `schema: uca/1`. Unknown `schema` major version → refus
 | `font` | `{family, size: Length, weight: 100..900, color: Color, align: left\|center\|right}` | | |
 | `shadow` | `{x, y, blur, color}` | none | |
 | `behavior` | Behavior | inherited | See below |
-| `states` | map State → partial style | | `hover`, `dwell`, `active`, `disabled`, `latched`, `scan-focus` |
+| `states` | map State → partial style | | `hover`, `dwell`, `active`, `disabled`, `latched`, `forget`, `scan-focus` |
 | `group` | string or list of strings | `others` (items only) | |
 | `extends` | string (template name) | none | Deep-merge template first |
 
@@ -238,6 +238,7 @@ Every layer chooses one of four layouts. `layout` is required (decided): a layer
       label / label_shift / icon / tooltip   # shown while this set is the item's resolved set
       behavior: { ... }      # partial Behavior, merged over the item's resolved behavior
   bindings: [ Binding ]      # item-scoped extra bindings
+  prediction: 1              # word-prediction slot n (1-based, 16); no action / actions allowed with it
 ```
 
 Shorthand: `actions: { start: …, repeat: …, stop: … }` (stage names directly under `actions`) means the same under `default`. All stages are optional. Semantics are in `04`, "Action sets and stages".
@@ -265,7 +266,7 @@ Resolve each property for an item, lowest → highest priority:
 5. Board base properties (inheritable keys only: `font`, `behavior`, `background` is NOT inherited)
 6. Layer base properties (inheritable keys only)
 7. Item's own properties
-8. Active state overrides, in fixed order: `disabled` < `latched` < `scan-focus` < `hover` < `dwell` < `active`
+8. Active state overrides, in fixed order: `disabled` < `latched` < `forget` < `scan-focus` < `hover` < `dwell` < `active`
 
 Inheritable keys: `font`, `behavior`, `opacity` (multiplicative).
 
@@ -364,7 +365,7 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
     - switch-pointer speeds
     - zone enter delay
     - mouse-look dead zone, curve and speed
-    - prediction count
+    - prediction weights (the number of suggestions is the board's slot count, `16`)
     - speech rate, pitch and volume
     - cue rate
     - presence resume delay
@@ -405,6 +406,9 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
   | `voice.pitch` | 1.0 | 0.5–2.0 (`13`) |
   | `voice.volume` | 1.0 | 0.0–1.0, fraction of the device volume (`13`) |
   | `voice.max_chars` | 1 000 | 1–10 000 characters (`13`) |
+  | `prediction.weights.model` | 0.6 | 0–1 (weight of the base word list, `16`; the three weights are relative and not all 0) |
+  | `prediction.weights.user` | 0.3 | 0–1 (weight of what the user model learned, `16`) |
+  | `prediction.weights.recent` | 0.1 | 0–1 (weight of recently typed words, `16`) |
   | `profile.notice_timeout_ms` | 10 000 | 0–600 000 ms (YAML: `profile.notice_timeout_ms`; how long an export-result notice stays, `11`; 0 = until dismissed) |
 
 - **Levels:** each can be set at profile, board, layer, group or item level wherever the cascade allows (`behavior`, above), so a user can, for example, use a longer dwell on just the Backspace key.

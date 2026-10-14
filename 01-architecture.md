@@ -14,6 +14,7 @@ uca/
 │  ├─ uca-mapping/             # binding resolution: (signal/intent, context) -> actions
 │  ├─ uca-actions/             # ActionExecutor + OutputDevice trait (software / HID bridge)
 │  ├─ uca-voice/               # speech output (13): TtsEngine, queue, routing, AudioSink; Windows engine + WASAPI playback (cfg(windows))
+│  ├─ uca-predict/             # built-in word prediction (16): wraps augur, prediction worker, profile user store
 │  ├─ uca-hid-bridge/          # serial protocol + host driver for the HID bridge (no OS code)
 │  ├─ uca-render/              # egui painting of boards and overlays from EngineSnapshot
 │  ├─ uca-ui/                  # egui screens: settings, assessment wizard, diagnostics; shared widgets and style
@@ -37,7 +38,7 @@ uca/
 └─ assets/boards/              # default boards and themes
 ```
 
-Dependency rule: arrows only point down this list. `uca-log` is the exception (decided): any crate may depend on it for the `Sensitive` markers, and it depends on no other UCA crate. `uca-voice` is the one exception to "only `uca-platform-*` contains OS code" (decided, `13`): its Windows TTS engine and WASAPI playback are `cfg(windows)` modules inside it. It depends only on `uca-types`, `uca-config` and `uca-log`. `uca-engine` depends only on `uca-types`, `uca-config` and `uca-mapping`; `uca-mapping` depends only on `uca-types` and `uca-config` (decided: the engine runs sequences and uses mapping for binding resolution, see below).
+Dependency rule: arrows only point down this list. `uca-log` is the exception (decided): any crate may depend on it for the `Sensitive` markers, and it depends on no other UCA crate. `uca-voice` is the one exception to "only `uca-platform-*` contains OS code" (decided, `13`): its Windows TTS engine and WASAPI playback are `cfg(windows)` modules inside it. It depends only on `uca-types`, `uca-config` and `uca-log`. `uca-predict` depends only on `uca-types`, `uca-config`, `uca-log` and augur (decided, `16`); the engine never calls it. `uca-engine` depends only on `uca-types`, `uca-config` and `uca-mapping`; `uca-mapping` depends only on `uca-types` and `uca-config` (decided: the engine runs sequences and uses mapping for binding resolution, see below).
 
 ## Event flow
 
@@ -59,6 +60,7 @@ Dependency rule: arrows only point down this list. `uca-log` is the exception (d
 | Engine thread | InputHub dispatch, PointPipeline, Engine, Mapping | event-driven loop; also wakes on next timer deadline (dwell/scan) |
 | Executor thread | ActionExecutor | receives intents over an unbounded `std::sync::mpsc` channel, so intents are never dropped and the engine never waits on injection; serializes OS injection |
 | Voice worker (`13`) | `uca-voice`: synthesis, queue, playback | receives `Intent::Speech` over a `std::sync::mpsc` channel; never blocks the engine or UI thread |
+| Prediction worker (`16`) | `uca-predict`: augur engine, model, user store | receives `Intent::Prediction` over a `std::sync::mpsc` channel; sends `Predictions` back into the engine's input channel; never blocks the engine or UI thread |
 | Plugin host (async, tokio) | IPC with plugin processes | forwards plugin signals into the input channel |
 | Config watcher | File watching (`notify`) | sends `ConfigUpdate` to engine thread over a `std::sync::mpsc` channel (decided) |
 

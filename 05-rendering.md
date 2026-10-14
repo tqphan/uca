@@ -99,6 +99,7 @@ Item states drive style overrides from config (`states:` in `02`). Required buil
 | `scan-focus` | thick high-contrast outline (≥ 4 logical px), configurable color |
 | `latched` | modifier key, or item with an open `hold: toggle` activation, shows inverted style; locked = plus underline |
 | `disabled` | 40 % opacity (also items with no entry in any active action set) |
+| `forget` | prediction slots while `prediction.forget` is armed (`16`): red border |
 
 Decided details:
 - **Board and layer surfaces:** boards and layers draw their own `background`, `border` and `shadow` only when their YAML sets them, under their items. They have no built-in defaults, unlike items, so with nothing set the overlay is see-through apart from the items.
@@ -108,6 +109,7 @@ Decided details:
     - latched: background and font colour are swapped
     - locked: as latched, plus a 3 px underline under the label
     - disabled: opacity × 0.4
+    - forget: border `#ef4444`, 4 logical px
     - active: flashes for `behavior.active_flash_ms`, a registry setting set in `behavior` (default 150, range 0–2 000 ms, 0 = no flash), or for the whole activation if it lasts longer
 
 **Action sets.** Items draw the label, icon and tooltip of their resolved action set (`04`). While any set other than `default` is active, each board shows a small indicator listing the active sets with their `label` and `color` (`board.show_action_sets`, default true).

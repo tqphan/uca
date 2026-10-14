@@ -6,26 +6,28 @@ Implement in order. A milestone is done only when all its acceptance criteria pa
 
 Goal: a mouse/keyboard/switch user can type with a YAML-defined on-screen keyboard using dwell or a switch.
 
-- [ ] Workspace skeleton, CI (fmt, clippy -D warnings, tests) — `01`
-- [ ] Licensing set-up: `LICENSE` files, `NOTICE.md` with the plugin permission, SPDX headers / REUSE, `license` in every `Cargo.toml`, `cargo deny` + `reuse lint` + DCO check in CI — `18`
-- [ ] `uca-types`: geometry, signals, Clock + FakeClock — `01`
-- [ ] Settings registry: every timing/threshold with default, range, description; no hard-coded values (lint: numeric literals for timings in engine crates must come from the registry) — `02`
-- [ ] `uca-config`: types, YAML load, JSON Schema generation, validation with line/column errors, cascade, templates, groups, hot reload, last-known-good — `02`, SAFETY-01/04/09
-- [ ] `uca-input`: InputHub, TriggerConditioner, PointPipeline (none/ema/one-euro) — `03`
-- [ ] `uca-engine`: hit-test, dwell machine, point+trigger select, modifiers latch, board stack, Paused, Safe Board — `04`, `09`
-- [ ] `uca-mapping`: binding resolution and pattern matching; the pattern DSL parser is in `uca-config` (decided, see `04`) — `04`
-- [ ] Action sets and stages: activations with `hold: release | toggle | instant`, start / repeat / stop sequences with deterministic timing, active-set stack and `action_set.*` actions, per-set labels, binding stages and `action_set` context filter, validator rules — `04`, `02`, SAFETY-14
-- [ ] `uca-actions`: executor with pressed-state tracking and activation-owned release — `04`, SAFETY-08
-- [ ] `uca-platform` trait + `FakePlatform`; `uca-platform-windows`: SendInput, LL hooks with consume, monitors/DPI, overlay window flags, AppBar — `07`
+- [x] Workspace skeleton, CI (fmt, clippy -D warnings, tests) — `01`
+- [x] Licensing set-up: `LICENSE` files, `NOTICE.md` with the plugin permission, SPDX headers / REUSE, `license` in every `Cargo.toml`, `cargo deny` + `reuse lint` + DCO check in CI — `18`
+- [x] `uca-types`: geometry, signals, Clock + FakeClock — `01`
+- [x] Settings registry: every timing/threshold with default, range, description; no hard-coded values (lint: numeric literals for timings in engine crates must come from the registry) — `02`
+- [x] `uca-config`: types, YAML load, JSON Schema generation, validation with line/column errors, cascade, templates, groups, hot reload, last-known-good — `02`, SAFETY-01/04/09
+- [x] `uca-input`: InputHub, TriggerConditioner, PointPipeline (none/ema/one-euro) — `03`
+- [x] `uca-engine`: hit-test, dwell machine, point+trigger select, modifiers latch, board stack, Paused, Safe Board — `04`, `09`
+- [x] `uca-mapping`: binding resolution and pattern matching; the pattern DSL parser is in `uca-config` (decided, see `04`) — `04`
+- [x] Action sets and stages: activations with `hold: release | toggle | instant`, start / repeat / stop sequences with deterministic timing, active-set stack and `action_set.*` actions, per-set labels, binding stages and `action_set` context filter, validator rules — `04`, `02`, SAFETY-14
+- [x] `uca-actions`: executor with pressed-state tracking and activation-owned release — `04`, SAFETY-08
+- [x] `uca-platform` trait + `FakePlatform`; `uca-platform-windows`: SendInput, LL hooks with consume, monitors/DPI, overlay window flags, AppBar — `07`
 - [ ] Localization infrastructure: `uca-i18n` with Fluent, `en-US` catalog, `t!` macro, no-hard-coded-strings lint, fallback chain, pseudo-locales `en-XA` / `ar-XB` with snapshot tests, `ui_language` vs `language` settings — `17`
-- [ ] UI stack: `winit` loop + `egui-winit` + `egui-wgpu` (no OpenGL fallback), one context per window, snapshot wake-up via `EventLoopProxy`, pinned egui version — `05`
-- [ ] `uca-render`: per-monitor overlay windows, epaint item drawing for every style property, theme fonts, states, dwell ring, `egui_kittest` golden tests — `05`, `02`
+- [x] UI stack: `winit` loop + `egui-winit` + `egui-wgpu` (no OpenGL fallback), one context per window, snapshot wake-up via `EventLoopProxy`, pinned egui version — `05`
+- [x] `uca-render`: per-monitor overlay windows, epaint item drawing for every style property, theme fonts, states, dwell ring, `egui_kittest` golden tests — `05`, `02`
 - [x] `uca-ui`: minimal settings window (profile name, start board, pause) in egui, registered with the engine as a virtual board so it is scannable; `settings.open` / `settings.close` actions — `05`, `02`
-- [ ] `uca-app`: wiring, tray icon
+- [x] `uca-app`: wiring, tray icon
 - [x] Logging: subscriber setup, JSON log files with rotation, `app.yaml` + `UCA_LOG` + `--log`, target naming, redaction layer, ring buffer + crash file, debug sessions, debug overlay — `11`
 - [ ] Crash monitor: minidump via `crash-handler` / `minidumper` in a small out-of-process monitor, and on Windows the unhandled-exception filter (moved out of the logging item, decided) — `11`
 - [x] Diagnostics bundle export and `uca-replay` recording/replay tool; the notices after a crash ("export diagnostics?") and after a crash loop (SAFETY-05 "shows why"), moved here from the logging item (decided) — `11`, `09`
 - [ ] Default assets: `themes/default.yaml`, `themes/high-contrast.yaml`, `boards/qwerty.yaml`, `boards/mouse.yaml`, default profile — `02`
+
+Status (decided 2026-10-14): work moves on to M2 with M1 still open. The crash monitor and default-assets items stay unticked in M1, and the M1 acceptance run is skipped for now.
 
 **Accept when:** all unit/golden tests in `02`, `03`, `04`, `09` pass; manual: type "Hello world." into Notepad using only mouse dwell, then using mouse pointing + F13 as the select trigger (single-switch scanning arrives in M3); editing the board YAML while running updates it within 1 s; breaking the YAML shows an error and keeps the board working.
 

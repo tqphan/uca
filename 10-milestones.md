@@ -33,7 +33,7 @@ Status (decided 2026-10-14): work moves on to M2 with M1 still open. The crash m
 
 ## M2 — AAC core, plugins and game input
 
-- [ ] Speech output (Windows): `uca-voice` crate, WinRT TTS to PCM, `cpal` routing to speaker / cue devices with speaker fallback, compose buffer + compose mode, history, `speech.*` actions, device setup screen — `13`
+- [ ] Speech output (Windows): `uca-voice` crate, WinRT TTS to PCM, WASAPI playback routed to speaker / cue devices with speaker fallback (decided, no `cpal`), compose buffer + compose mode, history, `speech.*` actions, device setup screen — `13`
 - [ ] AAC message bar and `message.*` actions (auto-spacing, English morphology, show-to-partner, save phrase, undo), `board.home`, Speak-within-2-selections validator — `16`
 - [ ] `predictor` plugin contract: request/cancel/accept/forget, merge / first / replace modes, wait budget, fallback to built-in, consent screen for `receives_text` and off-device indicator — `06`, `16`
 - [ ] Built-in word prediction (`uca-predict`): wordfreq base frequencies (English first, via `tools/build-prediction`), next-word pairs learned only from the user, opt-in learning stored in the profile, remove-a-word, prediction slots on the keyboard board — `16`

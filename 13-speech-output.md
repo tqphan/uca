@@ -15,11 +15,15 @@ UCA does not install audio drivers. It synthesises speech to an audio buffer and
 | `speaker_device` | **Speaking aloud** to people in the room. The main output. | system default output, on |
 | `cue_device` | Private auditory-scanning cues (see `16`), e.g. headphones, so only the user hears them. | none (cues off until set) |
 
-Playback uses `cpal` to the chosen device(s) at their native sample rate, resampling as needed. If a device disappears, UCA falls back to the system default output for `speaker_device` (speech must never silently fail) and shows a one-line notice.
+Playback on Windows uses WASAPI shared mode with automatic format conversion (`AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM`), so Windows resamples to the device rate (decided: no `cpal`, no resampler or WAV crate). Linux and macOS get their own playback code in their milestones. Playback sits behind an `AudioSink` trait in `uca-voice`, so tests use fake sinks. If a device disappears, UCA falls back to the system default output for `speaker_device` (speech must never silently fail) and shows a one-line notice.
 
 ## Speech engines
 
-Engines implement one trait in a new crate `uca-voice`:
+Engines implement one trait in a new crate `uca-voice`.
+
+**Crate (decided):** `uca-voice` holds the trait, queue, sentence splitting, routing, `FakeTts` and the Windows engine and playback. The WinRT engine and WASAPI playback live in `uca-voice` behind `cfg(windows)`. This is the one exception to the rule that only `uca-platform-*` crates contain OS code (AGENTS rule 1). Dependency: the `windows` crate for WinRT; the WAV stream from WinRT is parsed by UCA's own small RIFF reader (16-bit PCM).
+
+
 
 ```rust
 pub trait TtsEngine: Send {
@@ -32,6 +36,7 @@ pub trait TtsEngine: Send {
 - Synthesis must return audio samples, never "speak to the default device", so UCA can route to speaker and cue devices separately.
 - Synthesis runs on a voice worker thread, never on the engine or UI thread.
 - Long text is split at sentence boundaries; the first sentence starts playing while the rest synthesise.
+- **Splitting rule (decided):** split after `.` `!` `?` `…` `。` `！` `？` `؟` when followed by whitespace or the end, and at line breaks. No segmentation dependency. Abbreviations such as "Dr." also split, which only adds a short pause.
 
 | Platform | Built-in engine (v1) | Notes |
 | --- | --- | --- |
@@ -68,10 +73,14 @@ Cloud engines must state in their manifest that text leaves the computer, and th
 ## Composing and saying
 
 - **Compose buffer** = the AAC message bar (`16`). UCA keeps its own text buffer; typing into it does not send keystrokes to other apps.
+    - **Where it lives (decided):** engine state in `uca-engine`, together with the history and the compose flag. `speech.buffer.*` and compose routing are engine actions; it appears in `EngineSnapshot`. `speech.say`, `speech.speak_buffer`, `speech.repeat`, `speech.stop` and `speech.voice` become `Intent::Speech` for the voice worker.
+    - **Compose scope (decided):** while compose is on, every `key.tap` and `text.type` goes to the buffer, from items and bindings alike. `key.hold` / `press` / `release` / `toggle`, `mouse.*` and the escape route are unaffected.
+    - **Keys in compose (decided):** letters, digits and punctuation append their character (respecting latched Shift and Caps Lock); Space adds a space; Enter adds a line break; Backspace = `speech.buffer.backspace`. Other keys (arrows, Tab, F-keys, Ctrl / Alt / Win combinations) are ignored and logged at `debug`.
     - A keyboard layer whose items use `speech.buffer.*` actions types into the buffer.
     - The ordinary keyboard board can be switched to "voice compose" mode with `speech.compose.on` / `.off`. Its `key.tap` / `text.type` then go to the buffer instead of the OS.
 - **Quick phrases.** Items with `speech.say: "..."` speak immediately without touching the buffer. Default vocabulary and phrases are specified in `16`.
 - **History.** The last 50 utterances, each re-sayable with one selection; `speech.repeat` repeats the last one.
+    - **What goes in (decided):** every user utterance, from `speech.say` and spoken buffers. The Settings "Test" sentence and auditory cues do not. Speaking an empty buffer does nothing and adds nothing.
 - **Queue.** Utterances play one at a time in order. `speech.stop` stops the current one and clears the queue.
 - **Word prediction** uses the compose buffer as context (built in, see `16`; plugins can add more via `item-provider`, `06`).
 
@@ -104,6 +113,15 @@ voice:
   max_chars: 1000            # longer text is refused with a notice
 ```
 
+- **Registry entries (decided):** `voice.rate` 1.0 (0.5–2.0), `voice.pitch` 1.0 (0.5–2.0), `voice.volume` 1.0 (0.0–1.0, a fraction of the device volume, no boost), `voice.max_chars` 1 000 (1–10 000).
+- **Turned off (decided):** with `voice.enabled: false`, `speech.say` and `speech.speak_buffer` speak nothing and show the notice "Speech is turned off."; the buffer is kept, not cleared.
+- **Setup screen (decided):** a "Voice" section in the Settings window (a scannable virtual board, `05`): speaker device, cue device, voice, rate, pitch, volume, and a "Test" button that speaks "This is my voice." on each chosen device.
+- **Notices (decided, en-US):**
+    - device fallback: "Speaker not found. Speaking through the default output instead."
+    - over `max_chars`: "This message is too long to speak (limit: { $max } characters)."
+    - failure: "Speech is not working." The full-screen `message.show` on failure (`16`) is added with the message bar item; the text then becomes "Speech is not working. Your message is shown on screen."
+- **`keep_history` (decided):** deferred. History is in memory only until it is added together with the automatic backups (`16`).
+
 ## Privacy and logging
 
 - Text in the compose buffer, history and spoken utterances is **typed text**. It is wrapped in `Sensitive(...)` and redacted in logs, recordings and crash files unless sensitive logging is on (`11`, SAFETY-11).
@@ -117,7 +135,7 @@ voice:
 
 ## Acceptance tests
 
-- `FakeTts` returns a known PCM buffer; routing plays it to speaker and cue devices (fake `cpal` sinks) as configured; a missing speaker device falls back to the system default.
+- `FakeTts` returns a known PCM buffer; routing plays it to speaker and cue devices (fake `AudioSink`s) as configured; a missing speaker device falls back to the system default.
 - `speech.stop` mid-utterance stops audio at once and clears the queue.
 - Compose mode: `key.tap q` goes to the buffer, not to `Platform::inject_key`; turning compose off restores normal output.
 - Long text splitting starts playback before full synthesis completes.

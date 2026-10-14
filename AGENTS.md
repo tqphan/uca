@@ -58,7 +58,7 @@ UCA is used with whatever input the person has: gaze, facial expression, head mo
 
 ## Rules for implementers
 
-1. **Respect module boundaries.** Only `uca-platform-*` crates may contain OS-specific code or `cfg(target_os)`. Only source adapters and the platform layer touch devices.
+1. **Respect module boundaries.** Only `uca-platform-*` crates may contain OS-specific code or `cfg(target_os)`. One exception (decided): `uca-voice` contains its Windows TTS engine and WASAPI playback (`13`). Only source adapters and the platform layer touch devices.
 2. **The engine is pure and deterministic.** `uca-engine` and `uca-mapping` take time from a `Clock` trait and never perform I/O. Everything there must be unit-testable headless with a fake clock.
 3. **One-directional flow.** Sources → InputHub → Engine → Mapping → ActionExecutor → OutputDevice (Platform software injection or HID bridge, `14`). The renderer only reads engine state snapshots; it never drives logic.
 4. **Never trap the user.** Read `09-safety.md` before touching the engine, config loader, or plugin host. Safety requirements override any other spec.

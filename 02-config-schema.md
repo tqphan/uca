@@ -401,6 +401,10 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
   | `presence.resume_delay_ms` | 500 | 0–10 000 ms (YAML: `profile.inputs.presence.resume_delay_ms`) |
   | `behavior.enter_delay_ms` | 150 | 0–10 000 ms (zone items only, `12`; cascades like the other `behavior` keys) |
   | `behavior.active_flash_ms` | 150 | 0–2 000 ms (visual feedback, `05`; 0 = no flash; cascades like the other `behavior` keys) |
+  | `voice.rate` | 1.0 | 0.5–2.0 (`13`) |
+  | `voice.pitch` | 1.0 | 0.5–2.0 (`13`) |
+  | `voice.volume` | 1.0 | 0.0–1.0, fraction of the device volume (`13`) |
+  | `voice.max_chars` | 1 000 | 1–10 000 characters (`13`) |
   | `profile.notice_timeout_ms` | 10 000 | 0–600 000 ms (YAML: `profile.notice_timeout_ms`; how long an export-result notice stays, `11`; 0 = until dismissed) |
 
 - **Levels:** each can be set at profile, board, layer, group or item level wherever the cascade allows (`behavior`, above), so a user can, for example, use a longer dwell on just the Backspace key.

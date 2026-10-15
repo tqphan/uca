@@ -55,6 +55,12 @@ pub enum Entry {
     KeyLayout(KeyLayout),
     /// The platform's answer to "is Caps Lock on?" while composing (13).
     CapsLock(bool),
+    /// The prediction worker's answer (16). Typed text: recorded only with
+    /// sensitive logging on, like typing keys (11).
+    Predictions {
+        rev: u64,
+        words: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -88,6 +94,7 @@ impl Recorder {
             {
                 Entry::Redacted
             }
+            Entry::Predictions { .. } if !uca_log::sensitive_logging() => Entry::Redacted,
             other => other,
         };
         let t_us = signed_micros(self.start, now);
@@ -183,6 +190,10 @@ pub fn replay(text: &str, config: Arc<LoadedConfig>) -> Result<Replayed, String>
             Entry::Virtual { id, board } => CoreInput::Virtual(id.clone(), board.clone()),
             Entry::Tick => CoreInput::Tick,
             Entry::KeyLayout(l) => CoreInput::KeyLayout(l.clone()),
+            Entry::Predictions { rev, words } => CoreInput::Predictions {
+                rev: *rev,
+                words: words.iter().cloned().map(uca_engine::SlotWord).collect(),
+            },
             Entry::Redacted => {
                 redacted += 1;
                 continue;
@@ -580,6 +591,47 @@ layers: [ { id: l, layout: { type: row }, items: [ { id: b, action: { board.back
         assert!(!all.contains("KeyQ"), "{all}");
         assert!(all.contains(r#""kind":"redacted""#), "{all}");
         assert!(all.contains("key:F13"), "{all}");
+    }
+
+    /// 16 + 11: suggestion words reveal typing, so they are redacted unless
+    /// sensitive logging is on; with it they read back for replay.
+    #[test]
+    fn predictions_are_left_out_unless_sensitive() {
+        let lines = Arc::new(Mutex::new(Vec::<String>::new()));
+        let sink = lines.clone();
+        let start = Instant::now();
+        let header = Header {
+            format: FORMAT,
+            uca_version: "test".into(),
+            started: String::new(),
+            profile_id: String::new(),
+            config_hash: String::new(),
+            monitors: Vec::new(),
+        };
+        let mut rec = Recorder::start(
+            start,
+            &header,
+            Box::new(move |l| sink.lock().unwrap().push(l)),
+        );
+        let entry = Entry::Predictions {
+            rev: 3,
+            words: vec!["London".into()],
+        };
+        rec.record(start, entry.clone());
+        let all = lines.lock().unwrap().join(
+            "
+",
+        );
+        assert!(!all.contains("London"), "{all}");
+        assert!(all.contains(r#""kind":"redacted""#), "{all}");
+
+        let line = serde_json::to_string(&Line {
+            t_us: 5,
+            entry: entry.clone(),
+        })
+        .unwrap();
+        let back: Line = serde_json::from_str(&line).unwrap();
+        assert_eq!(back.entry, entry);
     }
 
     #[test]

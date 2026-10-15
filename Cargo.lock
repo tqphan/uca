@@ -456,6 +456,72 @@ dependencies = [
 ]
 
 [[package]]
+name = "augur"
+version = "0.1.0"
+source = "git+https://github.com/tqphan/augur?rev=afc1edd424f010a37064ef972039cfe49a6e00cf#afc1edd424f010a37064ef972039cfe49a6e00cf"
+dependencies = [
+ "augur-core",
+ "augur-lang-en",
+ "augur-lm",
+ "augur-predictors",
+ "augur-user",
+]
+
+[[package]]
+name = "augur-core"
+version = "0.1.0"
+source = "git+https://github.com/tqphan/augur?rev=afc1edd424f010a37064ef972039cfe49a6e00cf#afc1edd424f010a37064ef972039cfe49a6e00cf"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "augur-lang-en"
+version = "0.1.0"
+source = "git+https://github.com/tqphan/augur?rev=afc1edd424f010a37064ef972039cfe49a6e00cf#afc1edd424f010a37064ef972039cfe49a6e00cf"
+dependencies = [
+ "augur-core",
+ "augur-text",
+]
+
+[[package]]
+name = "augur-lm"
+version = "0.1.0"
+source = "git+https://github.com/tqphan/augur?rev=afc1edd424f010a37064ef972039cfe49a6e00cf#afc1edd424f010a37064ef972039cfe49a6e00cf"
+dependencies = [
+ "crc32fast",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "augur-predictors"
+version = "0.1.0"
+source = "git+https://github.com/tqphan/augur?rev=afc1edd424f010a37064ef972039cfe49a6e00cf#afc1edd424f010a37064ef972039cfe49a6e00cf"
+dependencies = [
+ "augur-core",
+ "augur-lm",
+]
+
+[[package]]
+name = "augur-text"
+version = "0.1.0"
+source = "git+https://github.com/tqphan/augur?rev=afc1edd424f010a37064ef972039cfe49a6e00cf#afc1edd424f010a37064ef972039cfe49a6e00cf"
+dependencies = [
+ "augur-core",
+ "unicode-normalization",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "augur-user"
+version = "0.1.0"
+source = "git+https://github.com/tqphan/augur?rev=afc1edd424f010a37064ef972039cfe49a6e00cf#afc1edd424f010a37064ef972039cfe49a6e00cf"
+dependencies = [
+ "augur-core",
+ "redb",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3276,6 +3342,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redb"
+version = "4.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39178e0a867f9e3eaa6292a4ab1dd3613f2519c5b564341e1e7b29b270736cc4"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4004,6 +4079,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyvec"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
+
+[[package]]
 name = "tokio"
 version = "1.53.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4244,6 +4325,7 @@ dependencies = [
  "uca-mapping",
  "uca-platform",
  "uca-platform-windows",
+ "uca-predict",
  "uca-render",
  "uca-types",
  "uca-ui",
@@ -4337,6 +4419,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "uca-predict"
+version = "0.1.0"
+dependencies = [
+ "augur",
+ "tracing",
+ "uca-config",
+ "uca-log",
+]
+
+[[package]]
 name = "uca-render"
 version = "0.1.0"
 dependencies = [
@@ -4422,6 +4514,15 @@ name = "unicode-ident"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-segmentation"

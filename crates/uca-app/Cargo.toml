@@ -32,6 +32,7 @@ uca-platform-windows = { path = "../uca-platform-windows" }
 uca-render = { path = "../uca-render" }
 uca-types = { path = "../uca-types" }
 uca-ui = { path = "../uca-ui" }
+uca-predict = { path = "../uca-predict" }
 uca-voice = { path = "../uca-voice" }
 
 [lints]

@@ -111,6 +111,11 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     let consume = threads::new_consume_set();
     let monitors = platform.monitors();
     let voice = start_voice(&config, proxy.clone());
+    // The safe profile built into the app has no folder: it learns in memory.
+    let prediction_store = store
+        .as_ref()
+        .map(|s| s.paths().profile_dir().join("prediction").join("user.redb"));
+    let predictor = start_predictor(&config, prediction_store.clone(), engine_tx.clone());
 
     let mut threads = Vec::new();
     let exec_platform = platform.clone();
@@ -145,6 +150,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
     let waker = ProxyWaker(proxy.clone());
     let engine_platform = platform.clone();
     let engine_voice = voice.clone();
+    let engine_predictor = predictor.clone();
     match std::thread::Builder::new()
         .name("engine".into())
         .spawn(move || {
@@ -156,6 +162,8 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
                 consume: engine_consume,
                 senders: engine_senders,
                 voice: engine_voice,
+                predictor: engine_predictor,
+                prediction_store,
             };
             threads::run_engine(config, engine_monitors, links, waker)
         }) {
@@ -530,6 +538,22 @@ fn start_voice(config: &LoadedConfig, proxy: EventLoopProxy<UserEvent>) -> Arc<u
         tracing::error!(target: "uca::app", error = %e, "speech notices will not be shown");
     }
     Arc::new(voice)
+}
+
+/// Starts the prediction worker (16); its answers go back to the engine.
+fn start_predictor(
+    config: &LoadedConfig,
+    store: Option<PathBuf>,
+    engine: mpsc::SyncSender<Msg>,
+) -> Arc<uca_predict::Predictor> {
+    let settings = uca_predict::PredictSettings::from_profile(&config.profile.profile, store);
+    Arc::new(uca_predict::Predictor::spawn(
+        settings,
+        Box::new(move |rev, words| {
+            let words = words.into_iter().map(uca_engine::SlotWord).collect();
+            let _ = engine.send(Msg::Predictions(rev, words));
+        }),
+    ))
 }
 
 /// Safe Board "Restart" (09): a new instance with the same arguments.

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use uca_config::store::LoadedConfig;
-use uca_engine::{Engine, EngineControl, EngineInput, Intent, KeyLayout, VirtualBoard};
+use uca_engine::{Engine, EngineControl, EngineInput, Intent, KeyLayout, SlotWord, VirtualBoard};
 use uca_input::{HubOutput, InputHub};
 use uca_types::{Clock, MonitorInfo, PhysPoint, Signal, SourceId};
 
@@ -24,6 +24,11 @@ pub enum CoreInput {
     Virtual(String, Option<VirtualBoard>),
     /// The keyboard layout's characters, for speech compose (13).
     KeyLayout(KeyLayout),
+    /// The prediction worker's answer (16).
+    Predictions {
+        rev: u64,
+        words: Vec<SlotWord>,
+    },
     Tick,
 }
 
@@ -104,6 +109,10 @@ impl EngineCore {
             CoreInput::KeyLayout(layout) => {
                 self.key_layout = layout.clone();
                 self.engine.set_key_layout(layout);
+            }
+            CoreInput::Predictions { rev, words } => {
+                let words = words.into_iter().map(|w| w.0).collect();
+                self.engine.set_predictions(rev, words, clock);
             }
             CoreInput::Tick => {
                 for out in self.hub.on_tick(clock.now()) {

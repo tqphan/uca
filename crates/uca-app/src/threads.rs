@@ -12,12 +12,13 @@ use uca_app::engine_core::{CoreInput, EngineCore, Queries};
 use uca_app::recording::{config_hash, Entry, Header, Recorder, FORMAT};
 use uca_config::store::{ConfigUpdate, LoadedConfig};
 use uca_engine::{
-    Control, Engine, EngineControl, EngineSnapshot, Intent, KeyChars, KeyLayout, SpeechIntent,
-    VirtualBoard,
+    Control, Engine, EngineControl, EngineSnapshot, Intent, KeyChars, KeyLayout, PredictionIntent,
+    SlotWord, SpeechIntent, VirtualBoard,
 };
 use uca_input::{SignalSender, SourceStats, StatsCollector};
 use uca_platform::sources::ConsumeSet;
 use uca_platform::{Modifiers, Platform};
+use uca_predict::{PredictSettings, Predictor};
 use uca_types::{Clock, Key, MonitorInfo, PhysPoint, Signal, SourceId, SystemClock};
 use uca_voice::{Voice, VoiceSettings};
 
@@ -37,6 +38,8 @@ pub enum Msg {
     Record(Option<std::path::PathBuf>),
     /// The foreground keyboard layout changed (07): rebuild the compose table (13).
     KeyLayoutChanged,
+    /// The prediction worker's answer to a `Predict` (16).
+    Predictions(u64, Vec<SlotWord>),
     Quit,
 }
 
@@ -78,6 +81,9 @@ pub struct EngineLinks {
     pub senders: Vec<(SourceId, SignalSender)>,
     /// The voice worker (13).
     pub voice: Arc<Voice>,
+    /// The prediction worker (16) and the profile's store for it.
+    pub predictor: Arc<Predictor>,
+    pub prediction_store: Option<std::path::PathBuf>,
 }
 
 /// The engine loop (01): signals, config, controls and timers in one place.
@@ -95,6 +101,8 @@ pub fn run_engine(
         consume,
         senders,
         voice,
+        predictor,
+        prediction_store,
     } = links;
     let clock = SystemClock;
     let mut current = config.clone();
@@ -144,6 +152,10 @@ pub fn run_engine(
             Ok(Msg::Config(ConfigUpdate::Applied(c))) => {
                 set_consume(&consume, &c);
                 voice.set_settings(VoiceSettings::from_profile(&c.profile.profile.voice));
+                predictor.set_settings(PredictSettings::from_profile(
+                    &c.profile.profile,
+                    prediction_store.clone(),
+                ));
                 current = c.clone();
                 new_config = Some(c.clone());
                 let hash = if recorder.is_some() {
@@ -176,6 +188,13 @@ pub fn run_engine(
             Ok(Msg::KeyLayoutChanged) => {
                 let l = key_layout(platform.as_ref());
                 Some((CoreInput::KeyLayout(l.clone()), Entry::KeyLayout(l)))
+            }
+            Ok(Msg::Predictions(rev, words)) => {
+                let entry = Entry::Predictions {
+                    rev,
+                    words: words.iter().map(|w| w.0.clone()).collect(),
+                };
+                Some((CoreInput::Predictions { rev, words }, entry))
             }
             Ok(Msg::Quit) | Err(RecvTimeoutError::Disconnected) => break,
             Err(RecvTimeoutError::Timeout) => Some((CoreInput::Tick, Entry::Tick)),
@@ -217,6 +236,14 @@ pub fn run_engine(
                     SpeechIntent::TooLong { max } => {
                         waker.speech_notice(SpeechNotice::TooLong { max })
                     }
+                },
+                Intent::Prediction(p) => match p {
+                    PredictionIntent::Predict { rev, before, max } => {
+                        predictor.predict(rev, &before, max)
+                    }
+                    PredictionIntent::Learn(text) => predictor.learn(&text),
+                    PredictionIntent::EndText => predictor.end_text(),
+                    PredictionIntent::Forget(word) => predictor.forget(&word),
                 },
                 intent => {
                     if intents.send(intent).is_err() {

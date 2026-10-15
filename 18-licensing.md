@@ -14,7 +14,7 @@
 | Generated config schema (`schema/uca-1.schema.json`) | `MIT OR Apache-2.0`, declared in `REUSE.toml` | So any editor or tool can use it (decided) |
 | Repo plumbing (`Cargo.lock`, `.gitignore`, `rust-toolchain.toml`, `deny.toml`, CI workflows, `REUSE.toml`) | `GPL-3.0-or-later` | Same as the code (decided); header where the format allows comments, else `REUSE.toml` |
 | Default vocabulary, phrases, boards, themes, language-pack content | `CC-BY-SA-4.0` | Copyleft for AAC content; easy to reuse in other AAC tools under the same terms |
-| Prediction base data (`locales/<tag>/prediction/`) | `CC-BY-SA-4.0`, with wordfreq's upstream attributions | Derived from wordfreq data (`16`) |
+| Prediction base data (`locales/<tag>/prediction/`) | `CC-BY-SA-4.0`, with the source's attributions (Wikipedia for augur-data; wordfreq's upstream sources) | Derived from augur-data or wordfreq data (`16`) |
 | Piper speech helper (`uca-tts-piper`, Linux) | `GPL-3.0` (from `piper1-gpl`, embeds eSpeak NG) | Compatible with UCA's GPL-3.0-or-later |
 | Piper voices | each voice's own model and dataset licence | Only redistributable voices are bundled; others are user downloads with the licence shown (`13`) |
 | Bundled fonts | their own licence (e.g. SIL OFL 1.1) | Kept as upstream |

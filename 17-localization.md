@@ -91,7 +91,7 @@ egui draws only registered fonts (`02`, `05`). Each language pack declares a fon
 Translating vocabulary is language adaptation, not word-for-word translation: core vocabulary, word order and morphology differ between languages. Each language pack includes its own:
 - vocabulary boards: core, topics, phrases (`16`)
 - morphology rules for `message.morph` (`16`), or none if the language doesn't suit them
-- word-frequency data for prediction, built from wordfreq where the language is covered (`16`). Other languages need another openly licensed list, checked case by case.
+- the prediction base model: from augur-data where it has a model for the language, otherwise built from wordfreq where the language is covered (`16`). Other languages need another openly licensed source, checked case by case.
 - auto-spacing and punctuation rules for `message.add`. Some languages have no spaces between words (Chinese, Japanese, Thai) or need special punctuation spacing (French).
 
 **Speech voices:**
@@ -110,7 +110,7 @@ locales/<tag>/
 ├─ uca.ftl            # UI strings (+ more .ftl files)
 ├─ boards/            # AAC vocabulary + keyboard boards for this language
 ├─ morphology.yaml    # optional
-├─ prediction/        # wordfreq-based frequency data + LICENSE + SOURCE.txt (`16`)
+├─ prediction/        # model.bin (augur-data or wordfreq) + LICENSE + SOURCE.txt (`16`)
 └─ phrases.yaml       # default quick phrases
 ```
 

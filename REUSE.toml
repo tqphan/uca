@@ -62,9 +62,10 @@ precedence = "override"
 SPDX-FileCopyrightText = "2022 The Noto Project Authors (https://github.com/notofonts/math)"
 SPDX-License-Identifier = "OFL-1.1"
 
-# Prediction base data derived from wordfreq (16, 18); attributions in each pack's prediction/LICENSE.
+# Prediction base data (16, 18); each pack's prediction/LICENSE names its source and attributions.
+# en-US: augur-data's Simple English Wikipedia model.
 [[annotations]]
-path = ["locales/*/prediction/**"]
+path = ["locales/en-US/prediction/**"]
 precedence = "override"
-SPDX-FileCopyrightText = ["2022 Robyn Speer (wordfreq) and its upstream sources, see prediction/LICENSE", "The UCA contributors"]
+SPDX-FileCopyrightText = ["Wikipedia contributors (Simple English Wikipedia, dump 20260901), see prediction/LICENSE", "The augur-data contributors"]
 SPDX-License-Identifier = "CC-BY-SA-4.0"

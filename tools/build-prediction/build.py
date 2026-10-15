@@ -1,20 +1,23 @@
 # SPDX-FileCopyrightText: The UCA contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Build a language pack's prediction base model from wordfreq data (16).
+"""Build a language pack's prediction base model (16 "Base model").
 
-Reads `large_<lang>.msgpack.gz` from a wordfreq release, keeps the most
-frequent words, writes a 1-gram ARPA file with a `.meta` sidecar, and
-compiles both with `augur-train compile` into
-`locales/<tag>/prediction/model.bin`. Also writes `LICENSE` (CC BY-SA 4.0 +
-wordfreq's upstream attributions) and `SOURCE.txt`. The ARPA file and the
-raw wordfreq data are not kept.
+Writes `locales/<tag>/prediction/model.bin`, `LICENSE` and `SOURCE.txt` from
+one of two sources:
 
-augur-train must be built from the augur rev pinned in Cargo.toml:
+- augur-data (https://github.com/tqphan/augur-data): downloads `en.bin` at a
+  pinned commit and refuses it unless its SHA-256 matches.
+- wordfreq: reads `large_<lang>.msgpack.gz` from a wordfreq release, keeps
+  the most frequent words, writes a 1-gram ARPA file with a `.meta` sidecar
+  and compiles both with `augur-train compile`. The ARPA file and the raw
+  wordfreq data are not kept. augur-train must be built from the augur rev
+  pinned in Cargo.toml:
 
     cargo install --git https://github.com/tqphan/augur --rev <rev> --locked augur-train
 
 Usage:
+    python tools/build-prediction/build.py --augur-data <commit> --sha256 <hash> --tag en-US
     python tools/build-prediction/build.py --wordfreq <large_en.msgpack.gz>
         --wordfreq-version v3.2 --tag en-US [--words 50000] [--augur-train <path>]
     python tools/build-prediction/build.py --self-test
@@ -33,6 +36,7 @@ import subprocess
 import sys
 import tempfile
 import unicodedata
+import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORDS = 50_000
@@ -300,6 +304,53 @@ def build(args):
     print(f"wrote {out / 'model.bin'} ({len(words)} words)")
 
 
+AUGUR_DATA = "https://github.com/tqphan/augur-data"
+# The model files are stored with Git LFS; this serves their content.
+AUGUR_DATA_MEDIA = "https://media.githubusercontent.com/media/tqphan/augur-data/{commit}/en.bin"
+
+AUGUR_DATA_LICENSE = """\
+This prediction model is en.bin from augur-data
+(https://github.com/tqphan/augur-data), commit {commit}: a 3-gram language
+model trained by augur-train on the Simple English Wikipedia.
+
+Derived from Wikipedia (https://simple.wikipedia.org) by Wikipedia
+contributors, dump 20260901, licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International licence (CC BY-SA 4.0,
+https://creativecommons.org/licenses/by-sa/4.0/). This model is distributed
+under the same licence. It is used unchanged.
+"""
+
+
+def install_augur_data(data: bytes, commit: str, sha256: str, out: pathlib.Path):
+    """Checks the downloaded model against `sha256` and writes the pack's files."""
+    got = hashlib.sha256(data).hexdigest()
+    if got != sha256.lower():
+        raise ValueError(f"en.bin at {commit} has SHA-256 {got}, expected {sha256}")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "model.bin").write_bytes(data)
+    (out / "LICENSE").write_text(AUGUR_DATA_LICENSE.format(commit=commit), encoding="utf-8", newline="\n")
+    today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+    source = [
+        f"source: augur-data ({AUGUR_DATA})",
+        f"commit: {commit}",
+        "file: en.bin",
+        f"file sha256: {got}",
+        f"fetched: {today}",
+        "built with: tools/build-prediction/build.py --augur-data",
+    ]
+    (out / "SOURCE.txt").write_text("\n".join(source) + "\n", encoding="utf-8", newline="\n")
+
+
+def fetch_augur_data(args):
+    url = AUGUR_DATA_MEDIA.format(commit=args.augur_data)
+    print(f"downloading {url}")
+    with urllib.request.urlopen(url, timeout=600) as r:
+        data = r.read()
+    out = ROOT / "locales" / args.tag / "prediction"
+    install_augur_data(data, args.augur_data, args.sha256, out)
+    print(f"wrote {out / 'model.bin'} ({len(data)} bytes)")
+
+
 def self_test():
     # msgpack: fixarray of [fixmap header, [fixstr...], [str8...]]
     header = b"\x82" + b"\xa6format" + b"\xa2cB" + b"\xa7version" + b"\x01"
@@ -330,12 +381,29 @@ def self_test():
         text = path.read_text(encoding="utf-8")
         assert "ngram 1=5" in text and "\\end\\" in text
         assert f"{math.log10(0.75):.6f}\tthe" in text and "-99.0\t<unk>" in text
+    with tempfile.TemporaryDirectory() as tmp:
+        out = pathlib.Path(tmp) / "prediction"
+        data = b"model"
+        good = hashlib.sha256(data).hexdigest()
+        try:
+            install_augur_data(data, "abc", "0" * 64, out)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("accepted a wrong SHA-256")
+        assert not out.exists(), "nothing written for a wrong hash"
+        install_augur_data(data, "abc", good.upper(), out)
+        assert (out / "model.bin").read_bytes() == data
+        assert "commit abc" in (out / "LICENSE").read_text(encoding="utf-8")
+        assert f"file sha256: {good}" in (out / "SOURCE.txt").read_text(encoding="utf-8")
     print("self-test passed")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--augur-data", metavar="COMMIT", help="augur-data commit to fetch en.bin from")
+    parser.add_argument("--sha256", help="expected SHA-256 of en.bin at that commit")
     parser.add_argument("--wordfreq", help="path to large_<lang>.msgpack.gz from a wordfreq release")
     parser.add_argument("--wordfreq-version", help="the wordfreq release tag, e.g. v3.2")
     parser.add_argument("--tag", help="language pack tag, e.g. en-US")
@@ -344,6 +412,11 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         self_test()
+        return
+    if args.augur_data:
+        if not (args.sha256 and args.tag):
+            parser.error("--augur-data needs --sha256 and --tag")
+        fetch_augur_data(args)
         return
     if not (args.wordfreq and args.wordfreq_version and args.tag):
         parser.error("--wordfreq, --wordfreq-version and --tag are required")

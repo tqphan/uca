@@ -1,7 +1,6 @@
-wordfreq version: v3.2
-wordfreq file: large_en.msgpack.gz
-wordfreq file sha256: dffae8066b78dce0a6667cf5f58e567054f902674667090a7ac8a8a44628b05c
-built: 2026-10-14
-words: 50000
-augur rev: afc1edd424f010a37064ef972039cfe49a6e00cf
-built with: tools/build-prediction/build.py
+source: augur-data (https://github.com/tqphan/augur-data)
+commit: 869f6668d3b53e62b9cb77d5a170a7d288d87a46
+file: en.bin
+file sha256: 1ba268b65ca4e27bd52e22403559380f0c2baf504e54fe18cf8b5694ce96efb0
+fetched: 2026-10-15
+built with: tools/build-prediction/build.py --augur-data

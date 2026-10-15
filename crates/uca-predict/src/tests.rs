@@ -60,7 +60,15 @@ fn completes_words_from_the_embedded_model() {
     assert_eq!(p.status(), PredictStatus::Ready { pack: "en-US" });
     // A sentence start is capitalized (augur's casing).
     let words = ask(&p, &rx, "hel");
-    assert!(words.iter().any(|w| w == "Help"), "{words:?}");
+    assert!(!words.is_empty());
+    assert!(words.iter().all(|w| w.starts_with("Hel")), "{words:?}");
+    // The en-US model knows word pairs (16 "Next-word pairs").
+    let words = ask(&p, &rx, "He was born in Lon");
+    assert_eq!(
+        words.first().map(String::as_str),
+        Some("London"),
+        "{words:?}"
+    );
 }
 
 /// Only the newest of several queued asks is answered.
@@ -156,6 +164,14 @@ fn an_unusable_store_learns_in_memory() {
 fn predictions_are_fast() {
     let (p, rx) = spawn(settings(true, None));
     p.learn("I want to go to the shop and then I want to go home. ");
+    // The worker loads the model when it starts, before the user types:
+    // wait for that, so only predictions are timed.
+    let loading = Instant::now();
+    let _ = ask(&p, &rx, "x");
+    eprintln!(
+        "first answer (includes loading the model): {:?}",
+        loading.elapsed()
+    );
     let texts = [
         "",
         "I",
@@ -170,6 +186,7 @@ fn predictions_are_fast() {
     for t in texts {
         let one = Instant::now();
         let _ = ask(&p, &rx, t);
+        eprintln!("{t:?}: {:?}", one.elapsed());
         slowest = slowest.max(one.elapsed());
     }
     eprintln!(

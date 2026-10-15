@@ -1,0 +1,7 @@
+wordfreq version: v3.2
+wordfreq file: large_en.msgpack.gz
+wordfreq file sha256: dffae8066b78dce0a6667cf5f58e567054f902674667090a7ac8a8a44628b05c
+built: 2026-10-14
+words: 50000
+augur rev: afc1edd424f010a37064ef972039cfe49a6e00cf
+built with: tools/build-prediction/build.py

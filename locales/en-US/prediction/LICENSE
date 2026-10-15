@@ -1,0 +1,60 @@
+This prediction model is derived from wordfreq v3.2
+(https://github.com/rspeer/wordfreq) by Robyn Speer, cited as:
+Robyn Speer. (2022). rspeer/wordfreq: v3.0 (v3.0.2). Zenodo.
+https://doi.org/10.5281/zenodo.7199437
+
+wordfreq's data, and this model, are licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International licence (CC BY-SA 4.0,
+https://creativecommons.org/licenses/by-sa/4.0/). Changes: the 50000
+most frequent words that augur can suggest, as a 1-gram model in augur's
+binary format; frequencies renormalized to these words.
+
+wordfreq contains data extracted from Google Books Ngrams
+(http://books.google.com/ngrams) and Google Books Syntactic Ngrams
+(http://commondatastorage.googleapis.com/books/syntactic-ngrams/index.html).
+The terms of use of this data are:
+
+    Ngram Viewer graphs and data may be freely used for any purpose, although
+    acknowledgement of Google Books Ngram Viewer as the source, and inclusion
+    of a link to http://books.google.com/ngrams, would be appreciated.
+
+wordfreq also contains data derived from the following Creative
+Commons-licensed sources:
+
+- The Leeds Internet Corpus, from the University of Leeds Centre for
+  Translation Studies (http://corpus.leeds.ac.uk/list.html)
+- Wikipedia, the free encyclopedia (http://www.wikipedia.org)
+- ParaCrawl, a multilingual Web crawl (https://paracrawl.eu)
+
+It contains data from OPUS OpenSubtitles 2018
+(http://opus.nlpl.eu/OpenSubtitles.php), whose data originates from the
+OpenSubtitles project (http://www.opensubtitles.org/) and may be used with
+attribution to OpenSubtitles.
+
+It contains data from various SUBTLEX word lists: SUBTLEX-US, SUBTLEX-UK,
+SUBTLEX-CH, SUBTLEX-DE, and SUBTLEX-NL, created by Marc Brysbaert et al.
+and available at http://crr.ugent.be/programs-data/subtitle-frequencies.
+SUBTLEX is freely available data; its authors are credited here as wordfreq
+requires:
+
+- Brysbaert, M. & New, B. (2009). Moving beyond Kucera and Francis: A
+  Critical Evaluation of Current Word Frequency Norms and the Introduction of
+  a New and Improved Word Frequency Measure for American English. Behavior
+  Research Methods, 41 (4), 977-990.
+- Brysbaert, M., Buchmeier, M., Conrad, M., Jacobs, A.M., Bölte, J., & Böhl,
+  A. (2011). The word frequency effect: A review of recent developments and
+  implications for the choice of frequency estimates in German. Experimental
+  Psychology, 58, 412-424.
+- Cai, Q., & Brysbaert, M. (2010). SUBTLEX-CH: Chinese word and character
+  frequencies based on film subtitles. PLoS One, 5(6), e10729.
+- Keuleers, E., Brysbaert, M. & New, B. (2010). SUBTLEX-NL: A new frequency
+  measure for Dutch words based on film subtitles. Behavior Research Methods,
+  42(3), 643-650.
+- van Heuven, W. J., Mandera, P., Keuleers, E., & Brysbaert, M. (2014).
+  SUBTLEX-UK: A new and improved word frequency database for British
+  English. The Quarterly Journal of Experimental Psychology, 67(6),
+  1176-1190.
+
+Some of wordfreq's data was collected by a custom application that watches
+the streaming Twitter API, in accordance with Twitter's Developer Agreement
+& Policy.

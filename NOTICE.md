@@ -20,3 +20,5 @@ This permission only applies to the plugin protocol boundary. Code linked into U
 ## Third-party notices
 
 Release builds include a generated third-party notices file listing every dependency and its licence.
+
+Word prediction uses augur (<https://github.com/tqphan/augur>, `GPL-2.0-or-later`). Its English base data, `locales/en-US/prediction/model.bin`, is derived from wordfreq (<https://github.com/rspeer/wordfreq>) by Robyn Speer and is licensed under `CC-BY-SA-4.0`. Its upstream attributions (Google Books Ngrams, OpenSubtitles, SUBTLEX and others) are in `locales/en-US/prediction/LICENSE`, and the generated notices file includes them.

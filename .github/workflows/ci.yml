@@ -33,6 +33,9 @@ jobs:
         run: |
           python -I tools/check-ui-strings.py --self-test
           python -I tools/check-ui-strings.py
+      - name: Prediction model builder (16)
+        shell: bash
+        run: python -I tools/build-prediction/build.py --self-test
 
   licences:
     name: cargo deny, reuse lint

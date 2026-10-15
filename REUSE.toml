@@ -61,3 +61,10 @@ path = ["assets/fonts/noto-sans-math/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "2022 The Noto Project Authors (https://github.com/notofonts/math)"
 SPDX-License-Identifier = "OFL-1.1"
+
+# Prediction base data derived from wordfreq (16, 18); attributions in each pack's prediction/LICENSE.
+[[annotations]]
+path = ["locales/*/prediction/**"]
+precedence = "override"
+SPDX-FileCopyrightText = ["2022 Robyn Speer (wordfreq) and its upstream sources, see prediction/LICENSE", "The UCA contributors"]
+SPDX-License-Identifier = "CC-BY-SA-4.0"

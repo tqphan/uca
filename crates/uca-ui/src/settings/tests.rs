@@ -19,6 +19,8 @@ struct State {
     with_boards: bool,
     save_error: Option<String>,
     voice_error: Option<String>,
+    prediction_error: Option<String>,
+    prediction_problem: Option<PredictionProblem>,
     diagnostics: DiagnosticsView,
     export_result: Option<String>,
     dwell: Option<VirtualSnapshot>,
@@ -114,6 +116,38 @@ fn voice_view<'a>(
     }
 }
 
+const PREDICTION_ITEMS: [&str; 15] = [
+    "prediction-learning:off",
+    "prediction-learning:on",
+    "prediction-learn-on:word",
+    "prediction-learn-on:spoken",
+    "prediction-space:off",
+    "prediction-space:on",
+    "prediction-weight-model:-",
+    "prediction-weight-model:+",
+    "prediction-weight-user:-",
+    "prediction-weight-user:+",
+    "prediction-weight-recent:-",
+    "prediction-weight-recent:+",
+    "prediction-forget-word",
+    "prediction-forget",
+    "prediction-reset",
+];
+
+fn prediction_view(
+    error: Option<&str>,
+    problem: Option<PredictionProblem>,
+) -> PredictionSectionView<'_> {
+    PredictionSectionView {
+        learning: true,
+        learn_on: LearnOn::Spoken,
+        add_space: true,
+        weights: [0.6, 0.3, 0.1],
+        problem,
+        save_error: error,
+    }
+}
+
 fn harness(paused: bool) -> Harness<'static, State> {
     let boards = boards();
     let (devices, voices) = (devices(), voices());
@@ -134,6 +168,9 @@ fn harness(paused: bool) -> Harness<'static, State> {
                     voice: s
                         .with_boards
                         .then(|| voice_view(&devices, &voices, &cue, s.voice_error.as_deref())),
+                    prediction: s.with_boards.then(|| {
+                        prediction_view(s.prediction_error.as_deref(), s.prediction_problem)
+                    }),
                     diagnostics: s.diagnostics,
                     export_result: s.export_result.as_deref(),
                     paused: s.paused,
@@ -150,6 +187,8 @@ fn harness(paused: bool) -> Harness<'static, State> {
                 with_boards: true,
                 save_error: None,
                 voice_error: None,
+                prediction_error: None,
+                prediction_problem: None,
                 diagnostics: DIAGNOSTICS,
                 export_result: None,
                 dwell: None,
@@ -166,10 +205,12 @@ fn every_interactive_widget_is_registered() {
     let mut h = harness(false);
     h.run();
     let buttons = h.query_all_by_role(Role::Button).count();
-    assert_eq!(h.state().widgets.len(), buttons);
+    let fields = h.query_all_by_role(Role::TextInput).count();
+    assert_eq!(h.state().widgets.len(), buttons + fields);
     let mut expected = vec!["board:qwerty", "board:mouse"];
     expected.extend(VOICE_ITEMS);
     expected.push("voice-test");
+    expected.extend(PREDICTION_ITEMS);
     expected.extend(SESSION_ITEMS);
     expected.extend(["pause", "close"]);
     assert_eq!(h.state().widgets, expected);
@@ -191,6 +232,7 @@ fn widgets_are_at_least_48_px() {
                 save_error: None,
             }),
             voice: Some(voice_view(&devices, &voices, &cue, None)),
+            prediction: Some(prediction_view(None, None)),
             diagnostics: DIAGNOSTICS,
             export_result: None,
             paused: false,
@@ -351,7 +393,8 @@ fn voice_section_gives_commands() {
     h.state_mut().voice_error = Some("denied".into());
     h.run();
     for label in ["System default", "Off", "Microsoft Zira", "Test"] {
-        h.get_by_label(label).click();
+        // "Off" is also on the prediction rows; the cue device's comes first.
+        h.query_all_by_label(label).next().expect(label).click();
         h.run();
     }
     h.state_mut().pressed = vec![
@@ -401,6 +444,7 @@ fn a_missing_chosen_device_is_listed() {
             profile_name: "Alex",
             start_board: None,
             voice: Some(voice_view(&devices, &voices, &cue, None)),
+            prediction: None,
             diagnostics: DIAGNOSTICS,
             export_result: None,
             paused: false,
@@ -414,4 +458,68 @@ fn a_missing_chosen_device_is_listed() {
     let ids: Vec<String> = ids.into_iter().map(|(id, _)| id).collect();
     assert!(ids.contains(&"cue:Old headset".to_owned()), "{ids:?}");
     assert!(!ids.contains(&"speaker:Old headset".to_owned()), "{ids:?}");
+}
+
+/// 05 "Word prediction": choices and steps give their commands; Remove sends
+/// the typed word and empties the field; Reset asks first.
+#[test]
+fn prediction_section_gives_commands() {
+    let mut h = harness(false);
+    h.state_mut().prediction_error = Some("denied".into());
+    h.state_mut().prediction_problem = Some(PredictionProblem::StoreFailed);
+    h.run();
+    h.state_mut().pressed = vec![
+        "prediction-learning:off".into(),
+        "prediction-learn-on:word".into(),
+        "prediction-space:off".into(),
+        "prediction-weight-user:+".into(),
+        "prediction-forget".into(),
+    ];
+    h.run();
+    assert_eq!(
+        h.state().commands,
+        vec![
+            SettingsCommand::SetPredictionLearning(false),
+            SettingsCommand::SetPredictionLearnOn(LearnOn::Word),
+            SettingsCommand::SetPredictionSpace(false),
+            SettingsCommand::StepPredictionWeight {
+                weight: PredictionWeight::User,
+                up: true
+            },
+        ],
+        "Remove with an empty field does nothing"
+    );
+    h.state_mut().commands.clear();
+
+    h.get_by_role(Role::TextInput).click();
+    h.run();
+    h.get_by_role(Role::TextInput).type_text(" teh ");
+    h.run();
+    h.get_by_label("Remove").click();
+    h.run();
+    assert_eq!(
+        h.state().commands,
+        vec![SettingsCommand::ForgetWord("teh".into())]
+    );
+    h.state_mut().commands.clear();
+
+    h.get_by_label("Reset learning").click();
+    h.run();
+    h.get_by_label("Forget everything learned?");
+    h.get_by_label("Cancel").click();
+    h.run();
+    assert!(h.state().commands.is_empty());
+    h.state_mut().pressed = vec!["prediction-reset".into()];
+    h.run();
+    h.run();
+    h.state_mut().pressed = vec!["prediction-reset-yes".into()];
+    h.run();
+    assert_eq!(h.state().commands, vec![SettingsCommand::ResetLearning]);
+    h.run();
+    h.get_by_label("Reset learning");
+
+    h.get_by_label("0.3");
+    h.get_by_label("How much each kind of word counts. 0 to 1.");
+    h.get_by_label("Learned words can't be saved, so they will be lost when UCA closes.");
+    h.get_by_label("Could not save the prediction setting: denied");
 }

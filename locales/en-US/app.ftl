@@ -48,6 +48,27 @@ settings-voice-less = −
 settings-voice-more = +
 settings-voice-test = Test
 settings-voice-save-error = Could not save the voice setting: { $reason }
+settings-prediction = Word prediction
+settings-prediction-learning = Learn from what I write
+settings-prediction-learn-on = When to learn
+settings-prediction-learn-word = After each word
+settings-prediction-learn-spoken = When spoken
+settings-prediction-space = Space after a word
+settings-prediction-off = Off
+settings-prediction-on = On
+settings-prediction-weight-model = Common words
+settings-prediction-weight-user = My words
+settings-prediction-weight-recent = Recent words
+settings-prediction-weights-hint = How much each kind of word counts. 0 to 1.
+settings-prediction-forget = Remove a word
+settings-prediction-forget-button = Remove
+settings-prediction-reset = Reset learning
+settings-prediction-reset-confirm = Forget everything learned?
+settings-prediction-reset-yes = Yes, forget
+settings-prediction-reset-cancel = Cancel
+settings-prediction-store-failed = Learned words can't be saved, so they will be lost when UCA closes.
+settings-prediction-no-model = Word prediction is not available.
+settings-prediction-save-error = Could not save the prediction setting: { $reason }
 voice-test-sentence = This is my voice.
 
 # The debug-session indicator strip (11).

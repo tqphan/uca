@@ -86,6 +86,7 @@ pub fn save_start_board(paths: &ProfilePaths, board: &str) -> Result<(), SaveErr
 pub enum Value<'a> {
     Str(&'a str),
     Number(f64),
+    Bool(bool),
     Null,
 }
 
@@ -95,6 +96,7 @@ impl Value<'_> {
         match self {
             Value::Str(s) => (*s).to_owned(),
             Value::Number(n) => number(*n),
+            Value::Bool(b) => b.to_string(),
             Value::Null => "null".to_owned(),
         }
     }
@@ -180,6 +182,7 @@ fn written(value: Value<'_>, style: ScalarStyle) -> Option<String> {
     Some(match (value, style) {
         (_, ScalarStyle::Literal | ScalarStyle::Folded) => return None,
         (Value::Number(n), _) => number(n),
+        (Value::Bool(b), _) => b.to_string(),
         (Value::Null, _) => "null".to_owned(),
         (Value::Str(s), ScalarStyle::Plain) if is_safe_plain(s) => s.to_owned(),
         (Value::Str(s), ScalarStyle::Plain | ScalarStyle::DoubleQuoted) => double_quoted(s),

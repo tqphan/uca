@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The Settings window content (05 "Settings window"): the profile name,
-//! the start board, Voice (M2), Diagnostics, Pause/Resume and Close.
+//! the start board, Voice and Word prediction (M2), Diagnostics,
+//! Pause/Resume and Close.
 
+mod prediction;
 mod voice;
 
+pub use prediction::{PredictionProblem, PredictionSectionView, PredictionWeight};
 pub use voice::{VoiceChoice, VoiceNumber, VoiceSectionView};
 
 use egui::{Align, Button, Layout, Rect, RichText, Ui, Vec2};
 use uca_config::cascade::ResolvedDwellIndicator;
-use uca_config::profile::AudioDevice;
+use uca_config::profile::{AudioDevice, LearnOn};
 use uca_engine::VirtualSnapshot;
 use uca_i18n::{strip_isolation, t, ui_dir};
 
@@ -67,6 +70,8 @@ pub struct SettingsView<'a> {
     pub start_board: Option<StartBoardView<'a>>,
     /// Shown with a profile on disk, like the start board (05).
     pub voice: Option<VoiceSectionView<'a>>,
+    /// Shown with a profile on disk, like Voice (05).
+    pub prediction: Option<PredictionSectionView<'a>>,
     pub diagnostics: DiagnosticsView,
     /// The last export's result line, already translated (11).
     pub export_result: Option<&'a str>,
@@ -91,6 +96,17 @@ pub enum SettingsCommand {
     },
     /// Speak the test sentence on each device (13).
     TestVoice,
+    SetPredictionLearning(bool),
+    SetPredictionLearnOn(LearnOn),
+    SetPredictionSpace(bool),
+    StepPredictionWeight {
+        weight: PredictionWeight,
+        up: bool,
+    },
+    /// Remove this word from suggestions (16).
+    ForgetWord(String),
+    /// "Yes, forget": reset everything learned (16).
+    ResetLearning,
     SessionMinutes(u32),
     SessionTrace(bool),
     ToggleSensitive,
@@ -122,10 +138,23 @@ impl SettingsFrame {
         pressed: &[String],
         command: SettingsCommand,
     ) {
-        self.widgets.push((id.to_owned(), response.rect));
-        if response.clicked() || pressed.iter().any(|p| p == id) {
+        if self.activated(ui, view, id, response, pressed) {
             self.commands.push(command);
         }
+    }
+
+    /// Records a widget that changes only this window's own state; returns
+    /// whether it was activated by mouse, keyboard or the engine.
+    fn activated(
+        &mut self,
+        ui: &Ui,
+        view: &SettingsView<'_>,
+        id: &str,
+        response: &egui::Response,
+        pressed: &[String],
+    ) -> bool {
+        self.widgets.push((id.to_owned(), response.rect));
+        let activated = response.clicked() || pressed.iter().any(|p| p == id);
         let progress = view
             .dwell
             .and_then(|d| d.items.iter().find(|i| i.id == id))
@@ -133,6 +162,7 @@ impl SettingsFrame {
         if let Some(p) = progress {
             uca_render::paint::paint_dwell(ui.painter(), response.rect, p, view.indicator, 1.0);
         }
+        activated
     }
 }
 
@@ -165,6 +195,10 @@ pub fn show(ui: &mut Ui, view: &SettingsView<'_>, pressed: &[String]) -> Setting
         }
         if let Some(v) = &view.voice {
             voice::section(ui, view, v, row, pressed, &mut frame);
+            ui.add_space(MIN_TARGET / 4.0);
+        }
+        if let Some(p) = &view.prediction {
+            prediction::section(ui, view, p, row, pressed, &mut frame);
             ui.add_space(MIN_TARGET / 4.0);
         }
         diagnostics(ui, view, row, pressed, &mut frame);

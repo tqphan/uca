@@ -79,6 +79,15 @@ Platform emits `MonitorsChanged` on hot-plug, resolution or scale change → ren
         - "Speed", "Pitch", "Volume": the value between "−" and "+" buttons (≥ 48 logical px), step 0.1, clamped to the registry range.
         - "Test": speaks "This is my voice." on the speaker and the cue device.
         - The current choice is marked. A change applies at once and is saved to `profile.yaml` with a targeted save (`02`), which adds keys missing from the file (such as a missing `voice:` section) and keeps every other byte. A failed save shows "Could not save the voice setting: { $reason }" under the section, and the file is left untouched.
+    - **Word prediction (M2, decided, `16`):** a "Word prediction" heading with rows:
+        - "Learn from what I write": "Off" / "On" (`prediction.learning`).
+        - "When to learn": "After each word" / "When spoken" (`prediction.learn_on`).
+        - "Space after a word": "Off" / "On" (`prediction.add_space`).
+        - "Common words", "My words", "Recent words": the value between "−" and "+" buttons, step 0.1, clamped to 0–1 (`prediction.weights.model` / `.user` / `.recent`), with the hint "How much each kind of word counts. 0 to 1." A change that would make all three 0 is refused.
+        - "Remove a word": a text field and a "Remove" button; removes that word from suggestions (`16`).
+        - "Reset learning": turns into "Forget everything learned?" with "Yes, forget" and "Cancel"; "Yes, forget" resets learning.
+        - A status line, only when prediction is not ready: "Learned words can't be saved, so they will be lost when UCA closes." (the store failed) or "Word prediction is not available." (no model).
+        - Shown only with a profile on disk, like the Voice section. The current choice is marked; a change applies at once and is saved to `profile.yaml` with a targeted save, which adds missing keys. A failed save shows "Could not save the prediction setting: { $reason }" under the section, and the file is left untouched.
     - **Image:** a 32 × 32 mark drawn in code until a designed logo exists: a rounded blue (#3b82f6) square with a white “U”.
 
 ## Frame scheduling

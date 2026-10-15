@@ -116,6 +116,7 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         .as_ref()
         .map(|s| s.paths().profile_dir().join("prediction").join("user.redb"));
     let predictor = start_predictor(&config, prediction_store.clone(), engine_tx.clone());
+    let ui_prediction_store = prediction_store.clone();
 
     let mut threads = Vec::new();
     let exec_platform = platform.clone();
@@ -189,6 +190,8 @@ fn run(logging: &Arc<uca_log::Logging>) -> ExitCode {
         cli_record: record_arg(),
         startup_notices: startup_notices(log_dir.as_deref(), safe_mode),
         voice: voice.clone(),
+        predictor: predictor.clone(),
+        prediction_store: ui_prediction_store,
         debug_area: debug_area(app_file.as_ref()),
     };
     let mut app = App::new(

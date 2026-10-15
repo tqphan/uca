@@ -358,3 +358,23 @@ fn saves_a_profile_value_with_a_new_section() {
         PROFILE.to_owned() + "  voice:\n    rate: 1.3\n"
     );
 }
+
+#[test]
+fn writes_booleans_and_adds_nested_sections() {
+    let text = "profile:\n  name: A\n";
+    let learning = ["profile", "prediction", "learning"];
+    let added = set(text, &learning, Value::Bool(true)).expect("edit");
+    assert_eq!(
+        added,
+        "profile:\n  name: A\n  prediction:\n    learning: true\n"
+    );
+    assert_eq!(
+        set(&added, &learning, Value::Bool(false)).expect("edit"),
+        "profile:\n  name: A\n  prediction:\n    learning: false\n"
+    );
+    let model = ["profile", "prediction", "weights", "model"];
+    assert_eq!(
+        set(&added, &model, Value::Number(0.5)).expect("edit"),
+        "profile:\n  name: A\n  prediction:\n    learning: true\n    weights:\n      model: 0.5\n"
+    );
+}

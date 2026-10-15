@@ -26,8 +26,9 @@ use uca_platform::{Edge, OverlayOptions, Platform};
 use uca_render::BoardModel;
 use uca_types::{LogPoint, LogPx, MonitorId, MonitorInfo, RectLog};
 use uca_ui::{
-    BoardChoice, DiagnosticsView, SettingsCommand, SettingsView, StartBoardView, VoiceChoice,
-    VoiceNumber, VoiceSectionView, SETTINGS_BOARD_ID,
+    BoardChoice, DiagnosticsView, PredictionProblem, PredictionSectionView, PredictionWeight,
+    SettingsCommand, SettingsView, StartBoardView, VoiceChoice, VoiceNumber, VoiceSectionView,
+    SETTINGS_BOARD_ID,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -170,6 +171,9 @@ pub struct App {
     debug_info: DebugInfo,
     /// The voice worker, for the Settings Voice section (13).
     voice: Arc<uca_voice::Voice>,
+    /// The prediction worker, for the Settings Word prediction section (16).
+    predictor: Arc<uca_predict::Predictor>,
+    prediction_store: Option<std::path::PathBuf>,
 }
 
 /// The app's threads, and what it needs for logging and debug sessions.
@@ -184,6 +188,9 @@ pub struct AppRuntime {
     /// Notices to show at start: a crash, or the safe profile (11).
     pub startup_notices: Vec<Notice>,
     pub voice: Arc<uca_voice::Voice>,
+    pub predictor: Arc<uca_predict::Predictor>,
+    /// `profiles/<id>/prediction/user.redb`; `None` for the built-in safe profile.
+    pub prediction_store: Option<std::path::PathBuf>,
 }
 
 impl App {
@@ -219,6 +226,8 @@ impl App {
             export_result: None,
             notices: runtime.startup_notices.into(),
             voice: runtime.voice,
+            predictor: runtime.predictor,
+            prediction_store: runtime.prediction_store,
             notice_window: None,
             notice_since: None,
             diagnostics: DiagnosticsView {
@@ -707,6 +716,13 @@ impl App {
         let settings = self.settings.as_mut()?;
         let save_error = settings.save_error.clone();
         let voice_error = settings.voice_error.clone();
+        let prediction_error = settings.prediction_error.clone();
+        let prediction_problem = match self.predictor.status() {
+            uca_predict::PredictStatus::StoreFailed { .. } => Some(PredictionProblem::StoreFailed),
+            uca_predict::PredictStatus::NoModel => Some(PredictionProblem::NoModel),
+            _ => None,
+        };
+        let pr = &profile.prediction;
         let v = &profile.voice;
         let number = |n: VoiceNumber| voice_number(v, n);
         let export_result = self.export_result.clone();
@@ -727,6 +743,14 @@ impl App {
                 pitch: number(VoiceNumber::Pitch),
                 volume: number(VoiceNumber::Volume),
                 save_error: voice_error.as_deref(),
+            }),
+            prediction: self.profile.as_ref().map(|_| PredictionSectionView {
+                learning: pr.learning,
+                learn_on: pr.learn_on,
+                add_space: pr.add_space,
+                weights: pr.weights.resolved(),
+                problem: prediction_problem,
+                save_error: prediction_error.as_deref(),
             }),
             diagnostics: DiagnosticsView {
                 active: self.sessions.active().is_some(),
@@ -775,6 +799,42 @@ impl App {
                     self.save_voice(new, number.key());
                 }
                 SettingsCommand::TestVoice => self.voice.test(&t!("voice-test-sentence")),
+                SettingsCommand::SetPredictionLearning(on) => {
+                    let mut new = profile.prediction.clone();
+                    new.learning = on;
+                    self.save_prediction(&config, new, &["learning"]);
+                }
+                SettingsCommand::SetPredictionLearnOn(when) => {
+                    let mut new = profile.prediction.clone();
+                    new.learn_on = when;
+                    self.save_prediction(&config, new, &["learn_on"]);
+                }
+                SettingsCommand::SetPredictionSpace(on) => {
+                    let mut new = profile.prediction.clone();
+                    new.add_space = on;
+                    self.save_prediction(&config, new, &["add_space"]);
+                }
+                SettingsCommand::StepPredictionWeight { weight, up } => {
+                    let mut new = profile.prediction.clone();
+                    let value = step_prediction_weight(&new.weights, weight, up);
+                    let slot = match weight {
+                        PredictionWeight::Model => &mut new.weights.model,
+                        PredictionWeight::User => &mut new.weights.user,
+                        PredictionWeight::Recent => &mut new.weights.recent,
+                    };
+                    *slot = Some(uca_config::settings_registry::SettingValue::Number(value));
+                    if new.weights.resolved().iter().all(|&w| w == 0.0) {
+                        // All three 0 is a config error (16): refused here.
+                        if let Some(s) = &mut self.settings {
+                            s.prediction_error = Some(t!("config-prediction-weights-zero"));
+                            s.request_redraw();
+                        }
+                    } else {
+                        self.save_prediction(&config, new, &["weights", weight.key()]);
+                    }
+                }
+                SettingsCommand::ForgetWord(word) => self.predictor.forget(&word),
+                SettingsCommand::ResetLearning => self.predictor.reset(),
                 SettingsCommand::SessionMinutes(m) => self.diagnostics.minutes = m,
                 SettingsCommand::SessionTrace(trace) => self.diagnostics.trace = trace,
                 SettingsCommand::ToggleSensitive => {
@@ -848,6 +908,62 @@ impl App {
         }
         if let Some(s) = &mut self.settings {
             s.voice_error = result
+                .err()
+                .map(|e| uca_i18n::translate_args(e.message_id(), &e.args()));
+            s.request_redraw();
+        }
+    }
+
+    /// Saves one `profile.prediction` key from `new` and applies it to the
+    /// worker at once; the watcher then reloads the profile, and with it the
+    /// engine (05 "Word prediction", 16).
+    fn save_prediction(
+        &mut self,
+        config: &LoadedConfig,
+        new: uca_config::profile::Prediction,
+        key: &[&str],
+    ) {
+        use uca_config::profile::LearnOn;
+        use uca_config::save::{save_profile_value, Value};
+        use uca_config::settings_registry::SettingValue;
+        let Some(paths) = &self.profile else { return };
+        let number = |v: Option<SettingValue>| match v {
+            Some(SettingValue::Number(n)) => Value::Number(n),
+            _ => Value::Null,
+        };
+        let value = match key {
+            ["learning"] => Value::Bool(new.learning),
+            ["add_space"] => Value::Bool(new.add_space),
+            ["learn_on"] => Value::Str(match new.learn_on {
+                LearnOn::Word => "word",
+                LearnOn::Spoken => "spoken",
+            }),
+            ["weights", "model"] => number(new.weights.model),
+            ["weights", "user"] => number(new.weights.user),
+            _ => number(new.weights.recent),
+        };
+        let path: Vec<&str> = ["profile", "prediction"]
+            .into_iter()
+            .chain(key.iter().copied())
+            .collect();
+        let result =
+            save_profile_value(paths, &path, value, |c| c.profile.profile.prediction == new);
+        match &result {
+            Ok(()) => {
+                let mut profile = config.profile.profile.clone();
+                profile.prediction = new;
+                self.predictor
+                    .set_settings(uca_predict::PredictSettings::from_profile(
+                        &profile,
+                        self.prediction_store.clone(),
+                    ));
+            }
+            Err(e) => {
+                tracing::warn!(target: "uca::app", key = ?key, error = %e, "prediction setting not saved")
+            }
+        }
+        if let Some(s) = &mut self.settings {
+            s.prediction_error = result
                 .err()
                 .map(|e| uca_i18n::translate_args(e.message_id(), &e.args()));
             s.request_redraw();
@@ -1512,6 +1628,26 @@ fn voice_number(v: &uca_config::profile::Voice, n: VoiceNumber) -> f64 {
     }
 }
 
+/// One "−" / "+" step of 0.1 of a prediction weight, kept in 0–1 (05).
+fn step_prediction_weight(
+    w: &uca_config::profile::PredictionWeights,
+    weight: PredictionWeight,
+    up: bool,
+) -> f64 {
+    const STEP: f64 = 0.1;
+    let now = w.resolved()[match weight {
+        PredictionWeight::Model => 0,
+        PredictionWeight::User => 1,
+        PredictionWeight::Recent => 2,
+    }];
+    let next = if up { now + STEP } else { now - STEP };
+    let next = (next * 10.0).round() / 10.0;
+    match uca_config::settings_registry::get(&format!("prediction.weights.{}", weight.key())) {
+        Ok(def) => next.clamp(def.min, def.max),
+        Err(_) => now,
+    }
+}
+
 /// One "−" / "+" step of 0.1, kept in the registry range (05 "Voice").
 fn step_voice_number(v: &uca_config::profile::Voice, n: VoiceNumber, up: bool) -> f64 {
     const STEP: f64 = 0.1;
@@ -1548,6 +1684,29 @@ mod voice_tests {
         assert_eq!(ids(Some("en-GB")), ["zira"]);
         assert_eq!(ids(Some("fr")), ["hortense"]);
         assert_eq!(ids(Some("de-DE")), ["zira", "hortense"], "none match: all");
+    }
+
+    #[test]
+    fn prediction_weight_steps_stay_in_0_to_1() {
+        let mut w = uca_config::profile::PredictionWeights::default();
+        assert_eq!(
+            step_prediction_weight(&w, PredictionWeight::Model, true),
+            0.7
+        );
+        assert_eq!(
+            step_prediction_weight(&w, PredictionWeight::Recent, false),
+            0.0
+        );
+        w.recent = Some(uca_config::settings_registry::SettingValue::Number(0.0));
+        assert_eq!(
+            step_prediction_weight(&w, PredictionWeight::Recent, false),
+            0.0
+        );
+        w.model = Some(uca_config::settings_registry::SettingValue::Number(1.0));
+        assert_eq!(
+            step_prediction_weight(&w, PredictionWeight::Model, true),
+            1.0
+        );
     }
 
     #[test]

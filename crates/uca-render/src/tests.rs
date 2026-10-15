@@ -340,6 +340,10 @@ fn render_asset(start: &str, theme: &str) {
     let clock = FakeClock::new();
     let e = Engine::new(config.clone(), vec![monitor(1280.0, 720.0)]);
     let mut snap = e.snapshot(&clock);
+    let height = snap
+        .board
+        .as_ref()
+        .map_or(288.0, |b| b.rect.height.round() as f32);
     // Only the board area: shift the board to the top for the image.
     if let Some(b) = snap.board.as_mut() {
         let dy = b.rect.y;
@@ -356,5 +360,5 @@ fn render_asset(start: &str, theme: &str) {
     } else {
         format!("asset_{start}_{}", theme.replace('-', "_"))
     };
-    render(&name, &config, snap, (1280.0, 288.0), &clock);
+    render(&name, &config, snap, (1280.0, height), &clock);
 }

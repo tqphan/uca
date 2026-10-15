@@ -434,12 +434,14 @@ mod tests {
             intents: Vec::new(),
             caps: false,
         };
-        // Find a board item to dwell on: the first visible item's centre.
+        // Find a key to dwell on: the first visible item of the keys layer
+        // (above it, the prediction row starts with Compose, which types nothing).
         let snap = live.core.engine().snapshot(&live.clock);
         let item = snap
             .board
             .as_ref()
-            .and_then(|b| b.layers.iter().flat_map(|l| &l.items).find(|i| i.visible))
+            .and_then(|b| b.layers.iter().find(|l| l.id == "keys"))
+            .and_then(|l| l.items.iter().find(|i| i.visible))
             .expect("an item")
             .rect;
         let (x, y) = (item.x + item.width / 2.0, item.y + item.height / 2.0);

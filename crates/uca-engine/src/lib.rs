@@ -8,12 +8,14 @@
 
 mod engine;
 pub mod layout;
+pub mod prediction;
 pub mod safe_board;
 pub mod sets;
 pub mod speech;
 pub mod types;
 
 pub use engine::Engine;
+pub use prediction::{PredictionIntent, SlotWord};
 pub use speech::{KeyChars, KeyLayout, SpeechIntent, SpeechSnapshot};
 pub use types::{
     ActivationId, BoardSnapshot, Control, DebugSnapshot, DwellSnapshot, EngineControl, EngineInput,

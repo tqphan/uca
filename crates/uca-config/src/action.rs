@@ -74,6 +74,8 @@ pub enum Action {
     SpeechStop,
     /// An engine voice id.
     SpeechVoice(String),
+    /// Arm or cancel "remove a word" (16).
+    PredictionForget,
 }
 
 /// Every action name accepted, for "Did you mean" suggestions.
@@ -135,6 +137,7 @@ pub const ACTION_NAMES: &[&str] = &[
     "speech.repeat",
     "speech.stop",
     "speech.voice",
+    "prediction.forget",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
@@ -340,6 +343,7 @@ fn action_args<'de, A: MapAccess<'de>>(name: &str, map: &mut A) -> Result<Action
         "speech.repeat" => none!(Action::SpeechRepeat),
         "speech.stop" => none!(Action::SpeechStop),
         "speech.voice" => Action::SpeechVoice(arg!(String)),
+        "prediction.forget" => none!(Action::PredictionForget),
         other => {
             let hint = closest(other, ACTION_NAMES.iter().copied())
                 .map(|s| format!(". Did you mean {s:?}?"))
@@ -840,6 +844,12 @@ mod tests {
         );
         assert!(act("speech.stop: now").is_err());
         assert!(act("speech.say: { text: hi }").is_err());
+    }
+
+    #[test]
+    fn prediction_forget() {
+        assert_eq!(act("prediction.forget:"), Ok(Action::PredictionForget));
+        assert!(act("prediction.forget: hello").is_err());
     }
 
     #[test]

@@ -63,6 +63,8 @@ pub enum Intent {
     },
     /// For the voice worker (13).
     Speech(crate::speech::SpeechIntent),
+    /// For the prediction worker (16).
+    Prediction(crate::prediction::PredictionIntent),
 }
 
 /// A `uca-ui` screen registered with the engine as a virtual board, so dwell
@@ -197,4 +199,7 @@ pub struct ItemSnapshot {
     pub latch: Option<Latch>,
     /// Safe Board items only.
     pub safe_item: Option<SafeItem>,
+    /// The suggestion a prediction slot shows; `None` for an empty slot or
+    /// another item (16).
+    pub slot_word: Option<crate::prediction::SlotWord>,
 }

@@ -275,6 +275,7 @@ pub fn describe(i: &Intent) -> String {
         Intent::Virtual { board, item } => format!("virtual {board}/{item}"),
         // Its Debug shows lengths only (11).
         Intent::Speech(s) => format!("speech {s:?}"),
+        Intent::Prediction(p) => format!("prediction {p:?}"),
     }
 }
 

@@ -1,0 +1,16 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+  prediction:
+    learn_on: sentence
+---
+schema: uca/1
+board: { id: main }
+layers:
+  - id: slots
+    layout: { type: row }
+    items:
+      - { id: p0, prediction: 0 }
+      - { id: away, action: { board.open: main } }

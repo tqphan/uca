@@ -87,6 +87,14 @@ impl BoardModel {
         if let Some(safe) = item.safe_item {
             return uca_i18n::translate(safe.label_id(), &[]);
         }
+        if res.item.prediction.is_some() {
+            // A prediction slot shows its suggestion; an empty one no label (16).
+            return item
+                .slot_word
+                .as_ref()
+                .map(|w| w.0.clone())
+                .unwrap_or_default();
+        }
         let entry = item.action_set.as_ref().and_then(|set| {
             res.item
                 .actions

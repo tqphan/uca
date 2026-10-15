@@ -49,13 +49,17 @@ groups:
 "##;
 
 fn config() -> Arc<LoadedConfig> {
+    config_from(MAIN)
+}
+
+fn config_from(main: &str) -> Arc<LoadedConfig> {
     let p = ProfilePaths {
         config_dir: PathBuf::from("cfg"),
         profile_id: "t".into(),
     };
     let mut s = Sources::default();
     s.set(&p, &p.profile_file(), Some(PROFILE.into()));
-    s.set(&p, &p.boards_dir().join("main.yaml"), Some(MAIN.into()));
+    s.set(&p, &p.boards_dir().join("main.yaml"), Some(main.into()));
     s.set(
         &p,
         &p.shared_themes_dir().join("default.yaml"),
@@ -169,6 +173,61 @@ fn dwell_bar_and_shadow() {
         "dwell_bar_and_shadow",
         &config,
         e.snapshot(&clock),
+        (600.0, 120.0),
+        &clock,
+    );
+}
+
+const SLOTS: &str = r##"schema: uca/1
+board: { id: main, anchor: free, size: { width: 600, height: 120 }, theme: default, background: "#0b1220", behavior: { dwell_ms: 100 } }
+layers:
+  - id: l
+    layout: { type: row, gap: 8 }
+    padding: 8
+    items:
+      - { id: compose, label: "Compose", action: { speech.compose.on: } }
+      - { id: p1, prediction: 1 }
+      - { id: p2, prediction: 2 }
+      - { id: p3, prediction: 3 }
+      - { id: forget, label: "Remove", action: { prediction.forget: } }
+"##;
+
+/// Prediction slots (16): two filled, one empty, "remove a word" armed so the
+/// slots show the built-in `forget` border and the Remove item `latched`.
+#[test]
+fn prediction_slots_forget_armed() {
+    let config = config_from(SLOTS);
+    let clock = FakeClock::new();
+    let mut e = Engine::new(config.clone(), vec![monitor(1920.0, 1080.0)]);
+    let item_x = |n: f64| 8.0 + n * (113.6 + 8.0) + 50.0;
+    e.on_signal(point(&clock, item_x(0.0), 60.0), &clock);
+    clock.advance(Duration::from_millis(150));
+    e.on_tick(&clock);
+    let rev = e
+        .drain_intents()
+        .into_iter()
+        .find_map(|i| match i {
+            uca_engine::Intent::Prediction(uca_engine::PredictionIntent::Predict {
+                rev, ..
+            }) => Some(rev),
+            _ => None,
+        })
+        .expect("compose asks for predictions");
+    e.set_predictions(rev, vec!["hello".into(), "help".into()], &clock);
+    // Compose's activation stays open for its grace after leaving (hold:
+    // release), then dwell on Remove starts.
+    e.on_signal(point(&clock, item_x(4.0), 60.0), &clock);
+    for _ in 0..4 {
+        clock.advance(Duration::from_millis(100));
+        e.on_tick(&clock);
+    }
+    e.on_signal(point(&clock, 1500.0, 600.0), &clock);
+    assert!(e.forget_armed());
+    let snap = e.snapshot(&clock);
+    render(
+        "prediction_slots_forget_armed",
+        &config,
+        snap,
         (600.0, 120.0),
         &clock,
     );

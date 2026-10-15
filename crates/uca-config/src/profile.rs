@@ -47,6 +47,80 @@ pub struct Profile {
     /// Speech output (13).
     #[serde(default)]
     pub voice: Voice,
+    /// Built-in word prediction (16).
+    #[serde(default)]
+    pub prediction: Prediction,
+}
+
+/// Built-in word prediction settings (16 "Word prediction").
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Prediction {
+    /// Learning from the user's text; off by default (strict opt-in).
+    #[serde(default)]
+    pub learning: bool,
+    #[serde(default)]
+    pub learn_on: LearnOn,
+    /// A space after an inserted prediction.
+    #[serde(default = "yes")]
+    pub add_space: bool,
+    #[serde(default)]
+    pub weights: PredictionWeights,
+}
+
+impl Default for Prediction {
+    fn default() -> Self {
+        Prediction {
+            learning: false,
+            learn_on: LearnOn::default(),
+            add_space: true,
+            weights: PredictionWeights::default(),
+        }
+    }
+}
+
+/// When the user's text is learned (16).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum LearnOn {
+    /// Each word once a space or punctuation follows it.
+    #[default]
+    Word,
+    /// The whole message when it is spoken.
+    Spoken,
+}
+
+impl PredictionWeights {
+    /// `[model, user, recent]`, registry defaults where unset.
+    pub fn resolved(&self) -> [f64; 3] {
+        let value = |v: &Option<SettingValue>, key| match v {
+            Some(SettingValue::Number(n)) => *n,
+            _ => match crate::settings_registry::get(key).map(|d| d.default) {
+                Ok(SettingValue::Number(n)) => n,
+                _ => 0.0,
+            },
+        };
+        [
+            value(&self.model, "prediction.weights.model"),
+            value(&self.user, "prediction.weights.user"),
+            value(&self.recent, "prediction.weights.recent"),
+        ]
+    }
+}
+
+/// Relative weights of augur's three predictors; not all may be 0 (16).
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PredictionWeights {
+    #[serde(default, deserialize_with = "setting::prediction_weight_model")]
+    #[schemars(schema_with = "crate::setting::schema::prediction_weight_model")]
+    pub model: Option<SettingValue>,
+    #[serde(default, deserialize_with = "setting::prediction_weight_user")]
+    #[schemars(schema_with = "crate::setting::schema::prediction_weight_user")]
+    pub user: Option<SettingValue>,
+    #[serde(default, deserialize_with = "setting::prediction_weight_recent")]
+    #[schemars(schema_with = "crate::setting::schema::prediction_weight_recent")]
+    pub recent: Option<SettingValue>,
 }
 
 /// Speech output settings (13 "Profile settings").

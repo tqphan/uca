@@ -59,6 +59,11 @@ pub fn style_for(snapshot: &ItemSnapshot, look: &ItemLook<'_>) -> ResolvedStyle 
     }
     let mut s = look.resolved.style(&states);
     let builtin = |st: State| states.contains(&st) && !look.resolved.styles_state(st);
+    if builtin(State::Forget) {
+        // 05: a red border while "remove a word" is armed (16).
+        s.border.color = [0xef, 0x44, 0x44, 0xff];
+        s.border.width = Length::Px(4.0);
+    }
     if builtin(State::Hover) {
         s.border.color = brighten(s.border.color);
     }

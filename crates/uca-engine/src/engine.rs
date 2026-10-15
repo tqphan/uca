@@ -18,6 +18,7 @@ use uca_mapping::{BindingKey, Ends, Mapping, MappingEvent, MatchContext};
 use uca_types::{Clock, FilteredPoint, Key, MonitorInfo, SourceStatus, TriggerEvent, TriggerId};
 
 use crate::layout::{choose_monitor, layout_board, BoardLayout};
+use crate::prediction::{PredictionIntent, PredictionState, SlotWord};
 use crate::safe_board::{safe_board, SAFE_ITEMS};
 use crate::sets::{SetStack, DEFAULT_SET};
 use crate::speech::{ComposeKey, KeyLayout, Speech, SpeechIntent};
@@ -144,6 +145,7 @@ pub struct Engine {
     escape: Option<Mapping>,
     intents: Vec<Intent>,
     speech: Speech,
+    prediction: PredictionState,
 }
 
 struct Shown {
@@ -190,6 +192,7 @@ impl Engine {
             escape,
             intents: Vec::new(),
             speech: Speech::default(),
+            prediction: PredictionState::default(),
         };
         engine.show_top();
         engine
@@ -219,10 +222,13 @@ impl Engine {
             // Fallback to another method arrives in M2 (SAFETY-06).
             EngineInput::PointerSourceLost(_) => {}
         }
+        self.sync_prediction(now);
     }
 
     pub fn on_tick(&mut self, clock: &dyn Clock) {
-        self.advance_to(clock.now());
+        let now = clock.now();
+        self.advance_to(now);
+        self.sync_prediction(now);
     }
 
     /// A new valid config (hot reload): safety reset, then start from the new boards.
@@ -245,6 +251,7 @@ impl Engine {
         self.layer_visible.clear();
         self.cooldown_until.clear();
         self.show_top();
+        self.sync_prediction(now);
     }
 
     /// Requests from outside the input path (tray menu, settings).
@@ -256,6 +263,7 @@ impl Engine {
             EngineControl::TogglePause => self.pause(now),
             EngineControl::OpenSafeBoard => self.open_safe_board(now),
         }
+        self.sync_prediction(now);
     }
 
     pub fn set_monitors(&mut self, monitors: Vec<MonitorInfo>) {
@@ -292,6 +300,7 @@ impl Engine {
             (None, None) => {}
         }
         self.refresh_hover(now);
+        self.sync_prediction(now);
     }
 
     pub fn next_deadline(&self) -> Option<Instant> {
@@ -343,6 +352,103 @@ impl Engine {
     /// The OS Caps Lock state, given before each input while composing (13).
     pub fn set_caps_lock(&mut self, on: bool) {
         self.speech.set_caps_lock(on);
+    }
+
+    /// The prediction worker's answer to `Predict { rev, .. }` (16). Answers
+    /// for an older revision are dropped.
+    pub fn set_predictions(&mut self, rev: u64, words: Vec<String>, clock: &dyn Clock) {
+        let now = clock.now();
+        self.advance_to(now);
+        if self.prediction.answer(rev, words) {
+            // Filled slots can be dwelled on now.
+            self.refresh_hover(now);
+        }
+        self.sync_prediction(now);
+    }
+
+    /// Whether `prediction.forget` is armed (16).
+    pub fn forget_armed(&self) -> bool {
+        self.prediction.forget_armed()
+    }
+
+    // ------------------------------------------------------------ prediction
+
+    /// The highest prediction slot on the shown board's visible layers while
+    /// composing; 0 = no slots shown (16 "Board slots", "Scope").
+    fn prediction_slots(&self) -> u32 {
+        let Some(shown) = self.shown.as_ref().filter(|s| !s.safe) else {
+            return 0;
+        };
+        if !self.speech.composing() {
+            return 0;
+        }
+        let board = &shown.file.board.id.0;
+        shown
+            .resolved
+            .iter()
+            .enumerate()
+            .filter(|(li, _)| self.layer_is_visible(board, *li))
+            .flat_map(|(_, items)| items.iter())
+            .filter(|r| r.item.visible != Some(false))
+            .filter_map(|r| r.item.prediction.map(|n| n.get()))
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// After every input: learn finished words and ask for new suggestions
+    /// when the compose text or the shown slots changed.
+    fn sync_prediction(&mut self, t: Instant) {
+        let mut out = Vec::new();
+        let settings = &self.config.profile.profile.prediction;
+        self.prediction
+            .learn_words(self.speech.buffer(), settings, &mut out);
+        let max = self.prediction_slots();
+        self.prediction.sync(self.speech.buffer(), max, &mut out);
+        let asked = out
+            .iter()
+            .any(|i| matches!(i, PredictionIntent::Predict { .. }));
+        self.prediction_intents(out);
+        if asked {
+            // Blank slots can't be dwelled on.
+            self.refresh_hover(t);
+        }
+    }
+
+    fn prediction_intents(&mut self, out: Vec<PredictionIntent>) {
+        for i in out {
+            tracing::debug!(target: "uca::engine", intent = ?i, "prediction");
+            self.intents.push(Intent::Prediction(i));
+        }
+    }
+
+    /// Slot `n` was selected: insert its word, or remove it when armed (16).
+    fn prediction_select(&mut self, r: ItemRef, n: u32, t: Instant) {
+        let Some(word) = self.prediction.word(n).map(str::to_owned) else {
+            return;
+        };
+        if self.prediction.forget_armed() {
+            self.prediction.toggle_forget();
+            let mut out = vec![PredictionIntent::Forget(word)];
+            self.prediction.refresh(&mut out);
+            self.prediction_intents(out);
+        } else {
+            let add_space = self.config.profile.profile.prediction.add_space;
+            if let Some(text) = PredictionState::insertion(self.speech.buffer(), &word, add_space) {
+                self.speech.append(&text);
+            }
+        }
+        if let Some(b) = self.behavior(r) {
+            let cooldown = millis(b.cooldown_ms);
+            if !cooldown.is_zero() {
+                self.cooldown_until.insert(r, t + cooldown);
+            }
+        }
+    }
+
+    /// A slot item, and the word it shows.
+    fn slot(&self, r: ItemRef) -> Option<(u32, Option<&str>)> {
+        let n = self.resolved(r)?.item.prediction?.get();
+        Some((n, self.prediction.word(n)))
     }
 
     // ------------------------------------------------------------ time
@@ -529,7 +635,12 @@ impl Engine {
                 let usable = item.placed
                     && res.item.visible != Some(false)
                     && res.item.empty != Some(true)
-                    && (shown.safe || self.item_entry(r).is_some());
+                    && (shown.safe
+                        || match self.slot(r) {
+                            // An empty slot is inert (16).
+                            Some((_, word)) => word.is_some(),
+                            None => self.item_entry(r).is_some(),
+                        });
                 if usable && item.rect.contains(p.logical.x, p.logical.y) {
                     return Some(r);
                 }
@@ -981,6 +1092,10 @@ impl Engine {
                 }
             }
         }
+        if let Some((n, _)) = self.slot(r) {
+            self.prediction_select(r, n, t);
+            return None;
+        }
         let (_set, entry) = self.item_entry(r)?;
         let id = self.new_id();
         let start = self.expand(entry.start.as_ref());
@@ -1305,9 +1420,17 @@ impl Engine {
                 self.speech_intent(i);
             }
             Action::SpeechSpeakBuffer => {
+                let text = self.speech.buffer().to_owned();
                 let i = self.speech.speak_buffer(&self.config.profile.profile.voice);
+                if matches!(i, Some(SpeechIntent::Say(_))) {
+                    let mut out = Vec::new();
+                    let settings = &self.config.profile.profile.prediction;
+                    self.prediction.spoken(&text, settings, &mut out);
+                    self.prediction_intents(out);
+                }
                 self.speech_intent(i);
             }
+            Action::PredictionForget => self.prediction.toggle_forget(),
             Action::SpeechRepeat => {
                 let i = self.speech.repeat(&self.config.profile.profile.voice);
                 self.speech_intent(i);
@@ -1480,12 +1603,20 @@ impl Engine {
         let latch = res
             .and_then(|res| latch_key(&res.item))
             .and_then(|k| self.latched.get(&k).copied());
+        let slot = if s.safe { None } else { self.slot(r) };
+        let forget_item = res.is_some_and(|res| has_forget(&res.item));
         let mut states = Vec::new();
-        if !s.safe && entry.is_none() {
+        if !s.safe && entry.is_none() && slot.is_none() {
             states.push(State::Disabled);
         }
-        if open.is_some_and(|a| a.hold == Hold::Toggle) || latch.is_some() {
+        if open.is_some_and(|a| a.hold == Hold::Toggle)
+            || latch.is_some()
+            || (forget_item && self.prediction.forget_armed())
+        {
             states.push(State::Latched);
+        }
+        if slot.is_some() && self.prediction.forget_armed() {
+            states.push(State::Forget);
         }
         if self.hover == Some(r) {
             states.push(State::Hover);
@@ -1510,6 +1641,7 @@ impl Engine {
             armed,
             latch,
             safe_item: s.safe.then(|| SAFE_ITEMS.get(it.index).copied()).flatten(),
+            slot_word: slot.and_then(|(_, w)| w).map(|w| SlotWord(w.to_owned())),
         }
     }
 }
@@ -1534,6 +1666,17 @@ fn resolve_set(item: &Item, sets: &SetStack) -> Option<(String, ActionSetEntry)>
         }
     }
     None
+}
+
+/// Whether an item arms "remove a word", for its `latched` state (16).
+fn has_forget(item: &Item) -> bool {
+    let seqs = item.action.iter().chain(
+        item.actions
+            .iter()
+            .flat_map(|a| a.0.iter().filter_map(|(_, e)| e.start.as_ref())),
+    );
+    seqs.flat_map(|s| s.0.iter())
+        .any(|a| matches!(a, Action::PredictionForget))
 }
 
 /// The modifier an item latches, for its `latched` state (05).

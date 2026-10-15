@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use uca_config::action::{Action, Mode};
 use uca_config::store::{ConfigStore, ConfigUpdate, LoadedConfig, ProfilePaths, Sources};
+use uca_config::values::State;
 use uca_types::{
     Clock, FakeClock, FilteredPoint, Key, LogPoint, LogPx, MonitorId, MonitorInfo, Phase,
     PhysPoint, RectLog, RectPhys, SourceId, SourceStatus, SourceStatusEvent, TriggerEvent,
@@ -420,7 +421,7 @@ fn toggle_and_instant() {
     assert_eq!(r.taps(), vec![tap(800, "+ShiftLeft")]);
     let snap = r.e.snapshot(&r.clock);
     let item = &snap.board.as_ref().expect("board").layers[0].items[3];
-    assert!(item.states.contains(&uca_config::values::State::Latched));
+    assert!(item.states.contains(&State::Latched));
     assert!(r.released().is_empty());
     r.on(1500, 3);
     r.run_to(3000);
@@ -1124,4 +1125,246 @@ fn buffer_survives_a_reload() {
     r.e.on_config(config_with(&speech_profile("{}"), SPEECH), &r.clock);
     assert_eq!(r.buffer(), "q");
     assert!(r.e.composing());
+}
+
+// ---------------------------------------------------------------- prediction (16)
+
+/// Items in a row, 100 px each; see the constants below.
+const PREDICT: &str = r#"schema: uca/1
+board: { id: main, anchor: free, size: { width: 1000, height: 100 }, behavior: { dwell_ms: 800, dwell_grace_ms: 150, cooldown_ms: 300 } }
+layers:
+  - id: l
+    layout: { type: row }
+    items:
+      - { id: compose, size: { width: 100 }, action: { speech.compose.toggle: } }
+      - { id: p1, size: { width: 100 }, prediction: 1 }
+      - { id: p2, size: { width: 100 }, prediction: 2 }
+      - { id: forget, size: { width: 100 }, action: { prediction.forget: } }
+      - { id: lon, size: { width: 100 }, action: { text.type: "Lon" } }
+      - { id: speak, size: { width: 100 }, action: { speech.speak_buffer: } }
+      - { id: hi, size: { width: 100 }, action: { text.type: "hi " } }
+      - { id: next, size: { width: 100 }, action: { board.open: second } }
+"#;
+
+const P_COMPOSE: usize = 0;
+const P1: usize = 1;
+const P2: usize = 2;
+const P_FORGET: usize = 3;
+const P_LON: usize = 4;
+const P_SPEAK: usize = 5;
+const P_HI: usize = 6;
+
+fn predict_rig(prediction: &str) -> Rig {
+    Rig::with_profile(&format!("{PROFILE}  prediction: {prediction}\n"), PREDICT)
+}
+
+impl Rig {
+    fn predictions(&self) -> Vec<crate::PredictionIntent> {
+        self.log
+            .iter()
+            .filter_map(|(_, i)| match i {
+                Intent::Prediction(p) => Some(p.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// What was learned, forgotten or ended, without the `Predict` asks.
+    fn learned(&self) -> Vec<crate::PredictionIntent> {
+        self.predictions()
+            .into_iter()
+            .filter(|p| !matches!(p, crate::PredictionIntent::Predict { .. }))
+            .collect()
+    }
+
+    /// The last `Predict` asked: (rev, before, max).
+    fn last_ask(&self) -> (u64, String, u32) {
+        self.predictions()
+            .into_iter()
+            .rev()
+            .find_map(|p| match p {
+                crate::PredictionIntent::Predict { rev, before, max } => Some((rev, before, max)),
+                _ => None,
+            })
+            .expect("a Predict")
+    }
+
+    fn answer(&mut self, rev: u64, words: &[&str]) {
+        let words = words.iter().map(|w| (*w).to_owned()).collect();
+        self.e.set_predictions(rev, words, &self.clock);
+        self.drain();
+    }
+
+    fn item(&self, n: usize) -> crate::ItemSnapshot {
+        let snap = self.e.snapshot(&self.clock);
+        snap.board.expect("board").layers[0].items[n].clone()
+    }
+
+    fn slot(&self, n: usize) -> Option<String> {
+        self.item(n).slot_word.map(|w| w.0)
+    }
+}
+
+/// 16 "Scope": nothing is asked outside compose; compose asks for the
+/// highest slot number shown.
+#[test]
+fn predictions_are_asked_only_while_composing() {
+    let mut r = predict_rig("{}");
+    r.activate(P_LON);
+    assert!(r.predictions().is_empty(), "{:?}", r.predictions());
+    r.activate(P_COMPOSE);
+    assert_eq!(r.last_ask().1, "");
+    assert_eq!(r.last_ask().2, 2);
+    r.activate(P_COMPOSE);
+    let asks = r.predictions().len();
+    let (rev, ..) = r.last_ask();
+    r.answer(rev, &["the"]);
+    assert_eq!(r.slot(P1), None, "compose off: slots stay blank");
+    assert_eq!(r.predictions().len(), asks);
+}
+
+/// 16 "Board slots": an empty slot is drawn (not disabled) and does nothing.
+#[test]
+fn empty_slots_are_inert() {
+    let mut r = predict_rig("{}");
+    r.activate(P_COMPOSE);
+    let item = r.item(P1);
+    assert!(!item.states.contains(&State::Disabled), "{:?}", item.states);
+    assert_eq!(item.slot_word, None);
+    r.activate(P1);
+    assert_eq!(r.buffer(), "");
+    assert!(r.executed().is_empty());
+}
+
+/// 16 "Inserting": the rest of the word, keeping the typed letters, then a space.
+#[test]
+fn selecting_a_slot_appends_the_rest_of_the_word() {
+    let mut r = predict_rig("{}");
+    r.activate(P_COMPOSE);
+    r.activate(P_LON);
+    let (rev, before, _) = r.last_ask();
+    assert_eq!(before, "Lon");
+    r.answer(rev, &["london", "xyz", "Long"]);
+    assert_eq!(r.slot(P1).as_deref(), Some("london"));
+    assert_eq!(
+        r.slot(P2).as_deref(),
+        Some("Long"),
+        "non-matching words are not offered"
+    );
+    r.activate(P1);
+    assert_eq!(r.buffer(), "London ");
+    assert_eq!(r.last_ask().1, "London ");
+    assert_eq!(r.slot(P1), None, "blank until the new answer");
+    assert!(r.executed().is_empty());
+}
+
+#[test]
+fn add_space_off_inserts_only_the_word() {
+    let mut r = predict_rig("{ add_space: false }");
+    r.activate(P_COMPOSE);
+    r.activate(P_LON);
+    let (rev, ..) = r.last_ask();
+    r.answer(rev, &["London"]);
+    r.activate(P1);
+    assert_eq!(r.buffer(), "London");
+}
+
+/// 16 "Where it runs": an answer for an older revision is dropped.
+#[test]
+fn stale_answers_are_dropped() {
+    let mut r = predict_rig("{}");
+    r.activate(P_COMPOSE);
+    let (old, ..) = r.last_ask();
+    r.activate(P_LON);
+    r.answer(old, &["the"]);
+    assert_eq!(r.slot(P1), None);
+    let (rev, ..) = r.last_ask();
+    assert!(rev > old);
+    r.answer(rev, &["London"]);
+    assert_eq!(r.slot(P1).as_deref(), Some("London"));
+}
+
+/// 16 "Remove a word": armed, the next slot removes its word instead of
+/// inserting it; the forget item shows latched, the slots `forget`.
+#[test]
+fn forget_removes_the_next_selected_word() {
+    use crate::PredictionIntent::{Forget, Predict};
+    let mut r = predict_rig("{}");
+    r.activate(P_COMPOSE);
+    r.activate(P_LON);
+    let (rev, ..) = r.last_ask();
+    r.answer(rev, &["Lonn", "London"]);
+    r.activate(P_FORGET);
+    assert!(r.e.forget_armed());
+    assert!(r.item(P_FORGET).states.contains(&State::Latched));
+    assert!(r.item(P1).states.contains(&State::Forget));
+    assert!(r.item(P2).states.contains(&State::Forget));
+    r.activate(P1);
+    assert!(!r.e.forget_armed());
+    assert_eq!(r.buffer(), "Lon", "nothing inserted");
+    let tail: Vec<_> = r.predictions().into_iter().rev().take(2).collect();
+    assert!(
+        matches!(&tail[0], Predict { before, .. } if before == "Lon"),
+        "{tail:?}"
+    );
+    assert_eq!(tail[1], Forget("Lonn".into()));
+    assert!(!r.item(P1).states.contains(&State::Forget));
+
+    // Selecting it again cancels.
+    r.activate(P_FORGET);
+    assert!(r.e.forget_armed());
+    r.activate(P_FORGET);
+    assert!(!r.e.forget_armed());
+}
+
+/// 16 "Learning": off by default.
+#[test]
+fn nothing_is_learned_by_default() {
+    let mut r = predict_rig("{}");
+    r.activate(P_COMPOSE);
+    r.activate(P_HI);
+    r.activate(P_SPEAK);
+    assert!(r.learned().is_empty(), "{:?}", r.learned());
+}
+
+/// 16 "Learning": `learn_on: word` learns each finished word; speaking ends
+/// the last one and the text.
+#[test]
+fn learn_on_word() {
+    use crate::PredictionIntent::{EndText, Learn};
+    let mut r = predict_rig("{ learning: true }");
+    r.activate(P_COMPOSE);
+    r.activate(P_HI);
+    r.activate(P_LON);
+    r.activate(P_SPEAK);
+    assert_eq!(
+        r.learned(),
+        [Learn("hi ".into()), Learn("Lon".into()), EndText]
+    );
+}
+
+#[test]
+fn learn_on_spoken() {
+    use crate::PredictionIntent::{EndText, Learn};
+    let mut r = predict_rig("{ learning: true, learn_on: spoken }");
+    r.activate(P_COMPOSE);
+    r.activate(P_HI);
+    r.activate(P_LON);
+    r.activate(P_SPEAK);
+    assert_eq!(r.learned(), [Learn("hi Lon".into()), EndText]);
+}
+
+/// The Safe Board shows no slots, so nothing is asked while it is open.
+#[test]
+fn safe_board_asks_nothing() {
+    let mut r = predict_rig("{}");
+    r.activate(P_COMPOSE);
+    let t = r.ms() + 10;
+    r.trigger(t, "key:F12", Phase::Down, true);
+    r.run_to(t + 3100);
+    assert!(r.e.safe_board_open());
+    let asks = r.predictions().len();
+    let (rev, ..) = r.last_ask();
+    r.answer(rev, &["the"]);
+    assert_eq!(r.predictions().len(), asks);
 }

@@ -1,0 +1,2 @@
+parse error: profile.yaml:7:15 profile.prediction.learn_on: unknown variant `sentence`, expected `word` or `spoken`
+parse error: boards/main.yaml:7:31 layers[0].items[0].prediction: invalid value: integer `0`, expected a nonzero u32

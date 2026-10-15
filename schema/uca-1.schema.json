@@ -1032,6 +1032,27 @@
           "required": [
             "speech.voice"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "prediction.forget": {
+              "description": "No arguments.",
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "prediction.forget"
+          ]
         }
       ]
     },
@@ -1610,24 +1631,9 @@
         },
         "states": {
           "type": "object",
-          "properties": {
-            "active": {
-              "$ref": "#/$defs/Style"
-            },
-            "disabled": {
-              "$ref": "#/$defs/Style"
-            },
-            "dwell": {
-              "$ref": "#/$defs/Style"
-            },
-            "hover": {
-              "$ref": "#/$defs/Style"
-            },
-            "latched": {
-              "$ref": "#/$defs/Style"
-            }
-          },
-          "additionalProperties": false
+          "additionalProperties": {
+            "$ref": "#/$defs/Style"
+          }
         },
         "theme": {
           "type": [
@@ -2340,6 +2346,15 @@
             }
           ]
         },
+        "prediction": {
+          "description": "Word-prediction slot n, 1-based (16); no `action` / `actions` with it.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 1
+        },
         "shadow": {
           "anyOf": [
             {
@@ -2372,24 +2387,9 @@
         },
         "states": {
           "type": "object",
-          "properties": {
-            "active": {
-              "$ref": "#/$defs/Style"
-            },
-            "disabled": {
-              "$ref": "#/$defs/Style"
-            },
-            "dwell": {
-              "$ref": "#/$defs/Style"
-            },
-            "hover": {
-              "$ref": "#/$defs/Style"
-            },
-            "latched": {
-              "$ref": "#/$defs/Style"
-            }
-          },
-          "additionalProperties": false
+          "additionalProperties": {
+            "$ref": "#/$defs/Style"
+          }
         },
         "tooltip": {
           "type": [
@@ -2560,24 +2560,9 @@
         },
         "states": {
           "type": "object",
-          "properties": {
-            "active": {
-              "$ref": "#/$defs/Style"
-            },
-            "disabled": {
-              "$ref": "#/$defs/Style"
-            },
-            "dwell": {
-              "$ref": "#/$defs/Style"
-            },
-            "hover": {
-              "$ref": "#/$defs/Style"
-            },
-            "latched": {
-              "$ref": "#/$defs/Style"
-            }
-          },
-          "additionalProperties": false
+          "additionalProperties": {
+            "$ref": "#/$defs/Style"
+          }
         },
         "visible": {
           "type": [
@@ -2637,6 +2622,21 @@
         "grid",
         "row",
         "column"
+      ]
+    },
+    "LearnOn": {
+      "description": "When the user's text is learned (16).",
+      "oneOf": [
+        {
+          "description": "Each word once a space or punctuation follows it.",
+          "type": "string",
+          "const": "word"
+        },
+        {
+          "description": "The whole message when it is spoken.",
+          "type": "string",
+          "const": "spoken"
+        }
       ]
     },
     "Length": {
@@ -2815,6 +2815,54 @@
       },
       "additionalProperties": false
     },
+    "Prediction": {
+      "description": "Built-in word prediction settings (16 \"Word prediction\").",
+      "type": "object",
+      "properties": {
+        "add_space": {
+          "description": "A space after an inserted prediction.",
+          "type": "boolean",
+          "default": true
+        },
+        "learn_on": {
+          "$ref": "#/$defs/LearnOn"
+        },
+        "learning": {
+          "description": "Learning from the user's text; off by default (strict opt-in).",
+          "type": "boolean",
+          "default": false
+        },
+        "weights": {
+          "$ref": "#/$defs/PredictionWeights"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PredictionWeights": {
+      "description": "Relative weights of augur's three predictors; not all may be 0 (16).",
+      "type": "object",
+      "properties": {
+        "model": {
+          "description": "Setting `prediction.weights.model` (ratio)",
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.0
+        },
+        "recent": {
+          "description": "Setting `prediction.weights.recent` (ratio)",
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.0
+        },
+        "user": {
+          "description": "Setting `prediction.weights.user` (ratio)",
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
     "Presence": {
       "type": "object",
       "properties": {
@@ -2892,6 +2940,10 @@
               "minimum": 0.0
             }
           ]
+        },
+        "prediction": {
+          "description": "Built-in word prediction (16).",
+          "$ref": "#/$defs/Prediction"
         },
         "safety": {
           "description": "Required (SAFETY-01); checked during validation so the message is exact.",

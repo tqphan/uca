@@ -108,8 +108,11 @@ impl Executor {
                 self.release_all();
                 Vec::new()
             }
-            // The app routes these to the UI and the voice worker.
-            Intent::Control(_) | Intent::Virtual { .. } | Intent::Speech(_) => Vec::new(),
+            // The app routes these to the UI, the voice and the prediction worker.
+            Intent::Control(_)
+            | Intent::Virtual { .. }
+            | Intent::Speech(_)
+            | Intent::Prediction(_) => Vec::new(),
         }
     }
 

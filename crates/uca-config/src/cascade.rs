@@ -25,6 +25,7 @@ pub const OTHERS_GROUP: &str = "others";
 pub const STATE_ORDER: &[State] = &[
     State::Disabled,
     State::Latched,
+    State::Forget,
     State::Hover,
     State::Dwell,
     State::Active,
@@ -183,6 +184,7 @@ impl Merge for Item {
         }
         replace(&mut self.zone, &o.zone);
         replace(&mut self.empty, &o.empty);
+        replace(&mut self.prediction, &o.prediction);
     }
 }
 

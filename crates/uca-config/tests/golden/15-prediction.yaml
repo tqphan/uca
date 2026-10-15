@@ -1,0 +1,31 @@
+schema: uca/1
+profile:
+  name: Alex
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+  prediction:
+    learning: true
+    learn_on: spoken
+    add_space: false
+    weights: { model: 0.4, user: 0.5, recent: 0.1 }
+---
+schema: uca/1
+board: { id: main }
+layers:
+  - id: slots
+    layout: { type: row }
+    items:
+      - { id: p1, prediction: 1, states: { forget: { border: { color: "#ff0000" } } } }
+      - { id: p2, prediction: 2 }
+      - { id: p3, prediction: 3 }
+      - { id: forget, label: "Remove word", action: { prediction.forget: } }
+      - { id: away, action: { board.open: other } }
+---
+schema: uca/1
+board: { id: other }
+layers:
+  - id: slots
+    layout: { type: row }
+    items:
+      - { id: p1, prediction: 1 }
+      - { id: back, action: { board.open: main } }

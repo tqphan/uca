@@ -68,6 +68,9 @@ config-reserve-without-edge = Only a board docked to an edge (top, bottom, left 
 config-grid-unit-outside-grid = The grid unit can only be used inside a grid layer.
 config-grid-overflow = Some items in the layer “{ $layer }” do not fit its rows and are not shown.
 config-single-also-fires = “{ $pattern }” is a double press, but the same input is also bound on its own, which fires on the first press of every double.
+config-prediction-with-action = A prediction slot types its word when selected, so it can’t also have an action. Remove “action” or “actions” from this item.
+config-duplicate-prediction-slot = Prediction slot { $slot } is used more than once on this board, so the same word shows twice.
+config-prediction-weights-zero = The three prediction weights can’t all be 0. Set at least one above 0.
 
 ## Messages from reading a file (02 "Message text")
 

@@ -214,6 +214,8 @@ with_base! {
         pub zone: Option<bool>,
         /// Holds a grid cell without an item.
         pub empty: Option<bool>,
+        /// Word-prediction slot n, 1-based (16); no `action` / `actions` with it.
+        pub prediction: Option<std::num::NonZeroU32>,
     }
 }
 

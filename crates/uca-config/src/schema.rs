@@ -285,11 +285,12 @@ impl JsonSchema for Action {
             ("speech.compose.off", none.clone()),
             ("speech.compose.toggle", none.clone()),
             ("speech.repeat", none.clone()),
-            ("speech.stop", none),
+            ("speech.stop", none.clone()),
             (
                 "speech.voice",
                 json!({ "type": "string", "minLength": 1, "description": "An engine voice id." }),
             ),
+            ("prediction.forget", none),
         ];
         let variants: Vec<Value> = args
             .into_iter()

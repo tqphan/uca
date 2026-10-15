@@ -28,3 +28,6 @@ setting-voice-rate = How fast the voice speaks. 1 is the voice's normal speed.
 setting-voice-pitch = How high or low the voice sounds. 1 is the voice's normal pitch.
 setting-voice-volume = How loud the voice is, as a share of the speaker's volume (0 to 1).
 setting-voice-max-chars = The longest message that will be spoken, in characters. Longer messages are not spoken and a notice says why.
+setting-prediction-weights-model = How much suggestions follow common English word use (0 to 1, compared with the other two).
+setting-prediction-weights-user = How much suggestions follow the words you have used before (0 to 1, compared with the other two).
+setting-prediction-weights-recent = How much suggestions follow the words you typed most recently (0 to 1, compared with the other two).

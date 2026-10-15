@@ -137,6 +137,11 @@ pub enum ProblemKind {
     SingleAlsoFires {
         pattern: String,
     },
+    PredictionWithAction,
+    DuplicatePredictionSlot {
+        slot: u32,
+    },
+    PredictionWeightsZero,
 }
 
 impl ProblemKind {
@@ -182,6 +187,9 @@ impl ProblemKind {
             GridUnitOutsideGrid => "config-grid-unit-outside-grid",
             GridOverflow { .. } => "config-grid-overflow",
             SingleAlsoFires { .. } => "config-single-also-fires",
+            PredictionWithAction => "config-prediction-with-action",
+            DuplicatePredictionSlot { .. } => "config-duplicate-prediction-slot",
+            PredictionWeightsZero => "config-prediction-weights-zero",
         }
     }
 
@@ -191,8 +199,18 @@ impl ProblemKind {
         // Fluent selects on "none" when there is no suggestion.
         let hint = |s: &Option<String>| ("suggestion", s.clone().unwrap_or_else(|| "none".into()));
         match self {
-            MissingEscape | ActionAndActions | DoAndStages | HoldOutsideStart | OffDefault
-            | ZoneOutsideFree | RepeatNeverRuns => vec![],
+            MissingEscape
+            | ActionAndActions
+            | DoAndStages
+            | HoldOutsideStart
+            | OffDefault
+            | ZoneOutsideFree
+            | RepeatNeverRuns
+            | PredictionWithAction
+            | PredictionWeightsZero => {
+                vec![]
+            }
+            DuplicatePredictionSlot { slot } => vec![("slot", slot.to_string())],
             InvalidPattern { pattern, error } => {
                 let mut args = vec![("pattern", pattern.clone()), ("error", error.to_string())];
                 args.extend(error.args());
@@ -337,6 +355,18 @@ impl fmt::Display for ProblemKind {
             UnknownFont { family } => write!(
                 f,
                 "unknown font family {family:?}; the default font is used"
+            ),
+            PredictionWithAction => write!(
+                f,
+                "a prediction slot inserts its word, so it can't also have `action` or `actions`"
+            ),
+            DuplicatePredictionSlot { slot } => write!(
+                f,
+                "prediction slot {slot} is used more than once on this board"
+            ),
+            PredictionWeightsZero => write!(
+                f,
+                "the three prediction weights can't all be 0; set at least one above 0"
             ),
         }
     }
@@ -487,6 +517,12 @@ impl<'a> Validator<'a> {
             self.error("profile.start_board", kind);
         }
         self.inputs(p);
+        if p.prediction.weights.resolved().iter().all(|&w| w == 0.0) {
+            self.error(
+                "profile.prediction.weights",
+                ProblemKind::PredictionWeightsZero,
+            );
+        }
         let macros: Vec<_> = p.macros.iter().collect();
         for (id, m) in macros {
             self.sequence(&m.do_, Stage::Macro, &format!("profile.macros.{id}.do"));
@@ -832,6 +868,19 @@ impl<'a> Validator<'a> {
             }
             self.layer(&scope, layer, &path);
         }
+        let mut slots = BTreeSet::new();
+        for (li, layer) in file.layers.iter().enumerate() {
+            for (ii, item) in layer.items.iter().enumerate() {
+                if let Some(slot) = item.prediction {
+                    if !slots.insert(slot) {
+                        self.warn(
+                            format!("layers[{li}].items[{ii}].prediction"),
+                            ProblemKind::DuplicatePredictionSlot { slot: slot.get() },
+                        );
+                    }
+                }
+            }
+        }
 
         if !self.has_way_out(file) {
             self.warn(
@@ -968,6 +1017,12 @@ impl<'a> Validator<'a> {
         self.item_style(scope, item, path);
         if item.action.is_some() && item.actions.is_some() {
             self.error(path, ProblemKind::ActionAndActions);
+        }
+        if item.prediction.is_some() && (item.action.is_some() || item.actions.is_some()) {
+            self.error(
+                format!("{path}.prediction"),
+                ProblemKind::PredictionWithAction,
+            );
         }
         if let Some(seq) = &item.action {
             self.sequence(seq, Stage::Start, &format!("{path}.action"));
@@ -1400,6 +1455,7 @@ fn state_name(s: crate::values::State) -> &'static str {
         Active => "active",
         Disabled => "disabled",
         Latched => "latched",
+        Forget => "forget",
     }
 }
 

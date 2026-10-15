@@ -154,7 +154,7 @@ const fn def(
 use SettingValue::{Number as N, Off};
 use Unit::*;
 
-/// The registry. Values are decided in 02 "M1 registry entries" and 13 "Profile settings".
+/// The registry. Values are decided in 02 "M1 registry entries", 13 "Profile settings" and 16.
 pub static SETTINGS: &[SettingDef] = &[
     def(
         "behavior.dwell_ms",
@@ -380,6 +380,33 @@ pub static SETTINGS: &[SettingDef] = &[
         10_000.0,
         None,
         "setting-voice-max-chars",
+    ),
+    def(
+        "prediction.weights.model",
+        Ratio,
+        N(0.6),
+        0.0,
+        1.0,
+        None,
+        "setting-prediction-weights-model",
+    ),
+    def(
+        "prediction.weights.user",
+        Ratio,
+        N(0.3),
+        0.0,
+        1.0,
+        None,
+        "setting-prediction-weights-user",
+    ),
+    def(
+        "prediction.weights.recent",
+        Ratio,
+        N(0.1),
+        0.0,
+        1.0,
+        None,
+        "setting-prediction-weights-recent",
     ),
 ];
 

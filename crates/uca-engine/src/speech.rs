@@ -151,6 +151,10 @@ impl Speech {
         }
     }
 
+    pub fn buffer(&self) -> &str {
+        &self.buffer
+    }
+
     pub fn append(&mut self, text: &str) {
         self.buffer.push_str(text);
     }

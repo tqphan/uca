@@ -351,6 +351,8 @@ pub enum State {
     Active,
     Disabled,
     Latched,
+    /// Prediction slots while `prediction.forget` is armed (16).
+    Forget,
 }
 
 pub type States = BTreeMap<State, Style>;

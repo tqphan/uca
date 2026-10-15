@@ -73,6 +73,9 @@ setting_fns! {
     voice_pitch => "voice.pitch",
     voice_volume => "voice.volume",
     voice_max_chars => "voice.max_chars",
+    prediction_weight_model => "prediction.weights.model",
+    prediction_weight_user => "prediction.weights.user",
+    prediction_weight_recent => "prediction.weights.recent",
 }
 
 #[cfg(test)]

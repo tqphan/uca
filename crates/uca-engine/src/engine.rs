@@ -18,7 +18,7 @@ use uca_mapping::{BindingKey, Ends, Mapping, MappingEvent, MatchContext};
 use uca_types::{Clock, FilteredPoint, Key, MonitorInfo, SourceStatus, TriggerEvent, TriggerId};
 
 use crate::layout::{choose_monitor, layout_board, BoardLayout};
-use crate::prediction::{PredictionIntent, PredictionState, SlotWord};
+use crate::prediction::{PredictionIntent, PredictionState, SlotWord, Source};
 use crate::safe_board::{safe_board, SAFE_ITEMS};
 use crate::sets::{SetStack, DEFAULT_SET};
 use crate::speech::{ComposeKey, KeyLayout, Speech, SpeechIntent};
@@ -146,6 +146,9 @@ pub struct Engine {
     intents: Vec<Intent>,
     speech: Speech,
     prediction: PredictionState,
+    /// What UCA's own keys typed into other apps since the last reset (16
+    /// "Scope"). Typed text: never logged.
+    typed: String,
 }
 
 struct Shown {
@@ -193,6 +196,7 @@ impl Engine {
             intents: Vec::new(),
             speech: Speech::default(),
             prediction: PredictionState::default(),
+            typed: String::new(),
         };
         engine.show_top();
         engine
@@ -262,6 +266,8 @@ impl Engine {
             EngineControl::TogglePause if self.mode == Mode::Paused => self.mode = Mode::Direct,
             EngineControl::TogglePause => self.pause(now),
             EngineControl::OpenSafeBoard => self.open_safe_board(now),
+            // The caret is in another window now (16 "Scope").
+            EngineControl::ForegroundChanged => self.clear_typed(false),
         }
         self.sync_prediction(now);
     }
@@ -373,15 +379,12 @@ impl Engine {
 
     // ------------------------------------------------------------ prediction
 
-    /// The highest prediction slot on the shown board's visible layers while
-    /// composing; 0 = no slots shown (16 "Board slots", "Scope").
+    /// The highest prediction slot on the shown board's visible layers; 0 =
+    /// no slots shown (16 "Board slots").
     fn prediction_slots(&self) -> u32 {
         let Some(shown) = self.shown.as_ref().filter(|s| !s.safe) else {
             return 0;
         };
-        if !self.speech.composing() {
-            return 0;
-        }
         let board = &shown.file.board.id.0;
         shown
             .resolved
@@ -401,9 +404,13 @@ impl Engine {
         let mut out = Vec::new();
         let settings = &self.config.profile.profile.prediction;
         self.prediction
-            .learn_words(self.speech.buffer(), settings, &mut out);
+            .learn_words(Source::Compose, self.speech.buffer(), settings, &mut out);
+        self.prediction
+            .learn_words(Source::Typed, &self.typed, settings, &mut out);
         let max = self.prediction_slots();
-        self.prediction.sync(self.speech.buffer(), max, &mut out);
+        let (_, text) = self.prediction_text();
+        let text = text.to_owned();
+        self.prediction.sync(&text, max, &mut out);
         let asked = out
             .iter()
             .any(|i| matches!(i, PredictionIntent::Predict { .. }));
@@ -421,11 +428,22 @@ impl Engine {
         }
     }
 
+    /// The text predictions follow: the compose buffer while composing,
+    /// otherwise what UCA typed into other apps (16 "Scope").
+    fn prediction_text(&self) -> (Source, &str) {
+        if self.speech.composing() {
+            (Source::Compose, self.speech.buffer())
+        } else {
+            (Source::Typed, &self.typed)
+        }
+    }
+
     /// Slot `n` was selected: insert its word, or remove it when armed (16).
-    fn prediction_select(&mut self, r: ItemRef, n: u32, t: Instant) {
-        let Some(word) = self.prediction.word(n).map(str::to_owned) else {
-            return;
-        };
+    /// In other apps the rest of the word is typed as an activation of the
+    /// slot, like a `text.type` item.
+    fn prediction_select(&mut self, r: ItemRef, n: u32, t: Instant) -> Option<ActivationId> {
+        let word = self.prediction.word(n).map(str::to_owned)?;
+        let mut typing = None;
         if self.prediction.forget_armed() {
             self.prediction.toggle_forget();
             let mut out = vec![PredictionIntent::Forget(word)];
@@ -433,16 +451,94 @@ impl Engine {
             self.prediction_intents(out);
         } else {
             let add_space = self.config.profile.profile.prediction.add_space;
-            if let Some(text) = PredictionState::insertion(self.speech.buffer(), &word, add_space) {
-                self.speech.append(&text);
+            let (source, text) = self.prediction_text();
+            if let Some(text) = PredictionState::insertion(text, &word, add_space) {
+                match source {
+                    Source::Compose => self.speech.append(&text),
+                    Source::Typed => typing = Some(text),
+                }
             }
         }
-        if let Some(b) = self.behavior(r) {
-            let cooldown = millis(b.cooldown_ms);
+        let behavior = self.behavior(r)?;
+        let Some(text) = typing else {
+            let cooldown = millis(behavior.cooldown_ms);
             if !cooldown.is_zero() {
                 self.cooldown_until.insert(r, t + cooldown);
             }
+            return None;
+        };
+        let id = self.new_id();
+        self.begin(
+            Activation {
+                id,
+                owner: Owner::Item(r),
+                ended_by: None,
+                start: vec![Action::TextType(text)],
+                repeat: None,
+                stop: Vec::new(),
+                // One word per selection, however long the dwell.
+                hold: Hold::Instant,
+                behavior,
+                run: None,
+                next_repeat: None,
+                ending: false,
+            },
+            t,
+        );
+        Some(id)
+    }
+
+    /// Follows what a device action types into other apps (16 "Scope").
+    fn track_typed(&mut self, a: &Action) {
+        let other_mods = self
+            .latched
+            .keys()
+            .any(|m| !matches!(m, Key::ShiftLeft | Key::ShiftRight));
+        match a {
+            Action::TextType(s) => self.typed.push_str(s),
+            Action::KeyTap(_) if other_mods => self.clear_typed(false),
+            // A space or line break ends the last word: learned like a space.
+            Action::KeyTap(Key::Enter | Key::NumpadEnter | Key::Tab) => self.clear_typed(true),
+            Action::KeyTap(Key::Backspace) => {
+                self.typed.pop();
+            }
+            Action::KeyTap(k) if moves_caret(*k) => self.clear_typed(false),
+            Action::KeyTap(k) if k.types_text() => {
+                let shift = self
+                    .latched
+                    .keys()
+                    .any(|m| matches!(m, Key::ShiftLeft | Key::ShiftRight));
+                if let ComposeKey::Text(s) = self.speech.compose_key(*k, shift, false) {
+                    let s = s.to_owned();
+                    self.typed.push_str(&s);
+                }
+            }
+            Action::KeyDown(k) | Action::KeyToggle(k) if !k.is_modifier() => {
+                self.clear_typed(false)
+            }
+            Action::MouseClick(_) | Action::MouseDown(_) => self.clear_typed(false),
+            _ => {}
         }
+    }
+
+    /// Forgets the typed text. With `learn_rest` (Enter, Tab) its last word
+    /// is finished and learned when that is on; otherwise the text just ends.
+    fn clear_typed(&mut self, learn_rest: bool) {
+        if self.typed.is_empty() {
+            return;
+        }
+        let mut out = Vec::new();
+        let settings = &self.config.profile.profile.prediction;
+        if learn_rest {
+            self.prediction
+                .ended(Source::Typed, &self.typed, settings, &mut out);
+            self.typed.clear();
+        } else {
+            self.typed.clear();
+            self.prediction
+                .learn_words(Source::Typed, &self.typed, settings, &mut out);
+        }
+        self.prediction_intents(out);
     }
 
     /// A slot item, and the word it shows.
@@ -913,6 +1009,21 @@ impl Engine {
     }
 
     fn on_trigger(&mut self, e: &TriggerEvent, t: Instant) {
+        // Physical typing or clicks change text UCA can't see (16 "Scope").
+        // UCA's own keys never arrive here (SAFETY-07).
+        if e.phase == uca_types::Phase::Down {
+            let physical_edit = match e.trigger.key() {
+                Some(k) => {
+                    k.types_text()
+                        || moves_caret(k)
+                        || matches!(k, Key::Backspace | Key::Enter | Key::NumpadEnter | Key::Tab)
+                }
+                None => *e.trigger.kind() == uca_types::TriggerKind::Mouse,
+            };
+            if physical_edit {
+                self.clear_typed(false);
+            }
+        }
         if self.safe_open {
             if e.phase == uca_types::Phase::Down && self.safe_select_trigger(&e.trigger) {
                 if let Some(h) = self.hover {
@@ -1093,8 +1204,7 @@ impl Engine {
             }
         }
         if let Some((n, _)) = self.slot(r) {
-            self.prediction_select(r, n, t);
-            return None;
+            return self.prediction_select(r, n, t);
         }
         let (_set, entry) = self.item_entry(r)?;
         let id = self.new_id();
@@ -1307,6 +1417,9 @@ impl Engine {
         stage: StageKind,
         t: Instant,
     ) -> Option<Vec<Action>> {
+        if !self.speech.composing() {
+            self.track_typed(a);
+        }
         match a {
             Action::BoardOpen(b) => {
                 if self.board_file(&b.0).is_some() {
@@ -1666,6 +1779,24 @@ fn resolve_set(item: &Item, sets: &SetStack) -> Option<(String, ActionSetEntry)>
         }
     }
     None
+}
+
+/// Keys that move the caret or change text in ways UCA can't follow (16
+/// "Scope").
+fn moves_caret(k: Key) -> bool {
+    matches!(
+        k,
+        Key::ArrowLeft
+            | Key::ArrowRight
+            | Key::ArrowUp
+            | Key::ArrowDown
+            | Key::Home
+            | Key::End
+            | Key::PageUp
+            | Key::PageDown
+            | Key::Delete
+            | Key::Escape
+    )
 }
 
 /// Whether an item arms "remove a word", for its `latched` state (16).

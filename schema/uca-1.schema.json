@@ -2827,6 +2827,11 @@
         "learn_on": {
           "$ref": "#/$defs/LearnOn"
         },
+        "learn_other_apps": {
+          "description": "Also learn from text typed into other apps (needs `learning`).",
+          "type": "boolean",
+          "default": false
+        },
         "learning": {
           "description": "Learning from the user's text; off by default (strict opt-in).",
           "type": "boolean",

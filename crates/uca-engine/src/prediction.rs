@@ -57,14 +57,32 @@ struct Want {
     max: u32,
 }
 
+/// Which text predictions and learning follow (16 "Scope").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Source {
+    /// The compose buffer.
+    Compose,
+    /// The text UCA's own keys typed into other apps.
+    Typed,
+}
+
+impl Source {
+    fn index(self) -> usize {
+        match self {
+            Source::Compose => 0,
+            Source::Typed => 1,
+        }
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct PredictionState {
     rev: u64,
     want: Option<Want>,
     words: Vec<String>,
     forget_armed: bool,
-    /// The buffer is learned up to this byte (`learn_on: word`).
-    learned_to: usize,
+    /// Each source's text is learned up to this byte (word by word).
+    learned_to: [usize; 2],
 }
 
 impl PredictionState {
@@ -139,33 +157,64 @@ impl PredictionState {
         Some(text)
     }
 
-    /// The buffer changed: with `learn_on: word`, learns the words that a
-    /// space or punctuation now ends.
+    /// Whether `source` is learned word by word under `settings` (16
+    /// "Learning").
+    pub fn learns_words(source: Source, settings: &Settings) -> bool {
+        settings.learning
+            && match source {
+                Source::Compose => settings.learn_on == LearnOn::Word,
+                Source::Typed => settings.learn_other_apps,
+            }
+    }
+
+    /// The source's text changed: when it is learned word by word, learns
+    /// the words that a space or punctuation now ends.
     pub fn learn_words(
         &mut self,
-        buffer: &str,
+        source: Source,
+        text: &str,
         settings: &Settings,
         out: &mut Vec<PredictionIntent>,
     ) {
-        if buffer.len() < self.learned_to || !buffer.is_char_boundary(self.learned_to) {
-            // Edited back into learned text: what follows is a new text.
-            self.learned_to = buffer.len() - partial_word(buffer).len();
-            if settings.learning {
+        let learned_to = &mut self.learned_to[source.index()];
+        let end = text.len() - partial_word(text).len();
+        if text.len() < *learned_to || !text.is_char_boundary(*learned_to) {
+            // Edited back into learned text, or cleared: what follows is a new text.
+            *learned_to = end;
+            if Self::learns_words(source, settings) {
                 out.push(PredictionIntent::EndText);
             }
             return;
         }
-        if !settings.learning || settings.learn_on != LearnOn::Word {
-            self.learned_to = buffer.len() - partial_word(buffer).len();
+        if !Self::learns_words(source, settings) {
+            *learned_to = end;
             return;
         }
-        let end = buffer.len() - partial_word(buffer).len();
-        if end > self.learned_to {
-            let piece = &buffer[self.learned_to..end];
+        if end > *learned_to {
+            let piece = &text[*learned_to..end];
             if piece.chars().any(is_word_char) {
                 out.push(PredictionIntent::Learn(piece.to_owned()));
             }
-            self.learned_to = end;
+            *learned_to = end;
+        }
+    }
+
+    /// The source's `text` ends here, e.g. on Enter, and is cleared: a
+    /// word-by-word source learns the rest, which ends its last word.
+    pub fn ended(
+        &mut self,
+        source: Source,
+        text: &str,
+        settings: &Settings,
+        out: &mut Vec<PredictionIntent>,
+    ) {
+        let learned_to = std::mem::take(&mut self.learned_to[source.index()]);
+        if Self::learns_words(source, settings) {
+            let piece = text.get(learned_to..).unwrap_or("");
+            if piece.chars().any(is_word_char) {
+                out.push(PredictionIntent::Learn(piece.to_owned()));
+            }
+            out.push(PredictionIntent::EndText);
         }
     }
 
@@ -173,17 +222,15 @@ impl PredictionState {
     /// word, so `learn_on: word` learns what is left; `learn_on: spoken`
     /// learns all of it.
     pub fn spoken(&mut self, text: &str, settings: &Settings, out: &mut Vec<PredictionIntent>) {
-        if settings.learning {
-            let piece = match settings.learn_on {
-                LearnOn::Word => text.get(self.learned_to..).unwrap_or(""),
-                LearnOn::Spoken => text,
-            };
-            if piece.chars().any(is_word_char) {
-                out.push(PredictionIntent::Learn(piece.to_owned()));
+        if settings.learning && settings.learn_on == LearnOn::Spoken {
+            self.learned_to[Source::Compose.index()] = 0;
+            if text.chars().any(is_word_char) {
+                out.push(PredictionIntent::Learn(text.to_owned()));
             }
             out.push(PredictionIntent::EndText);
+        } else {
+            self.ended(Source::Compose, text, settings, out);
         }
-        self.learned_to = 0;
     }
 }
 
@@ -324,7 +371,7 @@ mod tests {
         let s = settings(true, LearnOn::Word);
         let mut out = Vec::new();
         for buffer in ["I", "I ", "I w", "I want", "I want ", "I want water."] {
-            p.learn_words(buffer, &s, &mut out);
+            p.learn_words(Source::Compose, buffer, &s, &mut out);
         }
         assert_eq!(
             out,
@@ -342,7 +389,7 @@ mod tests {
         let s = settings(true, LearnOn::Word);
         let mut out = Vec::new();
         for buffer in ["I want ", "I ", "I need "] {
-            p.learn_words(buffer, &s, &mut out);
+            p.learn_words(Source::Compose, buffer, &s, &mut out);
         }
         assert_eq!(
             out,
@@ -359,7 +406,7 @@ mod tests {
         let mut p = PredictionState::default();
         let mut out = Vec::new();
         let off = settings(false, LearnOn::Word);
-        p.learn_words("I want ", &off, &mut out);
+        p.learn_words(Source::Compose, "I want ", &off, &mut out);
         p.spoken("I want water", &off, &mut out);
         assert!(out.is_empty(), "{out:?}");
     }
@@ -369,7 +416,7 @@ mod tests {
         let mut out = Vec::new();
         let mut p = PredictionState::default();
         let word = settings(true, LearnOn::Word);
-        p.learn_words("I want ", &word, &mut out);
+        p.learn_words(Source::Compose, "I want ", &word, &mut out);
         p.spoken("I want water", &word, &mut out);
         assert_eq!(
             out,
@@ -383,13 +430,39 @@ mod tests {
         out.clear();
         let mut p = PredictionState::default();
         let spoken = settings(true, LearnOn::Spoken);
-        p.learn_words("I want ", &spoken, &mut out);
+        p.learn_words(Source::Compose, "I want ", &spoken, &mut out);
         assert!(out.is_empty());
         p.spoken("I want water", &spoken, &mut out);
         assert_eq!(
             out,
             [
                 PredictionIntent::Learn("I want water".into()),
+                PredictionIntent::EndText,
+            ]
+        );
+    }
+
+    #[test]
+    fn typed_text_learns_only_with_learn_other_apps() {
+        let mut out = Vec::new();
+        let mut p = PredictionState::default();
+        let on = settings(true, LearnOn::Word);
+        p.learn_words(Source::Typed, "hello ", &on, &mut out);
+        p.ended(Source::Typed, "hello there", &on, &mut out);
+        assert!(out.is_empty(), "{out:?}");
+
+        let other = Settings {
+            learn_other_apps: true,
+            ..settings(true, LearnOn::Spoken)
+        };
+        p.learn_words(Source::Typed, "hello ", &other, &mut out);
+        p.ended(Source::Typed, "hello there", &other, &mut out);
+        p.learn_words(Source::Typed, "", &other, &mut out);
+        assert_eq!(
+            out,
+            [
+                PredictionIntent::Learn("hello ".into()),
+                PredictionIntent::Learn("there".into()),
                 PredictionIntent::EndText,
             ]
         );

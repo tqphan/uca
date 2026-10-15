@@ -6,6 +6,7 @@ profile:
   prediction:
     learning: true
     learn_on: spoken
+    learn_other_apps: true
     add_space: false
     weights: { model: 0.4, user: 0.5, recent: 0.1 }
 ---

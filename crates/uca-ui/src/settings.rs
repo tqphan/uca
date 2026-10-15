@@ -98,6 +98,7 @@ pub enum SettingsCommand {
     TestVoice,
     SetPredictionLearning(bool),
     SetPredictionLearnOn(LearnOn),
+    SetPredictionLearnOtherApps(bool),
     SetPredictionSpace(bool),
     StepPredictionWeight {
         weight: PredictionWeight,

@@ -29,6 +29,8 @@ pub struct ActivationId(pub u64);
 pub enum EngineControl {
     TogglePause,
     OpenSafeBoard,
+    /// Another window came to the front (07): the caret moved (16 "Scope").
+    ForegroundChanged,
 }
 
 /// Requests handled outside the engine.

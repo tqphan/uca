@@ -1131,7 +1131,7 @@ fn buffer_survives_a_reload() {
 
 /// Items in a row, 100 px each; see the constants below.
 const PREDICT: &str = r#"schema: uca/1
-board: { id: main, anchor: free, size: { width: 1000, height: 100 }, behavior: { dwell_ms: 800, dwell_grace_ms: 150, cooldown_ms: 300 } }
+board: { id: main, anchor: free, size: { width: 1100, height: 100 }, behavior: { dwell_ms: 800, dwell_grace_ms: 150, cooldown_ms: 300 } }
 layers:
   - id: l
     layout: { type: row }
@@ -1144,6 +1144,9 @@ layers:
       - { id: speak, size: { width: 100 }, action: { speech.speak_buffer: } }
       - { id: hi, size: { width: 100 }, action: { text.type: "hi " } }
       - { id: next, size: { width: 100 }, action: { board.open: second } }
+      - { id: enter, size: { width: 100 }, action: { key.tap: enter } }
+      - { id: click, size: { width: 100 }, action: { mouse.click: left } }
+      - { id: q, size: { width: 100 }, action: { key.tap: q } }
 "#;
 
 const P_COMPOSE: usize = 0;
@@ -1153,9 +1156,23 @@ const P_FORGET: usize = 3;
 const P_LON: usize = 4;
 const P_SPEAK: usize = 5;
 const P_HI: usize = 6;
+const P_ENTER: usize = 8;
+const P_CLICK: usize = 9;
+const P_Q: usize = 10;
 
 fn predict_rig(prediction: &str) -> Rig {
-    Rig::with_profile(&format!("{PROFILE}  prediction: {prediction}\n"), PREDICT)
+    let mut r = Rig::with_profile(&format!("{PROFILE}  prediction: {prediction}\n"), PREDICT);
+    let mut layout = crate::KeyLayout::default();
+    layout.keys.insert(
+        Key::KeyQ,
+        crate::KeyChars {
+            plain: Some("q".into()),
+            shift: Some("Q".into()),
+            ..Default::default()
+        },
+    );
+    r.e.set_key_layout(layout);
+    r
 }
 
 impl Rig {
@@ -1205,22 +1222,95 @@ impl Rig {
     }
 }
 
-/// 16 "Scope": nothing is asked outside compose; compose asks for the
-/// highest slot number shown.
+/// 16 "Scope": outside compose, predictions follow what UCA typed into
+/// the other app, for the highest slot number shown; compose switches to the
+/// buffer.
 #[test]
-fn predictions_are_asked_only_while_composing() {
+fn predictions_follow_typed_text_outside_compose() {
     let mut r = predict_rig("{}");
     r.activate(P_LON);
-    assert!(r.predictions().is_empty(), "{:?}", r.predictions());
-    r.activate(P_COMPOSE);
-    assert_eq!(r.last_ask().1, "");
     assert_eq!(r.last_ask().2, 2);
+    r.activate(P_Q);
+    assert_eq!(r.last_ask().1, "Lonq");
     r.activate(P_COMPOSE);
-    let asks = r.predictions().len();
+    assert_eq!(r.last_ask().1, "", "the empty compose buffer");
+    r.activate(P_COMPOSE);
+    assert_eq!(r.last_ask().1, "Lonq");
+}
+
+/// 16 "Scope": in another app a slot types the rest of the word and a
+/// space, which the typed text then holds.
+#[test]
+fn a_slot_types_the_rest_of_the_word_into_other_apps() {
+    let mut r = predict_rig("{}");
+    r.activate(P_LON);
     let (rev, ..) = r.last_ask();
-    r.answer(rev, &["the"]);
-    assert_eq!(r.slot(P1), None, "compose off: slots stay blank");
-    assert_eq!(r.predictions().len(), asks);
+    r.answer(rev, &["London"]);
+    r.activate(P1);
+    let typed: Vec<_> = r
+        .executed()
+        .into_iter()
+        .flat_map(|(_, a)| a)
+        .filter_map(|a| match a {
+            Action::TextType(t) => Some(t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(typed, ["Lon", "don "]);
+    assert_eq!(r.last_ask().1, "London ");
+    assert_eq!(r.buffer(), "", "the compose buffer is untouched");
+}
+
+/// 16 "Scope": the typed text is cleared by Enter, clicks, a window change
+/// and physical typing, but not by other physical keys such as switches.
+#[test]
+fn typed_text_is_cleared_when_the_caret_may_have_moved() {
+    let mut r = predict_rig("{}");
+    let mut clears = Vec::new();
+    for clear in 0..4 {
+        r.activate(P_LON);
+        assert_eq!(r.last_ask().1, "Lon");
+        match clear {
+            0 => r.activate(P_ENTER),
+            1 => r.activate(P_CLICK),
+            2 => {
+                r.e.control(crate::EngineControl::ForegroundChanged, &r.clock);
+                r.drain();
+            }
+            _ => {
+                let t = r.ms() + 10;
+                r.trigger(t, "key:KeyA", Phase::Down, false);
+            }
+        }
+        clears.push(r.last_ask().1);
+    }
+    assert_eq!(clears, ["", "", "", ""]);
+    r.activate(P_LON);
+    let t = r.ms() + 10;
+    r.trigger(t, "key:F13", Phase::Down, false);
+    r.trigger(t + 50, "key:F13", Phase::Up, false);
+    assert_eq!(r.last_ask().1, "Lon", "a switch press keeps it");
+}
+
+/// 16 "Learning": text typed into other apps is learned only with
+/// `learn_other_apps`; Enter ends its last word.
+#[test]
+fn typed_text_is_learned_only_with_learn_other_apps() {
+    use crate::PredictionIntent::{EndText, Learn};
+    let mut r = predict_rig("{ learning: true }");
+    r.activate(P_HI);
+    r.activate(P_LON);
+    r.activate(P_ENTER);
+    assert!(r.learned().is_empty(), "{:?}", r.learned());
+
+    let mut r = predict_rig("{ learning: true, learn_other_apps: true }");
+    r.activate(P_HI);
+    r.activate(P_LON);
+    r.activate(P_ENTER);
+    assert_eq!(
+        r.learned(),
+        [Learn("hi ".into()), Learn("Lon".into()), EndText]
+    );
 }
 
 /// 16 "Board slots": an empty slot is drawn (not disabled) and does nothing.

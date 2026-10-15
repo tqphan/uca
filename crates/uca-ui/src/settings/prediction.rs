@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The Word prediction section (05 "Settings window", 16): learning, when
-//! to learn, the space after a word, the three weights, removing a word and
+//! to learn, learning from other apps, the space after a word, the three weights, removing a word and
 //! resetting what was learned.
 
 use egui::{Button, Id, Layout, TextEdit, Ui, Vec2};
@@ -50,6 +50,7 @@ pub enum PredictionProblem {
 pub struct PredictionSectionView<'a> {
     pub learning: bool,
     pub learn_on: LearnOn,
+    pub learn_other_apps: bool,
     pub add_space: bool,
     /// `[model, user, recent]`.
     pub weights: [f64; 3],
@@ -121,6 +122,16 @@ pub(super) fn section(
             frame.widget(ui, view, id, &r, pressed, command);
         }
     });
+
+    ui.label(text(t!("settings-prediction-other-apps")));
+    on_off(
+        ui,
+        frame,
+        "prediction-other-apps",
+        p.learn_other_apps,
+        SettingsCommand::SetPredictionLearnOtherApps,
+    );
+    ui.label(text(t!("settings-prediction-other-apps-hint")).small());
 
     ui.label(text(t!("settings-prediction-space")));
     on_off(

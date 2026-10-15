@@ -747,6 +747,7 @@ impl App {
             prediction: self.profile.as_ref().map(|_| PredictionSectionView {
                 learning: pr.learning,
                 learn_on: pr.learn_on,
+                learn_other_apps: pr.learn_other_apps,
                 add_space: pr.add_space,
                 weights: pr.weights.resolved(),
                 problem: prediction_problem,
@@ -808,6 +809,11 @@ impl App {
                     let mut new = profile.prediction.clone();
                     new.learn_on = when;
                     self.save_prediction(&config, new, &["learn_on"]);
+                }
+                SettingsCommand::SetPredictionLearnOtherApps(on) => {
+                    let mut new = profile.prediction.clone();
+                    new.learn_other_apps = on;
+                    self.save_prediction(&config, new, &["learn_other_apps"]);
                 }
                 SettingsCommand::SetPredictionSpace(on) => {
                     let mut new = profile.prediction.clone();
@@ -933,6 +939,7 @@ impl App {
         };
         let value = match key {
             ["learning"] => Value::Bool(new.learning),
+            ["learn_other_apps"] => Value::Bool(new.learn_other_apps),
             ["add_space"] => Value::Bool(new.add_space),
             ["learn_on"] => Value::Str(match new.learn_on {
                 LearnOn::Word => "word",

@@ -82,6 +82,7 @@ Platform emits `MonitorsChanged` on hot-plug, resolution or scale change → ren
     - **Word prediction (M2, decided, `16`):** a "Word prediction" heading with rows:
         - "Learn from what I write": "Off" / "On" (`prediction.learning`).
         - "When to learn": "After each word" / "When spoken" (`prediction.learn_on`).
+        - "Learn from typing in other apps": "Off" / "On" (`prediction.learn_other_apps`), with the hint "This can include passwords typed with UCA's keys."
         - "Space after a word": "Off" / "On" (`prediction.add_space`).
         - "Common words", "My words", "Recent words": the value between "−" and "+" buttons, step 0.1, clamped to 0–1 (`prediction.weights.model` / `.user` / `.recent`), with the hint "How much each kind of word counts. 0 to 1." A change that would make all three 0 is refused.
         - "Remove a word": a text field and a "Remove" button; removes that word from suggestions (`16`).

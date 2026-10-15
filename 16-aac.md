@@ -55,6 +55,7 @@ Vocabulary is made of ordinary boards (`02`) whose items use `message.*` actions
 - **Ranking (decided):** augur interpolates three predictors linearly: the base model, the user model and recently typed words. Their weights are the settings `prediction.weights.model` (default 0.6), `.user` (0.3) and `.recent` (0.1), each 0–1 and relative to each other (`02`). Not all three may be 0.
 - **Learning (decided):**
     - `prediction.learning` turns learning on or off, **default off** (strict opt-in, for every profile). Off means no learning at all, including recently typed words; what was learned before is still used for suggestions.
+    - `prediction.learn_other_apps` (default **off**) also learns from the typed text in other apps, in `learn_on: word` style (each finished word); clearing the typed text ends the text. It needs `learning` on too. Settings warns that this can include passwords typed with UCA's keys, as UCA can't see password fields yet.
     - `prediction.learn_on` says when the text is learned: `word` (default) learns each word as soon as a space or punctuation follows it; `spoken` learns the whole message when it is spoken (`speech.speak_buffer`). Saved phrases are learned when they are saved, in both modes, once saved phrases exist (message bar item).
     - Stored in the profile folder, `profiles/<id>/prediction/user.redb` (augur's user store), never sent anywhere.
     - **Reset learning** in Settings (with confirmation) forgets everything learned.
@@ -65,7 +66,11 @@ Vocabulary is made of ordinary boards (`02`) whose items use `message.*` actions
     - The generated files are committed to the UCA repository as plain git files (no Git LFS; en-US is 35 MB). Raw upstream data and ARPA files are not.
 - **Model lookup (decided):** the model is chosen by the profile's `language`, along `17`'s fallback chain (`en-GB` → `en` → `en-US`). The models are compiled into the app (`include_bytes!`), like the fonts and UI strings (decided). With no model, prediction slots stay blank and Settings says why (degrade, don't fail).
 - **Where it runs (decided):** a prediction worker thread in `uca-predict` (`01`). The engine stays pure: when the compose text changes and prediction slots are shown, it emits `Intent::Prediction(Predict { rev, before, max })`; the worker answers with an engine input `Predictions { rev, items }`, and answers for an older `rev` are dropped. Learning, forgetting and reset are also `Intent::Prediction` messages. The answers are recorded in signal recordings (`11`), so replay shows the same slots; like typing keys, they are redacted unless sensitive logging is on.
-- **Scope (decided):** predictions work on the compose buffer only (`13`). Outside compose, prediction slots are blank. Typing into other apps gets no predictions in v1.
+- **Scope (decided 2026-10-14, replaces "compose buffer only"):** predictions work both in compose and when typing into other apps.
+    - **In compose** they use the compose buffer (`13`), and a selected slot adds to the buffer.
+    - **In other apps** UCA can't read the app's text, so the engine keeps the text its own keys typed since the last reset (the *typed text*): `key.tap` of typing keys adds their character (with latched Shift), Space a space, `text.type` its text, and Backspace removes the last character. A selected slot then types the rest of the word (and the space) with `text.type` into the focused window, and that is added to the typed text too.
+    - **The typed text is cleared** when the foreground window changes, on any mouse click (UCA's `mouse.*` clicks and physical clicks), on Enter, Tab, arrows, Home, End, Page Up/Down, Delete and Escape, on a key with a latched Ctrl / Alt / Win, on `key.down` / `key.toggle` of a non-modifier key, and when a typing key or one of the keys above is pressed on the physical keyboard (UCA can't see what that typed). Other physical keys, such as switches, don't clear it. Enter and Tab from UCA's keys end the last word first, like a space, so it can be learned (below).
+    - The typed text is Sensitive (`11`): it stays in the engine and reaches only the prediction worker.
 - **Board slots (decided):** one item per slot, `prediction: <n>` (1-based, `02`). Each slot is an ordinary item with its own cell and style, so positions never move (motor planning). Slot n shows the n-th suggestion wherever it appears, and the highest slot number on the shown boards is how many suggestions are asked for; there is no `slots` setting. The same number twice on one board is a warning; across boards it is fine. A slot item can't also have `action` / `actions` (config error). An empty slot is drawn with its style and no label, and selecting it does nothing (no dwell starts). The qwerty board ships a row above its keys (decided): "Compose" (`speech.compose.toggle`), 6 slots and "Remove word" (`prediction.forget`); the board grows from 40 % to 48 % of the screen height so the keys keep their size.
 - **Inserting (decided):** selecting a slot appends the rest of the word to what the user typed, keeping the letters and case already typed (`lon` + `don`). Then it adds one space if `prediction.add_space` is on (default on). A suggestion that does not start with the typed letters (ignoring case) is not offered. With no word in progress, the whole word is appended.
 - **Performance:** suggestions must update within 30 ms of each keystroke.
@@ -79,6 +84,7 @@ Vocabulary is made of ordinary boards (`02`) whose items use `message.*` actions
     plugin_wait_ms: 80
     learning: false                # built-in predictor, see above
     learn_on: word                 # word | spoken
+    learn_other_apps: false
     add_space: true
     weights: { model: 0.6, user: 0.3, recent: 0.1 }
   ```

@@ -61,6 +61,9 @@ pub struct Prediction {
     pub learning: bool,
     #[serde(default)]
     pub learn_on: LearnOn,
+    /// Also learn from text typed into other apps (needs `learning`).
+    #[serde(default)]
+    pub learn_other_apps: bool,
     /// A space after an inserted prediction.
     #[serde(default = "yes")]
     pub add_space: bool,
@@ -73,6 +76,7 @@ impl Default for Prediction {
         Prediction {
             learning: false,
             learn_on: LearnOn::default(),
+            learn_other_apps: false,
             add_space: true,
             weights: PredictionWeights::default(),
         }

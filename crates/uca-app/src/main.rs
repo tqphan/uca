@@ -501,12 +501,19 @@ fn forward_platform_events(
                             return;
                         }
                     }
-                    PlatformEvent::ForegroundAppChanged(_) => {}
+                    // The caret moved to another window: what UCA typed no
+                    // longer leads up to it (16 "Scope").
+                    PlatformEvent::ForegroundAppChanged(_) => {
+                        let msg = Msg::Control(uca_engine::EngineControl::ForegroundChanged);
+                        if engine.send(msg).is_err() {
+                            return;
+                        }
+                    }
                 }
             }
         });
     if let Err(e) = spawned {
-        tracing::warn!(target: "uca::app", error = %e, "monitor changes will not be followed");
+        tracing::warn!(target: "uca::app", error = %e, "monitor and window changes will not be followed");
     }
 }
 

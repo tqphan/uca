@@ -116,11 +116,13 @@ fn voice_view<'a>(
     }
 }
 
-const PREDICTION_ITEMS: [&str; 15] = [
+const PREDICTION_ITEMS: [&str; 17] = [
     "prediction-learning:off",
     "prediction-learning:on",
     "prediction-learn-on:word",
     "prediction-learn-on:spoken",
+    "prediction-other-apps:off",
+    "prediction-other-apps:on",
     "prediction-space:off",
     "prediction-space:on",
     "prediction-weight-model:-",
@@ -141,6 +143,7 @@ fn prediction_view(
     PredictionSectionView {
         learning: true,
         learn_on: LearnOn::Spoken,
+        learn_other_apps: false,
         add_space: true,
         weights: [0.6, 0.3, 0.1],
         problem,
@@ -471,6 +474,7 @@ fn prediction_section_gives_commands() {
     h.state_mut().pressed = vec![
         "prediction-learning:off".into(),
         "prediction-learn-on:word".into(),
+        "prediction-other-apps:on".into(),
         "prediction-space:off".into(),
         "prediction-weight-user:+".into(),
         "prediction-forget".into(),
@@ -481,6 +485,7 @@ fn prediction_section_gives_commands() {
         vec![
             SettingsCommand::SetPredictionLearning(false),
             SettingsCommand::SetPredictionLearnOn(LearnOn::Word),
+            SettingsCommand::SetPredictionLearnOtherApps(true),
             SettingsCommand::SetPredictionSpace(false),
             SettingsCommand::StepPredictionWeight {
                 weight: PredictionWeight::User,
@@ -520,6 +525,7 @@ fn prediction_section_gives_commands() {
 
     h.get_by_label("0.3");
     h.get_by_label("How much each kind of word counts. 0 to 1.");
+    h.get_by_label("This can include passwords typed with UCA's keys.");
     h.get_by_label("Learned words can't be saved, so they will be lost when UCA closes.");
     h.get_by_label("Could not save the prediction setting: denied");
 }

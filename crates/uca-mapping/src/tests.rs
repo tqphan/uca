@@ -60,7 +60,8 @@ fn config() -> LoadedConfig {
 
 fn ctx() -> MatchContext {
     MatchContext {
-        mode: Mode::Direct,
+        mode: Mode::Board,
+        selection: Selection::Direct,
         top_board: "main".into(),
         visible_layers: vec!["l".into()],
         hovered: None,

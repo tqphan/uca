@@ -1,7 +1,7 @@
 schema: uca/1
 profile:
   name: Alex
-  method: mouse-dwell
+  behavior: { activation: [dwell, press] }
   start_board: main
   inputs:
     pointer_source: mouse

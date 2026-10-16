@@ -89,6 +89,14 @@ config-parse-unknown-key = There is no key called “{ $name }”.{ $suggestion 
        *[other] { " " }Did you mean “{ $suggestion }”?
     }
 config-parse-out-of-range = { $what }: { $value } is outside the allowed range { $min }–{ $max }.
+config-selection-not-here = “selection” can only be set on the profile, a board or a layer.
+config-activation-not-here = “activation” can’t be set on an action-set entry or a binding.
+config-scan-not-available = The selection “{ $selection }” is not available yet.
+config-dwell-with-scan = Dwell can’t be used with “{ $selection }”, which has no pointer. Use press or release.
+config-inverse-scan-needs-release = Inverse scanning needs “activation: [release]”.
+config-nothing-can-fire = This item can only be activated by “select”, but no binding does “select”, so it can never be activated.
+config-parse-dwell-zero = A dwell time of 0 does not turn dwell off. To turn dwell off, leave “dwell” out of “activation”.
+config-parse-empty-activation = “activation” needs at least one of: dwell, press, release.
 config-parse-other = The file could not be read: { $message }
 
 # Targeted saves (02): the reason after “Could not save the start board:”.

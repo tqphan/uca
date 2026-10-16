@@ -14,8 +14,9 @@ use crate::board::{ActionSetEntry, Board, BoardFile, Group, Item, Layer};
 use crate::settings_registry::{self, SettingValue};
 use crate::theme::ThemeFile;
 use crate::values::{
-    Align, Behavior, Border, BorderStyle, Color, DwellIndicator, DwellIndicatorKind, Font, Four,
-    Groups, Hold, Length, Opacity, Shadow, State, States, Style,
+    Activation, ActivationMethod, Align, Behavior, Border, BorderStyle, Color, DwellIndicator,
+    DwellIndicatorKind, Font, Four, Groups, Hold, Length, Opacity, Selection, Shadow, State,
+    States, Style,
 };
 
 /// The group an item belongs to when it names none (02).
@@ -93,6 +94,8 @@ impl Merge for Style {
 
 impl Merge for Behavior {
     fn merge_from(&mut self, o: &Self) {
+        replace(&mut self.selection, &o.selection);
+        replace(&mut self.activation, &o.activation);
         replace(&mut self.dwell_ms, &o.dwell_ms);
         replace(&mut self.dwell_grace_ms, &o.dwell_grace_ms);
         replace(&mut self.cooldown_ms, &o.cooldown_ms);
@@ -244,8 +247,10 @@ pub struct ResolvedStyle {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedBehavior {
-    /// `None` when dwell is off (`dwell_ms: 0`).
-    pub dwell_ms: Option<f64>,
+    pub selection: Selection,
+    pub activation: Activation,
+    /// Used only when `activation` has `dwell`.
+    pub dwell_ms: f64,
     pub dwell_grace_ms: f64,
     pub cooldown_ms: f64,
     pub hold: Hold,
@@ -297,10 +302,13 @@ pub fn builtin_dwell_indicator() -> DwellIndicator {
     }
 }
 
-/// Built-in behavior defaults: registry defaults, `hold: release`, `confirm: false`.
+/// Built-in behavior defaults: registry defaults, `hold: release`, `confirm: false`,
+/// `selection: direct`, `activation: [press]` (02).
 pub fn builtin_behavior() -> Behavior {
     let default = |key: &str| settings_registry::get(key).ok().map(|d| d.default);
     Behavior {
+        selection: Some(Selection::Direct),
+        activation: Some(Activation(vec![ActivationMethod::Press])),
         dwell_ms: default("behavior.dwell_ms"),
         dwell_grace_ms: default("behavior.dwell_grace_ms"),
         cooldown_ms: default("behavior.cooldown_ms"),
@@ -329,6 +337,7 @@ pub fn behavior_over_builtin(over: Option<&Behavior>) -> ResolvedBehavior {
 pub struct Cascade<'a> {
     board: &'a BoardFile,
     theme: Option<&'a ThemeFile>,
+    profile: Option<&'a Behavior>,
 }
 
 /// An item after the cascade: everything but the active states is resolved.
@@ -346,7 +355,17 @@ pub struct ResolvedItem {
 
 impl<'a> Cascade<'a> {
     pub fn new(board: &'a BoardFile, theme: Option<&'a ThemeFile>) -> Self {
-        Self { board, theme }
+        Self {
+            board,
+            theme,
+            profile: None,
+        }
+    }
+
+    /// The profile's `behavior`, level 2 of the cascade (02).
+    pub fn with_profile(mut self, behavior: Option<&'a Behavior>) -> Self {
+        self.profile = behavior;
+        self
     }
 
     /// A template: the board's version deep-merged over the theme's (02).
@@ -418,9 +437,13 @@ impl<'a> Cascade<'a> {
         let mut effective = template.clone();
         effective.merge_from(item);
 
-        // Levels 1–2: built-in defaults (the theme adds no item style directly).
+        // Levels 1–2: built-in defaults, the profile's behavior (the theme adds
+        // no item style directly).
         let mut style = builtin_style();
         let mut behavior = builtin_behavior();
+        if let Some(b) = self.profile {
+            behavior.merge_from(b);
+        }
         let mut states = States::new();
         let mut indicator = builtin_dwell_indicator();
         deep_into(
@@ -640,10 +663,12 @@ fn number(v: Option<SettingValue>, key: &str) -> f64 {
 
 fn resolve_behavior(b: &Behavior) -> ResolvedBehavior {
     ResolvedBehavior {
-        dwell_ms: match b.dwell_ms {
-            Some(SettingValue::Off) => None,
-            v => Some(number(v, "behavior.dwell_ms")),
-        },
+        selection: b.selection.unwrap_or(Selection::Direct),
+        activation: b
+            .activation
+            .clone()
+            .unwrap_or_else(|| Activation(vec![ActivationMethod::Press])),
+        dwell_ms: number(b.dwell_ms, "behavior.dwell_ms"),
         dwell_grace_ms: number(b.dwell_grace_ms, "behavior.dwell_grace_ms"),
         cooldown_ms: number(b.cooldown_ms, "behavior.cooldown_ms"),
         hold: b.hold.unwrap_or(Hold::Release),
@@ -659,7 +684,9 @@ fn resolve_behavior(b: &Behavior) -> ResolvedBehavior {
 fn unresolve_behavior(r: &ResolvedBehavior) -> Behavior {
     let n = |v: f64| Some(SettingValue::Number(v));
     Behavior {
-        dwell_ms: Some(r.dwell_ms.map_or(SettingValue::Off, SettingValue::Number)),
+        selection: Some(r.selection),
+        activation: Some(r.activation.clone()),
+        dwell_ms: n(r.dwell_ms),
         dwell_grace_ms: n(r.dwell_grace_ms),
         cooldown_ms: n(r.cooldown_ms),
         hold: Some(r.hold),
@@ -788,7 +815,7 @@ layers:
         let cascade = Cascade::new(&board, Some(&theme));
         let layer = &board.layers[0];
         let item = cascade.item(layer, &layer.items[0]);
-        assert_eq!(item.behavior.dwell_ms, Some(900.0), "letters group");
+        assert_eq!(item.behavior.dwell_ms, 900.0, "letters group");
         assert_eq!(item.behavior.cooldown_ms, 400.0, "board");
         assert_eq!(item.behavior.dwell_grace_ms, 250.0, "layer");
         assert_eq!(item.behavior.repeat_delay_ms, 500.0, "registry default");
@@ -797,7 +824,47 @@ layers:
         let build = &actions.0[1].1;
         let b = item.behavior_for(build);
         assert_eq!(b.repeat_delay_ms, 300.0, "set entry over item");
-        assert_eq!(b.dwell_ms, Some(900.0));
+        assert_eq!(b.dwell_ms, 900.0);
+    }
+
+    /// 02: the profile's behavior is level 2; board, layer and item override it.
+    #[test]
+    fn selection_and_activation_cascade() {
+        let (board, theme) = fixture();
+        let layer = &board.layers[0];
+        let builtin = Cascade::new(&board, Some(&theme)).item(layer, &layer.items[1]);
+        assert_eq!(builtin.behavior.selection, Selection::Direct);
+        assert_eq!(
+            builtin.behavior.activation,
+            Activation(vec![ActivationMethod::Press])
+        );
+        let profile = Behavior {
+            activation: Some(Activation(vec![ActivationMethod::Dwell])),
+            dwell_ms: Some(SettingValue::Number(1200.0)),
+            cooldown_ms: Some(SettingValue::Number(50.0)),
+            ..Behavior::default()
+        };
+        let cascade = Cascade::new(&board, Some(&theme)).with_profile(Some(&profile));
+        let plain = cascade.item(layer, &layer.items[1]);
+        assert_eq!(
+            plain.behavior.activation,
+            Activation(vec![ActivationMethod::Dwell])
+        );
+        assert_eq!(plain.behavior.cooldown_ms, 400.0, "board beats profile");
+        let letter = cascade.item(layer, &layer.items[0]);
+        assert_eq!(letter.behavior.dwell_ms, 900.0, "group beats profile");
+        let mut board = board.clone();
+        board.layers[0].items[1].behavior = Some(Behavior {
+            activation: Some(Activation(vec![ActivationMethod::Release])),
+            ..Behavior::default()
+        });
+        let layer = &board.layers[0];
+        let cascade = Cascade::new(&board, Some(&theme)).with_profile(Some(&profile));
+        assert_eq!(
+            cascade.item(layer, &layer.items[1]).behavior.activation,
+            Activation(vec![ActivationMethod::Release]),
+            "item beats profile"
+        );
     }
 
     #[test]
@@ -825,7 +892,12 @@ layers:
         );
         assert!(board.is_err(), "dwell_ms belongs under behavior");
         let board = parse_board(
-            "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: x, behavior: { dwell_ms: 0 }, shadow: { x: 2 } } ] } ]\n",
+            "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: x, behavior: { dwell_ms: 0 } } ] } ]\n",
+            Path::new("b.yaml"),
+        );
+        assert!(board.is_err(), "dwell is turned off through activation");
+        let board = parse_board(
+            "schema: uca/1\nboard: { id: b }\nlayers: [ { id: l, layout: { type: row }, items: [ { id: x, behavior: { activation: [press] }, shadow: { x: 2 } } ] } ]\n",
             Path::new("b.yaml"),
         )
         .expect("board");
@@ -835,7 +907,7 @@ layers:
         assert_eq!(s.background, [0, 0, 0, 255]);
         assert_eq!(s.font.size, Length::Px(24.0));
         assert_eq!(s.font.weight, 700);
-        assert_eq!(item.behavior.dwell_ms, None, "dwell off");
+        assert!(!item.behavior.activation.has(ActivationMethod::Dwell));
         assert_eq!(
             s.shadow,
             Some(ResolvedShadow {

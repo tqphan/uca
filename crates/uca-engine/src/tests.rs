@@ -21,6 +21,7 @@ use crate::{ActivationId, Control, Engine, EngineInput, Intent, Latch, VirtualBo
 const PROFILE: &str = r#"schema: uca/1
 profile:
   name: t
+  behavior: { activation: [dwell, press] }
   start_board: main
   inputs:
     switches: { s1: "key:F13", s2: "key:F14" }
@@ -549,7 +550,7 @@ fn binding_stages() {
     assert_eq!(keys.last().map(String::as_str), Some("KeyZ"));
 }
 
-/// 09: escape fires in Direct, Paused and with the Safe Board already open.
+/// 09: escape fires in Board, Paused and with the Safe Board already open.
 #[test]
 fn escape_works_in_every_mode() {
     for paused in [false, true] {
@@ -608,10 +609,10 @@ fn pause_releases_everything() {
     r.run_to(3000);
     assert_eq!(r.taps(), vec![tap(800, "+ShiftLeft")]);
     r.trigger(3000, "key:F1", Phase::Down, true);
-    assert_eq!(r.e.mode(), Mode::Direct);
+    assert_eq!(r.e.mode(), Mode::Board);
 }
 
-/// 09: Safe Board items: Resume closes it in Direct mode; Restart and Recalibrate go to the app.
+/// 09: Safe Board items: Resume closes it in Board mode; Restart and Recalibrate go to the app.
 #[test]
 fn safe_board_items() {
     let mut r = Rig::new();
@@ -650,7 +651,7 @@ fn safe_board_items() {
     r.point(3300, 100.0, true);
     r.run_to(5000);
     assert!(!r.e.safe_board_open());
-    assert_eq!(r.e.mode(), Mode::Direct);
+    assert_eq!(r.e.mode(), Mode::Board);
 }
 
 #[test]
@@ -669,11 +670,9 @@ fn user_lost_status_cancels() {
 
 // ------------------------------------------------------------ virtual board (05 "Settings window")
 
-/// The built-in dwell time that virtual items use.
-fn builtin_dwell_ms() -> u64 {
-    uca_config::cascade::behavior_over_builtin(None)
-        .dwell_ms
-        .expect("dwell on by default") as u64
+/// The dwell time virtual items use: the profile's (here the registry default).
+fn virtual_dwell_ms() -> u64 {
+    uca_config::cascade::behavior_over_builtin(None).dwell_ms as u64
 }
 
 /// Two widgets below the board: `ok` at x 0..200 and `cancel` at x 200..400, y 300..400;
@@ -723,7 +722,7 @@ impl Rig {
 
 #[test]
 fn dwell_activates_a_virtual_item_once() {
-    let dwell = builtin_dwell_ms();
+    let dwell = virtual_dwell_ms();
     let mut r = Rig::new();
     r.register(0, Some(settings(WIDGETS)));
     r.point_xy(0, 100.0, 350.0, true);
@@ -735,7 +734,7 @@ fn dwell_activates_a_virtual_item_once() {
 /// 05: where the board and the virtual board overlap, the board wins, over its whole rect.
 #[test]
 fn the_board_wins_where_they_overlap() {
-    let dwell = builtin_dwell_ms();
+    let dwell = virtual_dwell_ms();
     let mut r = Rig::new();
     r.register(0, Some(settings(WIDGETS)));
     r.on(0, 0);
@@ -751,7 +750,7 @@ fn the_board_wins_where_they_overlap() {
 
 #[test]
 fn covered_paused_and_safe_board_block_virtual_items() {
-    let dwell = builtin_dwell_ms();
+    let dwell = virtual_dwell_ms();
     let mut r = Rig::new();
     r.register(0, Some(settings(WIDGETS)));
     r.covered = true;
@@ -792,6 +791,135 @@ fn covered_paused_and_safe_board_block_virtual_items() {
     assert!(r.virtual_hits().is_empty(), "safe board");
 }
 
+// ------------------------------------------------------------ selection and activation (02, 04)
+
+/// The rig's profile with `activation` replaced.
+fn profile_with(activation: &str) -> String {
+    PROFILE.replace(
+        "behavior: { activation: [dwell, press] }",
+        &format!("behavior: {{ activation: {activation} }}"),
+    )
+}
+
+/// `[press]`: no dwell; the press starts at once, and the release ends the
+/// activation wherever the pointer is (capture).
+#[test]
+fn press_activation_captures_until_release() {
+    let mut r = Rig::with_profile(&profile_with("[press]"), MAIN);
+    r.on(0, 0);
+    r.run_to(5000);
+    assert!(r.taps().is_empty(), "no dwell");
+    r.trigger(5000, "key:F13", Phase::Down, false);
+    assert_eq!(r.taps(), vec![tap(5000, "KeyA")]);
+    // Press `rep`, leave it: it keeps repeating until the release, wherever the pointer is.
+    let mut r = Rig::with_profile(&profile_with("[press]"), MAIN);
+    r.on(0, 1);
+    r.trigger(100, "key:F13", Phase::Down, false);
+    r.off(200);
+    r.run_to(1000);
+    r.trigger(1000, "key:F13", Phase::Up, false);
+    r.run_to(1500);
+    let taps = r.taps();
+    assert_eq!(taps.first(), Some(&tap(100, "KeyB")));
+    assert!(
+        taps.contains(&tap(700, "KeyC")),
+        "repeats after the pointer left: {taps:?}"
+    );
+    assert_eq!(taps.last(), Some(&tap(1000, "KeyD")));
+}
+
+/// `[release]`: the press captures the hovered item; the release fires it,
+/// even with the pointer elsewhere by then.
+#[test]
+fn release_activation_fires_the_captured_item() {
+    let mut r = Rig::with_profile(&profile_with("[release]"), MAIN);
+    r.on(0, 0);
+    r.trigger(100, "key:F13", Phase::Down, false);
+    r.run_to(500);
+    assert!(r.taps().is_empty(), "nothing fires on the press");
+    // Move to `rep` (x 100..200) and release there: `a` fires, not `rep`.
+    r.on(600, 1);
+    r.trigger(700, "key:F13", Phase::Up, false);
+    r.run_to(3000);
+    assert_eq!(r.taps(), vec![tap(700, "KeyA")]);
+}
+
+/// `[dwell, press]`: a press during a dwell takes the item; the dwell does
+/// not also fire while it is active.
+#[test]
+fn one_activation_method_at_a_time() {
+    let mut r = Rig::new();
+    r.on(0, 0);
+    r.trigger(300, "key:F13", Phase::Down, false);
+    r.run_to(3000);
+    assert_eq!(
+        r.taps(),
+        vec![tap(300, "KeyA")],
+        "the press, never the dwell"
+    );
+    r.trigger(3000, "key:F13", Phase::Up, false);
+    // Dwell works again after leaving and coming back.
+    r.off(3100);
+    r.on(3600, 0);
+    r.run_to(5000);
+    assert_eq!(r.taps(), vec![tap(300, "KeyA"), tap(4400, "KeyA")]);
+}
+
+/// `[dwell]`: `select` does nothing.
+#[test]
+fn select_needs_press_or_release() {
+    let mut r = Rig::with_profile(&profile_with("[dwell]"), MAIN);
+    r.on(0, 0);
+    r.trigger(100, "key:F13", Phase::Down, false);
+    r.trigger(150, "key:F13", Phase::Up, false);
+    r.run_to(700);
+    assert!(r.taps().is_empty());
+    r.run_to(1000);
+    assert_eq!(r.taps(), vec![tap(800, "KeyA")]);
+}
+
+/// The board's own `activation` overrides the profile's.
+#[test]
+fn board_activation_overrides_the_profile() {
+    let main = MAIN.replace(
+        "behavior: { dwell_ms: 800,",
+        "behavior: { activation: [press], dwell_ms: 800,",
+    );
+    let mut r = Rig::with(&main);
+    r.on(0, 0);
+    r.run_to(3000);
+    assert!(r.taps().is_empty(), "dwell off on this board");
+}
+
+/// UCA's own UI follows the profile: with `[press]`, virtual items don't dwell.
+#[test]
+fn virtual_items_follow_the_profile() {
+    let mut r = Rig::with_profile(&profile_with("[press]"), MAIN);
+    r.register(0, Some(settings(WIDGETS)));
+    r.point_xy(0, 300.0, 350.0, true);
+    r.run_to(5000);
+    assert!(r.virtual_hits().is_empty(), "no dwell");
+    r.trigger(5000, "key:F13", Phase::Down, false);
+    r.trigger(5050, "key:F13", Phase::Up, false);
+    assert_eq!(r.virtual_hits(), vec![(5000, "cancel".to_owned())]);
+}
+
+/// 09: the Safe Board dwells at the fixed 800 ms, whatever the profile says.
+#[test]
+fn safe_board_dwells_whatever_the_profile_says() {
+    let mut r = Rig::with_profile(&profile_with("[press]"), MAIN);
+    r.trigger(0, "key:F12", Phase::Down, true);
+    r.run_to(3000);
+    assert!(r.e.safe_board_open());
+    // Resume (top-left) by dwell.
+    r.point(3000, 100.0, true);
+    let dwell = uca_config::bundled::SAFE_DWELL_MS as u64;
+    r.run_to(3000 + dwell - 1);
+    assert!(r.e.safe_board_open());
+    r.run_to(3000 + dwell + 1);
+    assert!(!r.e.safe_board_open());
+}
+
 /// `select` (here bound to s1) activates the hovered virtual item.
 #[test]
 fn select_activates_a_hovered_virtual_item() {
@@ -806,7 +934,7 @@ fn select_activates_a_hovered_virtual_item() {
 /// Moved widgets keep their dwell; different widgets start over; removal ends it.
 #[test]
 fn registering_again_keeps_or_resets_dwell() {
-    let dwell = builtin_dwell_ms();
+    let dwell = virtual_dwell_ms();
     let half = dwell / 2;
     let mut r = Rig::new();
     r.register(0, Some(settings(WIDGETS)));
@@ -891,7 +1019,7 @@ fn several_virtual_boards() {
         id: "notice".into(),
         ..settings(items)
     };
-    let dwell = builtin_dwell_ms();
+    let dwell = virtual_dwell_ms();
     let mut r = Rig::new();
     r.register(0, Some(settings(WIDGETS)));
     r.register_as(

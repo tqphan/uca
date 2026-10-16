@@ -12,7 +12,7 @@ use crate::action::ActionSeq;
 use crate::board::Binding;
 use crate::setting;
 use crate::settings_registry::SettingValue;
-use crate::values::{Color, Id};
+use crate::values::{Behavior, Color, Id};
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -25,8 +25,8 @@ pub struct ProfileFile {
 #[serde(deny_unknown_fields)]
 pub struct Profile {
     pub name: String,
-    /// Informational; bindings are what run (08).
-    pub method: Option<Method>,
+    /// The user's selection, activation and timings: level 2 of the cascade (02).
+    pub behavior: Option<Behavior>,
     pub start_board: Id,
     /// Communication language, BCP 47 (17).
     pub language: Option<String>,
@@ -244,21 +244,6 @@ impl schemars::JsonSchema for AudioDevice {
             "minLength": 1
         })
     }
-}
-
-/// Method ids from 08.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum Method {
-    GazeTrigger,
-    GazeDwell,
-    GazeDwellLarge,
-    MouseDirect,
-    MouseDwell,
-    TwoSwitchStepScan,
-    InverseScan,
-    SingleSwitchAutoScan,
-    Assisted,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]

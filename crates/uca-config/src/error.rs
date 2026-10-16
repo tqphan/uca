@@ -89,6 +89,10 @@ pub enum ParseMessage {
         min: String,
         max: String,
     },
+    /// `behavior.dwell_ms: 0`: dwell is turned off through `activation` (02).
+    DwellZero,
+    /// `activation: []`.
+    EmptyActivation,
     /// Not recognised; shown in English.
     Other {
         message: String,
@@ -162,6 +166,12 @@ impl ParseMessage {
         if let Some(name) = message.strip_prefix("unknown key ").and_then(quoted) {
             return ParseMessage::UnknownKey { name, suggestion };
         }
+        if message == crate::setting::DWELL_ZERO {
+            return ParseMessage::DwellZero;
+        }
+        if message == crate::values::EMPTY_ACTIVATION {
+            return ParseMessage::EmptyActivation;
+        }
         if let Some((left, range)) = message.split_once(" is out of range ") {
             if let (Some((what, value)), Some((min, max))) = (
                 left.trim_end().rsplit_once(' '),
@@ -192,6 +202,8 @@ impl ParseMessage {
             ParseMessage::UnknownAction { .. } => "config-parse-unknown-action",
             ParseMessage::UnknownKey { .. } => "config-parse-unknown-key",
             ParseMessage::OutOfRange { .. } => "config-parse-out-of-range",
+            ParseMessage::DwellZero => "config-parse-dwell-zero",
+            ParseMessage::EmptyActivation => "config-parse-empty-activation",
             ParseMessage::Other { .. } => "config-parse-other",
         }
     }
@@ -228,6 +240,7 @@ impl ParseMessage {
                 ("min", min.clone()),
                 ("max", max.clone()),
             ],
+            ParseMessage::DwellZero | ParseMessage::EmptyActivation => vec![],
             ParseMessage::Other { message } => vec![("message", message.clone())],
         }
     }
@@ -364,6 +377,8 @@ mod tests {
             "unknown action \"a\"",
             "unknown key \"a\"",
             "x: 1 is out of range 2\u{2013}3",
+            crate::setting::DWELL_ZERO,
+            crate::values::EMPTY_ACTIVATION,
             "something else",
         ] {
             let msg = m(s);

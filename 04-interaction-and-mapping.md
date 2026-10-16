@@ -4,7 +4,7 @@
 
 ```rust
 pub struct EngineState {
-    pub mode: Mode,                       // Direct | AutoScan | StepScan | InverseScan | Pointer | SwitchPointer | Paused
+    pub mode: Mode,                       // Board | Pointer | SwitchPointer | Paused (how a board is used comes from `selection`, below)
     pub board_stack: Vec<BoardId>,        // top = visible board; board.back pops
     pub visible_layers: HashSet<LayerId>,
     pub hover: Option<ItemId>,
@@ -30,6 +30,18 @@ pub enum Intent {
     Control(Control),              // Recalibrate, SwitchMethod, RestartApp, ... (handled outside the engine)
 }
 ```
+
+## Selection and activation (decided)
+
+How the user reaches a target (`selection`) and what makes it fire (`activation`) are `behavior` keys resolved by the cascade (`02` "Selection and activation"). In `Board` mode the engine uses the selection of the top board's resolved behavior (profile → board → layer), and each item's own resolved activation. The scan modes are not engine modes; bindings that should only work while scanning filter with `in: { selection: auto-scan }`.
+
+- **dwell** runs the dwell machine below.
+- **press:** pressing a `select` binding's trigger starts the target's activation at once. The target *captures* the trigger: releasing it ends a `hold: release` activation wherever the pointer is by then.
+- **release:** pressing a `select` binding's trigger captures the target under the pointer (direct) or the highlighted element (scanning); releasing the trigger fires that target, wherever the pointer is by then. There is no ongoing hold, so with `hold: release` the activation is instant (see "Activations and stages").
+- **One at a time:** the first enabled method to fire on an item owns its activation. While it is open, the other methods neither start nor end it (no dwell progress on a captured or active item, a `select` press on an item already active by dwell does nothing). When the activation ends, any enabled method may fire again.
+- A `select` press or release on an item whose activation list has neither `press` nor `release` does nothing (logged at `debug`).
+- While the pointer source is lost and `profile.fallback` is set, its selection and activation replace the resolved ones everywhere (SAFETY-06).
+- The Safe Board always uses the fixed safe values (`09`).
 
 ## Paused mode (decided)
 
@@ -66,7 +78,7 @@ Any --presence=false OR mode=Paused--> Idle (no activation; an open activation i
 
 ## Direct selection — point + trigger
 
-If a binding `when: "<trigger> press" do: select` exists, pressing the trigger activates the current `hover` item immediately (no dwell). Releasing the trigger is the release for a `hold: release` activation. Dwell may be disabled globally with `behavior.dwell_ms: 0`.
+With `press` in the item's activation, a binding `when: "<trigger> press" do: select` activates the current `hover` item immediately (no dwell). Releasing the trigger is the release for a `hold: release` activation, wherever the pointer is (capture). With `release` in the activation, the press captures the hovered item and the release fires it (see "Selection and activation"). Dwell is off for an item whose activation does not list `dwell`.
 
 ## Scanning
 
@@ -79,10 +91,10 @@ Patterns:
 
 Each level includes a virtual **"back/up"** element at the end (configurable) so a wrong selection can be undone.
 
-Modes:
-- **AutoScan:** timer advances; `select` trigger chooses the highlighted element (descend a level or activate). Releasing `select` is the release for the item's activation; scanning stays on that item while the activation is open.
-- **StepScan:** `next` trigger advances; `select` trigger chooses. No timer. Release as in AutoScan.
-- **InverseScan:** while `select` trigger is held, timer advances; on release, the highlighted element is chosen. Release before first step = no-op. The selection happens on release, so the activation is instant (see "Action sets and stages").
+Selections (`behavior.selection`, `02`). The activation must be `press` or `release` (`dwell` is a config error); `inverse-scan` requires exactly `release`:
+- **AutoScan (`auto-scan`):** timer advances; `select` trigger chooses the highlighted element (descend a level or activate). Releasing `select` is the release for the item's activation; scanning stays on that item while the activation is open.
+- **StepScan (`step-scan`):** `next` trigger advances; `select` trigger chooses. No timer. Release as in AutoScan.
+- **InverseScan (`inverse-scan`):** while `select` trigger is held, timer advances; on release, the highlighted element is chosen. Release before first step = no-op. The selection happens on release, so the activation is instant (see "Action sets and stages").
 
 ## Pointer mode
 
@@ -185,15 +197,15 @@ They are called *action sets*, not layers, because *layer* already means a sub-p
 
 ### Activations and stages
 
-Activating an item (dwell completes, trigger pressed on the hovered item, scan `select` pressed, zone entered after `enter_delay_ms`) starts an **activation**. The activation stays open until the user lets go, as set by `behavior.hold`. (The grid key `span: {cols, rows}` in `02` is unrelated.)
+Activating an item (by one of its enabled activation methods: dwell completes, `select` pressed or released on the target; or a zone entered after `enter_delay_ms`) starts an **activation**. The activation stays open until the user lets go, as set by `behavior.hold`. (The grid key `span: {cols, rows}` in `02` is unrelated.)
 
 | `hold` | The activation ends when |
 | --- | --- |
-| `release` (default) | The input that started it lets go. For dwell or a zone, the point leaves the item and `dwell_grace_ms` passes. For a trigger, the trigger is released. For scanning, `select` is released. |
+| `release` (default) | The input that started it lets go. For dwell or a zone, the point leaves the item and `dwell_grace_ms` passes. For a trigger, the trigger is released, wherever the pointer is. For scanning, `select` is released. |
 | `toggle` | The item is activated again. While open, the item shows the `latched` state. For users who cannot hold an input. |
 | `instant` | Straight after the start stage finishes. No repeat runs. |
 
-Some inputs have no ongoing hold: InverseScan selection (chosen on release) and the patterns `release`, `double(…)`, `sequence[…]` and gestures. With `hold: release`, these always give an instant activation.
+Some inputs have no ongoing hold: the `release` activation method, InverseScan selection (chosen on release) and the patterns `release`, `double(…)`, `sequence[…]` and gestures. With `hold: release`, these always give an instant activation.
 
 | Stage | Runs | Typical use |
 | --- | --- | --- |
@@ -269,7 +281,7 @@ Logging: activation start / end (item, set, end reason: released / toggled / ins
 ```yaml
 bindings:
   - when: "switch1 press"            # input pattern (string DSL, see below)
-    in: { mode: AutoScan }           # optional context filter
+    in: { selection: auto-scan }     # optional context filter
     do: { scan.select: {} }          # action or list of actions
     passthrough: false               # let the original OS event through
 
@@ -376,6 +388,13 @@ Unknown action → config error. Action unsupported on current platform → conf
 - Dwell: enter at t=0, dwell_ms=800 → Start at t=800 exactly once; leave at 500, return at 600 with grace 150 → Start at 900.
 - Presence lost mid-dwell → no Start.
 - Staying on an item with no `repeat` stage for 10 s never re-fires; leaving at t=3000 with grace 150 → Stop at 3150; re-dwell possible only after cooldown.
+- Selection and activation:
+    - `activation: [press]`: dwelling for 5 s does nothing; `select` press → Start at once; pointer leaves, then release → Stop at the release.
+    - `activation: [release]`: press on A, move to B, release → A fires (Start then Stop) at the release; B never fires.
+    - `activation: [dwell, press]`: press at 300 ms into a dwell → Start at the press, dwell progress cleared; staying for 2 s does not dwell-fire while active; release → Stop; dwell fires again after the point leaves and re-enters (the dwell rule above).
+    - `activation: [dwell]`: a `select` press on the hovered item does nothing.
+    - Profile `behavior` applies to boards without their own; a board's `activation` overrides the profile; an item's overrides the board.
+    - UCA's own UI follows the profile's `behavior`; the Safe Board dwells at 800 ms and accepts press whatever the profile says.
 - AutoScan row-column on a 3×3 grid, select at row 2 then item 3 → Start(item at r2c3); timings exact; Stop on `select` release.
 
 Action sets and stages:

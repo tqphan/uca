@@ -1,1 +1,2 @@
 profile.yaml profile.safety.escape: error: the profile has no safety escape; add `safety: { escape: "<pattern>" }` (SAFETY-01)
+boards/main.yaml layers[0].items[0]: warning: this item fires only by select, but no binding does select

@@ -20,4 +20,5 @@ boards/main.yaml layers[1].items[2].size: error: items in a free layer need a si
 boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)
 boards/main.yaml board.id: error: duplicate id "main"
 boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)
+boards/main.yaml layers[0].items[0]: warning: this item fires only by select, but no binding does select
 profile.yaml profile.action_sets.start: warning: action set "start" is declared but never used

@@ -1,3 +1,4 @@
 boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)
 boards/patterns.yaml bindings[0].when: error: invalid pattern "key:F13 hold(0)": column 14: 0 ms is out of range 1–60000
 boards/patterns.yaml bindings[1].when: error: invalid pattern "": column 1: the pattern is empty
+boards/main.yaml layers[0].items[0]: warning: this item fires only by select, but no binding does select

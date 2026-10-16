@@ -23,6 +23,7 @@ use crate::BoardModel;
 const PROFILE: &str = r#"schema: uca/1
 profile:
   name: t
+  behavior: { activation: [dwell, press] }
   start_board: main
   safety: { escape: "key:F12 hold(3000)" }
   action_sets: { sprint: { label: Sprint } }
@@ -300,9 +301,9 @@ fn asset_config(start: &str, theme: &str) -> Arc<LoadedConfig> {
         profile_id: "t".into(),
     };
     let mut s = Sources::default();
-    let profile = format!(
-        "schema: uca/1\nprofile:\n  name: t\n  start_board: {start}\n  safety: {{ escape: \"key:* hold(3000)\" }}\n"
-    );
+    // The shipped Default profile, starting on `start`.
+    let profile = include_str!("../../../assets/profiles/default/profile.yaml")
+        .replace("start_board: qwerty", &format!("start_board: {start}"));
     s.set(&p, &p.profile_file(), Some(profile));
     let boards = [
         (

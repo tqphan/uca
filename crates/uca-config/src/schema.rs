@@ -442,7 +442,9 @@ mod tests {
         }
         let dwell = setting_schema("behavior.dwell_ms");
         let dwell = serde_json::to_value(dwell).expect("serialise");
-        assert_eq!(dwell["anyOf"][0]["const"], 0);
-        assert_eq!(dwell["anyOf"][1]["minimum"], 100.0);
+        assert_eq!(dwell["minimum"], 100.0);
+        let notice = setting_schema("profile.notice_timeout_ms");
+        let notice = serde_json::to_value(notice).expect("serialise");
+        assert_eq!(notice["anyOf"][0]["const"], 0);
     }
 }

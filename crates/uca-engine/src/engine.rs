@@ -13,7 +13,7 @@ use uca_config::board::{ActionSetEntry, Binding, BoardFile, Item};
 use uca_config::cascade::{behavior_over_builtin, Cascade, ResolvedBehavior, ResolvedItem};
 use uca_config::settings_registry::{self, SettingValue};
 use uca_config::store::LoadedConfig;
-use uca_config::values::{Hold, State};
+use uca_config::values::{ActivationMethod, Hold, Selection, State};
 use uca_mapping::{BindingKey, Ends, Mapping, MappingEvent, MatchContext};
 use uca_types::{Clock, FilteredPoint, Key, MonitorInfo, SourceStatus, TriggerEvent, TriggerId};
 
@@ -105,6 +105,9 @@ struct Activation {
     owner: Owner,
     /// Item activations started by `select` inside a binding end with that binding (04).
     ended_by: Option<BindingKey>,
+    /// The activation method that started an item activation; only it can
+    /// end or toggle it (02 "Selection and activation").
+    method: Option<ActivationMethod>,
     start: Vec<Action>,
     repeat: Option<Vec<Action>>,
     stop: Vec<Action>,
@@ -133,6 +136,8 @@ pub struct Engine {
     hover: Option<ItemRef>,
     dwell: Dwell,
     must_leave: Option<ItemRef>,
+    /// A `release` activation waiting for its `select` binding to let go (04).
+    captured: Option<(ItemRef, BindingKey)>,
     cooldown_until: BTreeMap<ItemRef, Instant>,
     armed: Option<(ItemRef, Instant)>,
     latched: BTreeMap<Key, Latch>,
@@ -174,7 +179,7 @@ impl Engine {
             stack: vec![profile.start_board.0.clone()],
             config,
             monitors,
-            mode: Mode::Direct,
+            mode: Mode::Board,
             safe_open: false,
             layer_visible: BTreeMap::new(),
             shown: None,
@@ -183,6 +188,7 @@ impl Engine {
             hover: None,
             dwell: Dwell::Idle,
             must_leave: None,
+            captured: None,
             cooldown_until: BTreeMap::new(),
             armed: None,
             latched: BTreeMap::new(),
@@ -263,7 +269,7 @@ impl Engine {
         let now = clock.now();
         self.advance_to(now);
         match c {
-            EngineControl::TogglePause if self.mode == Mode::Paused => self.mode = Mode::Direct,
+            EngineControl::TogglePause if self.mode == Mode::Paused => self.mode = Mode::Board,
             EngineControl::TogglePause => self.pause(now),
             EngineControl::OpenSafeBoard => self.open_safe_board(now),
             // The caret is in another window now (16 "Scope").
@@ -473,6 +479,7 @@ impl Engine {
                 id,
                 owner: Owner::Item(r),
                 ended_by: None,
+                method: None,
                 start: vec![Action::TextType(text)],
                 repeat: None,
                 stop: Vec::new(),
@@ -619,7 +626,10 @@ impl Engine {
             .as_ref()
             .and_then(|t| self.config.themes.get(t))
             .map(|(_, t)| t);
-        let cascade = Cascade::new(&file, theme);
+        let profile = (!safe)
+            .then_some(self.config.profile.profile.behavior.as_ref())
+            .flatten();
+        let cascade = Cascade::new(&file, theme).with_profile(profile);
         let resolved = file
             .layers
             .iter()
@@ -634,6 +644,7 @@ impl Engine {
         self.hover = None;
         self.dwell = Dwell::Idle;
         self.must_leave = None;
+        self.captured = None;
         self.armed = None;
     }
 
@@ -768,7 +779,7 @@ impl Engine {
     // ------------------------------------------------------------ dwell
 
     fn interactive(&self) -> bool {
-        self.safe_open || self.mode == Mode::Direct
+        self.safe_open || self.mode == Mode::Board
     }
 
     fn present_now(&self) -> bool {
@@ -777,8 +788,11 @@ impl Engine {
 
     fn behavior(&self, r: ItemRef) -> Option<ResolvedBehavior> {
         if r.virt {
-            // Virtual items have no cascade: the built-in behavior (02).
-            return Some(behavior_over_builtin(None));
+            // Virtual items have no cascade: the built-in behavior with the
+            // profile's merged over it (02).
+            return Some(behavior_over_builtin(
+                self.config.profile.profile.behavior.as_ref(),
+            ));
         }
         let res = self.resolved(r)?;
         Some(match self.item_entry(r) {
@@ -787,14 +801,18 @@ impl Engine {
         })
     }
 
+    /// `None` when dwell is not among the item's activation methods (02).
     fn dwell_ms(&self, r: ItemRef) -> Option<f64> {
-        self.behavior(r).and_then(|b| b.dwell_ms)
+        self.behavior(r)
+            .filter(|b| b.activation.has(ActivationMethod::Dwell))
+            .map(|b| b.dwell_ms)
     }
 
     fn can_start_dwell(&self, r: ItemRef, t: Instant) -> bool {
         self.interactive()
             && self.present_now()
             && self.must_leave != Some(r)
+            && self.captured.as_ref().is_none_or(|(c, _)| *c != r)
             && self.cooldown_until.get(&r).is_none_or(|c| *c <= t)
             && self.dwell_ms(r).is_some()
     }
@@ -877,7 +895,7 @@ impl Engine {
                     let events = self.mapping.on_dwell(due, Some(&ctx));
                     self.mapping_events(events, due);
                 }
-                if let Some(id) = self.activate_item(item, None, due) {
+                if let Some(id) = self.activate_item(item, None, ActivationMethod::Dwell, due) {
                     if self
                         .activation(id)
                         .is_some_and(|a| a.hold == Hold::Release && !a.ending)
@@ -947,6 +965,7 @@ impl Engine {
         }
         self.intents.push(Intent::ReleaseAll);
         self.dwell = Dwell::Idle;
+        self.captured = None;
         self.armed = None;
         self.mapping.reset();
     }
@@ -982,7 +1001,7 @@ impl Engine {
     fn close_safe_board(&mut self, t: Instant) {
         self.safety_event(t);
         self.safe_open = false;
-        self.mode = Mode::Direct;
+        self.mode = Mode::Board;
         self.show_top();
         self.refresh_hover(t);
     }
@@ -1027,7 +1046,7 @@ impl Engine {
         if self.safe_open {
             if e.phase == uca_types::Phase::Down && self.safe_select_trigger(&e.trigger) {
                 if let Some(h) = self.hover {
-                    self.activate_item(h, None, t);
+                    self.activate_item(h, None, ActivationMethod::Press, t);
                 }
             }
             return;
@@ -1060,6 +1079,7 @@ impl Engine {
         });
         MatchContext {
             mode: self.mode,
+            selection: self.selection(),
             top_board: board,
             visible_layers,
             hovered,
@@ -1067,6 +1087,21 @@ impl Engine {
             app: None,
             action_sets: self.sets.ids(),
         }
+    }
+
+    /// The shown board's selection: board, then profile, then built-in (02).
+    fn selection(&self) -> Selection {
+        let Some(shown) = self.shown.as_ref().filter(|s| !s.safe) else {
+            return Selection::Direct;
+        };
+        [
+            shown.file.board.behavior.as_ref(),
+            self.config.profile.profile.behavior.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .find_map(|b| b.selection)
+        .unwrap_or(Selection::Direct)
     }
 
     fn mapping_events(&mut self, events: Vec<MappingEvent>, t: Instant) {
@@ -1085,6 +1120,12 @@ impl Engine {
                     self.start_binding(binding, &b, ends, t);
                 }
                 MappingEvent::End { binding, .. } => {
+                    // A `release` activation fires when its binding lets go (04).
+                    if self.captured.as_ref().is_some_and(|(_, k)| *k == binding) {
+                        if let Some((r, _)) = self.captured.take() {
+                            self.activate_item(r, None, ActivationMethod::Release, t);
+                        }
+                    }
                     let ids: Vec<ActivationId> = self
                         .activations
                         .iter()
@@ -1151,6 +1192,7 @@ impl Engine {
                 id,
                 owner: Owner::Binding(key),
                 ended_by: None,
+                method: None,
                 start,
                 repeat,
                 stop,
@@ -1164,11 +1206,13 @@ impl Engine {
         );
     }
 
-    /// Activates an item by dwell or `select`. Returns the activation, if one started.
+    /// Activates an item by one of its activation methods. Returns the
+    /// activation, if one started.
     fn activate_item(
         &mut self,
         r: ItemRef,
         ended_by: Option<BindingKey>,
+        method: ActivationMethod,
         t: Instant,
     ) -> Option<ActivationId> {
         if !self.interactive() {
@@ -1183,17 +1227,30 @@ impl Engine {
             self.safe_action(safe, t);
             return None;
         }
-        // A toggled activation of this item ends on its next activation (04 hold: toggle).
+        // One method at a time: an open activation belongs to the method that
+        // started it (02). A toggled one ends on that method's next activation
+        // (04 hold: toggle).
         if let Some(open) = self
             .activations
             .iter()
-            .find(|a| a.owner == Owner::Item(r) && a.hold == Hold::Toggle && !a.ending)
-            .map(|a| a.id)
+            .find(|a| a.owner == Owner::Item(r) && !a.ending)
         {
-            self.end_activation(open, t);
+            let (id, toggle, same) = (
+                open.id,
+                open.hold == Hold::Toggle,
+                open.method == Some(method),
+            );
+            if toggle && same {
+                self.end_activation(id, t);
+            }
             return None;
         }
         let behavior = self.behavior(r)?;
+        // `release` has no ongoing hold (04).
+        let hold = match (method, behavior.hold) {
+            (ActivationMethod::Release, Hold::Release) => Hold::Instant,
+            (_, hold) => hold,
+        };
         if behavior.confirm {
             match self.armed {
                 Some((armed, until)) if armed == r && t <= until => self.armed = None,
@@ -1221,10 +1278,11 @@ impl Engine {
                 id,
                 owner: Owner::Item(r),
                 ended_by,
+                method: Some(method),
                 start,
                 repeat,
                 stop,
-                hold: behavior.hold,
+                hold,
                 behavior,
                 run: None,
                 next_repeat: None,
@@ -1233,6 +1291,48 @@ impl Engine {
             t,
         );
         Some(id)
+    }
+
+    /// `select` on the hovered item, by its activation methods (02, 04):
+    /// `press` activates now and the binding's release ends it; `release`
+    /// captures the item and fires it when the binding lets go.
+    fn select(&mut self, by: ActivationId, t: Instant) {
+        let Some(h) = self.hover else {
+            return;
+        };
+        let Some(activation) = self.behavior(h).map(|b| b.activation) else {
+            return;
+        };
+        let binding = self.activation(by).and_then(|a| match &a.owner {
+            Owner::Binding(k) if a.hold == Hold::Release => Some(k.clone()),
+            _ => None,
+        });
+        if activation.has(ActivationMethod::Press) {
+            self.stop_dwell_on(h);
+            self.activate_item(h, binding, ActivationMethod::Press, t);
+        } else if activation.has(ActivationMethod::Release) {
+            self.stop_dwell_on(h);
+            match binding {
+                Some(k) => self.captured = Some((h, k)),
+                // A binding with no release (e.g. a tap) fires at once.
+                None => {
+                    self.activate_item(h, None, ActivationMethod::Release, t);
+                }
+            }
+        } else {
+            tracing::debug!(target: "uca::engine", "select ignored: the item has no press or release activation");
+        }
+    }
+
+    /// Another method took the item: its dwell progress is dropped, and it
+    /// can dwell again only after the point leaves it (04).
+    fn stop_dwell_on(&mut self, r: ItemRef) {
+        if let Dwell::Dwelling { item, .. } | Dwell::Grace { item, .. } = &self.dwell {
+            if *item == r {
+                self.dwell = Dwell::Idle;
+            }
+        }
+        self.must_leave = Some(r);
     }
 
     /// Virtual items run no stages: `uca-ui` performs the widget's own action.
@@ -1248,7 +1348,9 @@ impl Engine {
             board: vb.id.clone(),
             item: item.id.clone(),
         });
-        let cooldown = millis(behavior_over_builtin(None).cooldown_ms);
+        let cooldown = millis(
+            behavior_over_builtin(self.config.profile.profile.behavior.as_ref()).cooldown_ms,
+        );
         if !cooldown.is_zero() {
             self.cooldown_until.insert(r, t + cooldown);
         }
@@ -1475,16 +1577,8 @@ impl Engine {
             Action::ActionSetOnce(s) => self.sets.once(&s.0, by),
             Action::ActionSetReset => self.sets.reset(),
             Action::ModeSet(Mode::Paused) | Action::Pause => self.pause(t),
-            Action::ModeSet(Mode::Direct) | Action::Resume => self.mode = Mode::Direct,
-            Action::Select => {
-                if let Some(h) = self.hover {
-                    let binding = self.activation(by).and_then(|a| match &a.owner {
-                        Owner::Binding(k) if a.hold == Hold::Release => Some(k.clone()),
-                        _ => None,
-                    });
-                    self.activate_item(h, binding, t);
-                }
-            }
+            Action::ModeSet(Mode::Board) | Action::Resume => self.mode = Mode::Board,
+            Action::Select => self.select(by, t),
             Action::Recalibrate => self.intents.push(Intent::Control(Control::Recalibrate)),
             Action::SettingsOpen => self.intents.push(Intent::Control(Control::OpenSettings)),
             Action::SettingsClose => self.intents.push(Intent::Control(Control::CloseSettings)),

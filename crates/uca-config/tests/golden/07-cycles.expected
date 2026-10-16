@@ -3,3 +3,4 @@ profile.yaml profile.macros.b.do: error: macro cycle: b → a → b
 boards/main.yaml templates.one.extends: error: template cycle: one → two → one
 boards/main.yaml templates.three.extends: error: template cycle: three → three
 boards/main.yaml templates.two.extends: error: template cycle: two → one → two
+boards/main.yaml layers[0].items[0]: warning: this item fires only by select, but no binding does select

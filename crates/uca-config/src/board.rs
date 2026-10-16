@@ -11,7 +11,7 @@ use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
 use crate::action::{ActionSeq, KeyArg, Mode, MonitorRef, MonitorRefArg, Repeat};
 use crate::values::{
     is_id, Behavior, Border, Color, DwellIndicator, Font, Four, Groups, Id, Length, Opacity,
-    Position, Shadow, Size, States, Style,
+    Position, Selection, Shadow, Size, States, Style,
 };
 
 /// Adds the base properties shared by board, layer and item (02) to a struct.
@@ -384,6 +384,8 @@ pub struct Binding {
 #[serde(deny_unknown_fields)]
 pub struct ContextFilter {
     pub mode: Option<Mode>,
+    /// The top board's resolved selection (04).
+    pub selection: Option<Selection>,
     pub board: Option<Id>,
     pub layer: Option<Id>,
     #[serde(default, deserialize_with = "de_modifier")]

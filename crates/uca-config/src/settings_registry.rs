@@ -35,7 +35,7 @@ impl Unit {
 /// How "off" is written in YAML, for settings that can be turned off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OffEncoding {
-    /// `0` means off, e.g. `behavior.dwell_ms: 0`.
+    /// `0` means off, e.g. `profile.notice_timeout_ms: 0`.
     Zero,
     /// The key is absent or `null`, e.g. `trigger.max_rate_hz`.
     Null,
@@ -162,7 +162,7 @@ pub static SETTINGS: &[SettingDef] = &[
         N(800.0),
         100.0,
         10_000.0,
-        Some(OffEncoding::Zero),
+        None,
         "setting-behavior-dwell-ms",
     ),
     def(
@@ -471,9 +471,15 @@ mod tests {
     }
 
     #[test]
-    fn dwell_zero_is_off_and_below_range_is_rejected() {
+    fn dwell_has_no_off_value_and_below_range_is_rejected() {
+        // Dwell is turned off through `activation` (02).
         let dwell = get("behavior.dwell_ms").expect("registered");
-        assert_eq!(dwell.check_number(0.0), Ok(SettingValue::Off));
+        assert!(matches!(
+            dwell.check_number(0.0),
+            Err(SettingError::OutOfRange { .. })
+        ));
+        let notice = get("profile.notice_timeout_ms").expect("registered");
+        assert_eq!(notice.check_number(0.0), Ok(SettingValue::Off));
         assert!(matches!(
             dwell.check_number(99.0),
             Err(SettingError::OutOfRange { min, max, .. }) if min == 100.0 && max == 10_000.0

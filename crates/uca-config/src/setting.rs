@@ -8,6 +8,10 @@ use serde::de::{Deserialize, Deserializer, Error};
 
 use crate::settings_registry::{self, SettingValue};
 
+/// The error for `behavior.dwell_ms: 0`, recognised by `ParseMessage`.
+pub(crate) const DWELL_ZERO: &str =
+    "behavior.dwell_ms: 0 does not turn dwell off; leave `dwell` out of `activation`";
+
 /// A present key is checked against the registry; `null` is accepted only
 /// where the setting declares it as "off". A missing key stays `None` (inherit).
 pub(crate) fn de_setting<'de, D: Deserializer<'de>>(
@@ -16,6 +20,10 @@ pub(crate) fn de_setting<'de, D: Deserializer<'de>>(
 ) -> Result<Option<SettingValue>, D::Error> {
     let def = settings_registry::get(key).map_err(D::Error::custom)?;
     let value = match Option::<f64>::deserialize(d)? {
+        // Dwell is turned off through `activation` (02).
+        Some(n) if n == 0.0 && key == "behavior.dwell_ms" => {
+            return Err(D::Error::custom(DWELL_ZERO));
+        }
         Some(n) => def.check_number(n),
         None => def.check_null(),
     };

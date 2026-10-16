@@ -46,7 +46,11 @@ impl BoardModel {
             .as_ref()
             .and_then(|t| config.themes.get(t))
             .map(|(_, t)| t);
-        let cascade = Cascade::new(&file, theme);
+        // The profile's behavior is level 2; the Safe Board has fixed values (02).
+        let profile = (board_id != uca_engine::safe_board::SAFE_BOARD_ID)
+            .then_some(config.profile.profile.behavior.as_ref())
+            .flatten();
+        let cascade = Cascade::new(&file, theme).with_profile(profile);
         let b = &file.board;
         let board_surface = Surface::new(
             &cascade,

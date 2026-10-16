@@ -163,10 +163,9 @@ Quick tasks for the commonest carer jobs, each a short form on top of the normal
 Try mode lets a carer test a board without UCA running and without sending any input to the computer.
 
 - **Real engine.** The editor runs `uca-engine` and `uca-mapping` on the edited config with a real-time clock (the engine already takes time from `Clock`, AGENTS.md rule 2). The editor's mouse is the pointer source.
-- **Method selection.** Choose the access method to simulate:
-    - mouse dwell
-    - point + trigger (a key on the keyboard as trigger)
-    - auto, step or inverse scanning (keys as switches)
+- **Selection and activation.** Choose what to simulate, overriding the profile's for the session:
+    - selection: direct (the editor's mouse) or auto, step or inverse scanning (keys as switches)
+    - activation: any of dwell, press and release (a key on the keyboard as the `select` trigger)
 - **Profile settings.** Timings come from the profile, and can be changed for the session only.
 - **Nothing is executed.** Intents and the resolved actions go to a **Try log** instead of an executor, e.g. `start key-w (sprint): key.down shift, key.down w`, then `stop key-w (sprint): key.up w, key.up shift`.
     - No key, mouse, speech, plugin or app action is performed. Try mode cannot press keys, launch apps, change settings or call plugins.

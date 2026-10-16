@@ -190,7 +190,8 @@ pub enum MouseMove {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
 pub enum Mode {
-    Direct,
+    /// Interacting with boards by the resolved selection and activation (04).
+    Board,
     Paused,
 }
 

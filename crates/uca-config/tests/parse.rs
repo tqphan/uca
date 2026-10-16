@@ -205,7 +205,7 @@ fn syntax_error_has_position() {
 const PROFILE: &str = r##"schema: uca/1
 profile:
   name: Alex
-  method: gaze-dwell
+  behavior: { selection: direct, activation: [dwell], dwell_ms: 800 }
   start_board: main-keyboard
   language: en-US
   inputs:
@@ -273,13 +273,10 @@ fn profile_rejects_bad_switch_trigger() {
 fn later_profile_keys_are_rejected() {
     let text = PROFILE.replace(
         "  safety:",
-        "  fallback_method: single-switch-auto-scan\n  safety:",
+        "  fallback: { selection: auto-scan, activation: [press] }\n  safety:",
     );
     let err = parse_profile(&text, Path::new("p.yaml")).unwrap_err();
-    assert!(
-        err.message.contains("unknown field `fallback_method`"),
-        "{err}"
-    );
+    assert!(err.message.contains("unknown field `fallback`"), "{err}");
 }
 
 #[test]

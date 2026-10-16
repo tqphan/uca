@@ -557,6 +557,11 @@ board: {"
             Some(with_unknown_group),
         );
         let (_, update) = ConfigStore::from_sources(p.clone(), sources);
-        assert_eq!(applied(&update).warnings.len(), 1);
+        let unknown_group = applied(&update)
+            .warnings
+            .iter()
+            .filter(|w| matches!(w.kind, crate::validate::ProblemKind::UnknownGroup { .. }))
+            .count();
+        assert_eq!(unknown_group, 1);
     }
 }

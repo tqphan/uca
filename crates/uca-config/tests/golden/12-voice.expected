@@ -1,1 +1,2 @@
 boards/main.yaml board: warning: board "main" has no item or binding that leads to another board (SAFETY-09)
+boards/main.yaml layers[0].items[0]: warning: this item fires only by select, but no binding does select

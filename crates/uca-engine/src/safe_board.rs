@@ -63,7 +63,8 @@ pub fn safe_board() -> BoardFile {
             padding: None,
             font: None,
             shadow: None,
-            behavior: None,
+            // Fixed: direct, dwell + press, dwell 800 ms (09).
+            behavior: Some(uca_config::bundled::safe_behavior()),
             dwell_indicator: None,
             states: Default::default(),
             group: None,

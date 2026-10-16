@@ -1,6 +1,6 @@
 # 08 — Ability Assessment
 
-Goal: determine which inputs a user can produce, **how reliably and how fast**, and generate a working profile with a recommended method.
+Goal: determine which inputs a user can produce, **how reliably and how fast**, and generate a working profile with a recommended selection and activation (`02` "Selection and activation").
 
 The assessment answers:
 - Can the user press a key? Which key(s)?
@@ -53,19 +53,21 @@ Each test produces a `TestResult` stored in `profile.assessment`.
 
 Evaluate top to bottom; first match wins. `R` = number of reliable triggers (reliable keys + reliable mouse buttons + usable non-conflicting expressions).
 
-| # | Condition | Method id | Profile generated |
+| # | Condition | Selection / activation | Profile generated |
 | --- | --- | --- | --- |
-| 1 | gaze accurate AND R ≥ 1 | `gaze-trigger` | pointer=gaze, `select` bound to best trigger, dwell off (dwell 1500 as backup optional) |
-| 2 | gaze accurate | `gaze-dwell` | pointer=gaze, dwell 800 ms (adjust: 600 + 200 × fatigue flag) |
-| 3 | gaze imprecise | `gaze-dwell-large` | large-key board, dwell 1000 ms, zoom-to-click enabled |
-| 4 | mouse reaches ≥ 6 directions AND reliable left button | `mouse-direct` | standard pointer use + on-screen keyboard, dwell off |
-| 5 | mouse reaches ≥ 6 directions | `mouse-dwell` | pointer mode with click-type bar, dwell 800 ms |
-| 6 | R ≥ 2 | `two-switch-step-scan` | next = fastest trigger, select = most reliable other trigger |
-| 7 | R = 1 AND median hold ≥ 1 s comfortably | `inverse-scan` | — |
-| 8 | R = 1 | `single-switch-auto-scan` | row-column, interval = clamp(2.5 × p90 reaction time, 800, 4000) ms |
-| 9 | none | `assisted` | carer-operated, show guidance to retry with different hardware |
+| 1 | gaze accurate AND R ≥ 1 | `direct` / `[press]` | pointer=gaze, `select` bound to best trigger (optional backup: `[dwell, press]` with dwell 1500) |
+| 2 | gaze accurate | `direct` / `[dwell]` | pointer=gaze, dwell 800 ms (adjust: 600 + 200 × fatigue flag) |
+| 3 | gaze imprecise | `direct` / `[dwell]` | large-key board, dwell 1000 ms, zoom-to-click enabled |
+| 4 | mouse reaches ≥ 6 directions AND reliable left button | `direct` / `[press]` | standard pointer use + on-screen keyboard, `mouse:left press` bound to `select` |
+| 5 | mouse reaches ≥ 6 directions | `direct` / `[dwell]` | pointer mode with click-type bar, dwell 800 ms |
+| 6 | R ≥ 2 | `step-scan` / `[press]` | next = fastest trigger, select = most reliable other trigger |
+| 7 | R = 1 AND median hold ≥ 1 s comfortably | `inverse-scan` / `[release]` | — |
+| 8 | R = 1 | `auto-scan` / `[press]` | row-column, interval = clamp(2.5 × p90 reaction time, 800, 4000) ms |
+| 9 | none | — | carer-operated, show guidance to retry with different hardware |
 
-Also assign: **fallback_method** = the best method among rows 6–8 that does not use the primary pointer source, and the **safety escape** pattern (see `09`) using the most reliable trigger with `hold(3000)`, or a dwell on a dedicated corner target if R = 0.
+The recommendation is written into the profile's `behavior` (`selection`, `activation`, timings). There are no named methods.
+
+Also assign: **fallback** = the selection and activation of the best row among 6–8 that does not use the primary pointer source, and the **safety escape** pattern (see `09`) using the most reliable trigger with `hold(3000)`, or a dwell on a dedicated corner target if R = 0.
 
 Recommendations must only use capabilities the current platform reports (`07`).
 
@@ -93,7 +95,7 @@ Values the assessment derives (dwell, scan speed, thresholds, speeds) are sugges
 
 - Plain-language summary: "You can reliably use: right eyebrow raise, left mouse button. Recommended: Gaze to point, eyebrow to select."
 - "Try it" step: 60-second practice on a sample board with the generated profile.
-- Buttons: Accept, Choose another method (list all methods that the results support), Adjust timings, Retake a test.
+- Buttons: Accept, Choose another selection and activation (list all combinations the results support), Adjust timings, Retake a test.
 - Save writes the profile's `profile.yaml` (+ chosen starter board copy) and records the raw results. When run for a new person on a computer that already has profiles, it creates a new profile (`02`) instead of changing the current one.
 
 ## Acceptance tests

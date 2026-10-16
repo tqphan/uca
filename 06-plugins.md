@@ -198,4 +198,4 @@ Logging rules for these sources are in `11`.
 
 - Protocol round-trip tests for every message type (Rust fixtures; Python SDK checked against the same fixtures once it exists).
 - Host test with a fake plugin that: crashes after 3 s (restart observed), stops ponging (killed + restarted), sends malformed frame (connection dropped, no host crash), sends 1 MiB+1 frame (rejected).
-- Fallback test: active point-provider fails 5× → engine switches to `fallback_method`.
+- Fallback test: active point-provider fails 5× → engine switches to `profile.fallback`.

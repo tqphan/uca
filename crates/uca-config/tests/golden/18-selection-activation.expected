@@ -1,0 +1,8 @@
+profile.yaml profile.behavior.selection: error: auto-scan is not available yet
+profile.yaml profile.bindings[0].behavior.activation: error: activation can't be set on an action-set entry or a binding
+boards/main.yaml board.behavior.selection: error: inverse-scan is not available yet
+boards/main.yaml groups.big.behavior.selection: error: selection can only be set on the profile, a board or a layer
+boards/main.yaml layers[0].items[0].behavior.selection: error: selection can only be set on the profile, a board or a layer
+boards/main.yaml layers[0].items[1].actions.default.behavior.activation: error: activation can't be set on an action-set entry or a binding
+boards/main.yaml layers[1]: error: inverse-scan needs `activation: [release]`
+boards/main.yaml layers[0].items[0]: warning: this item fires only by select, but no binding does select

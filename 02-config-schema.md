@@ -7,7 +7,7 @@ All user configuration is YAML. Rust types in `uca-config` are the source of tru
 | Path (under config dir) | Content |
 | --- | --- |
 | `app.yaml` | App-level settings not tied to a user: `logging` (`11`), `debug` (`11`), `ui_language` (`17`), `last_profile` |
-| `profiles/<profile-id>/profile.yaml` | One user's profile: inputs, global bindings, method, calibration, safety escape, language |
+| `profiles/<profile-id>/profile.yaml` | One user's profile: inputs, global bindings, selection and activation (`behavior`), calibration, safety escape, language |
 | `profiles/<profile-id>/boards/*.yaml` | That user's boards (vocabulary is personal), one board per file |
 | `profiles/<profile-id>/phrases.yaml`, `prediction/`, `images/` | That user's saved phrases, learned prediction data, own pictures (`16`) |
 | `profiles/<profile-id>/backups/` | That user's automatic backups (`16`) |
@@ -22,8 +22,8 @@ One computer can hold several user profiles, for example for schools, clinics or
 - **Profile id:** `[a-z0-9_-]+`. The profile has a display name and an optional picture.
 - **Shipped files (decided):**
     - **First run:** if `profiles/` has no profile, UCA copies the shipped default profile (id `default`) with its boards (`qwerty`, `mouse`) and the themes (`default`, `high-contrast`) into the config dir once. Later UCA updates never overwrite them.
-    - **Default profile:** identical to the built-in safe profile, but as editable files: name "Default", method `mouse-dwell`, pointer `mouse` with no filter, start board `qwerty`, escape `key:* hold(3000)`, and no switches or bindings.
-    - **Safe profile:** the built-in safe profile (SAFETY-04) is made from the same files, embedded in UCA and loaded in memory.
+    - **Default profile:** name "Default", `behavior: { selection: direct, activation: [press] }`, pointer `mouse` with no filter, start board `qwerty`, escape `key:* hold(3000)`, no switches, and one binding: `when: "mouse:left press"`, `do: { select: }`. Items are activated by clicking them.
+    - **Safe profile:** the built-in safe profile (SAFETY-04) is made from the same files, embedded in UCA and loaded in memory, with the profile's selection, activation and dwell time replaced by the fixed safe values (below, "Selection and activation"). The shipped boards set none of these, so nothing overrides them.
 - **M1 start-up (decided, until multiple profiles arrive in M2):**
     - With exactly one folder in `profiles/`, UCA loads it.
     - With several, it loads the first in alphabetical order and shows a notice that choosing a profile arrives in M2.
@@ -98,7 +98,9 @@ fonts:
 
 ```yaml
 behavior:
-  dwell_ms: 800            # time to activate by dwell
+  selection: direct        # direct | auto-scan | step-scan | inverse-scan — how a target is reached (below)
+  activation: [dwell, press]  # any of dwell | press | release — what makes a reached target fire (below)
+  dwell_ms: 800            # time to activate by dwell, when dwell is in `activation`
   dwell_grace_ms: 150      # look-away tolerance before dwell resets
   cooldown_ms: 300         # ignore re-activation after an activation ends
   hold: release            # release | toggle | instant — when an item's activation ends (see 04 "Action sets and stages")
@@ -108,6 +110,26 @@ behavior:
   scannable: true          # included in scanning
   magnet: true             # gaze snapping target
 ```
+
+### Selection and activation (decided)
+
+Two separate choices, using the AAC terms *selection technique* and *activation strategy*:
+
+- **`selection`** is how the user reaches a target:
+    - `direct`: pointing (gaze, mouse, head, touch); the target is the hovered item.
+    - `auto-scan`, `step-scan`, `inverse-scan`: scanning (`04` "Scanning"); the target is the highlighted element.
+- **`activation`** is a list of the methods that make a reached target fire. Any combination may be enabled:
+    - `dwell`: the pointer rests on the item for `dwell_ms`.
+    - `press`: a `select` binding's trigger is pressed. Only `select` bindings count; a mouse click or touch must be bound explicitly (e.g. `when: "mouse:left press"`, `do: { select: }`).
+    - `release`: a `select` binding's trigger is released.
+- **One at a time.** With several methods enabled, the first one to fire on an item owns that activation; the others neither start nor end it until the item is released (the activation ends, `04`). Then any enabled method may fire again.
+- **Levels.** Both keys live in `behavior` and cascade like the other behavior keys, including the profile's own `behavior` (level 2 of the cascade). `selection` can be set on the profile, a board or a layer; on an item, group, template, action-set entry or binding it is an error. `activation` can be set at every cascade level down to the item; on an action-set entry or binding it is an error.
+- **Built-in defaults (level 1):** `selection: direct`, `activation: [press]`.
+- **Combinations:** scanning has no pointer, so `dwell` with a scan selection is an error. `inverse-scan` requires `activation: [release]` exactly. Errors keep the last valid config loaded.
+- **Scanning before M3:** the schema lists all four selections, but `auto-scan`, `step-scan` and `inverse-scan` are rejected ("… is not available yet") until scanning exists (M3).
+- **Nothing can fire:** a warning when an item resolves to an activation without `dwell` and no binding anywhere in the profile or its boards does `select`.
+- **Fixed safe values:** the built-in safe profile and the Safe Board (`09`) use `selection: direct`, `activation: [dwell, press]` and `dwell_ms` 800, whatever the user's config says. These are fixed safety values, not settings.
+- **UCA's own UI** (notices, the Settings window) is not a board. Its items use the built-in behavior with the profile's `behavior` merged over it.
 
 ## Board
 
@@ -260,7 +282,7 @@ Default groups that MUST exist in the built-in theme: `numbers`, `letters`, `fun
 Resolve each property for an item, lowest → highest priority:
 
 1. Built-in defaults
-2. Theme (`themes/<board.theme>.yaml`)
+2. Profile `behavior` (behavior keys only) and theme (`themes/<board.theme>.yaml`, which sets no behavior)
 3. Template chain (`extends`, recursively; cycle → error)
 4. Group styles in the order listed in the item's `group` field
 5. Board base properties (inheritable keys only: `font`, `behavior`, `background` is NOT inherited)
@@ -278,7 +300,7 @@ Decided details:
   - font `default`, 24 logical px, weight 700, colour `#ffffff`, align `center`
 
   Behavior defaults come from the settings registry, plus `hold: release` and `confirm: false`.
-- **Theme (level 2)** adds no item style directly. A theme reaches items through its groups (level 4) and templates (level 3).
+- **Profile and theme (level 2):** the profile's `behavior` applies to every board of the profile. The theme adds no item style directly. A theme reaches items through its groups (level 4) and templates (level 3).
 - **Templates:** a board template with the same name as a theme template is deep-merged over it. `extends` chains are applied root first.
 - **Groups:** with `group: [a, b]`, `b` overrides `a`, so the last listed wins. A board group is deep-merged over the theme group with the same name. With no `group`, the item is in `others`.
 - **Output:** the cascade produces fully resolved values:
@@ -295,7 +317,7 @@ Merge is deep for maps, replace for lists and scalars.
 schema: uca/1
 profile:
   name: Alex
-  method: gaze-dwell        # see 08 for values; informational, bindings are what run
+  behavior: { selection: direct, activation: [dwell], dwell_ms: 800 }   # level 2 of the cascade, see "Selection and activation"
   start_board: main-keyboard
   inputs:
     pointer_source: my-eye-tracker   # a plugin id, or "mouse"; which SourceId drives the engine pointer
@@ -322,7 +344,7 @@ profile:
     nudge:   { move_style: continuous, start_speed: 50, max_speed: 800, accel_ms: 1500, steps: [5, 25, 100], position: follow-pointer }
     targets: { scope: foreground-window, group_threshold: 12, on_select: click-center, max_targets: 500, refresh: on-focus-change, fallback: sweep }
     style:   { line_color: "#ffcc00", outline_color: "#000000", line_width: 3, label_font_size: 20 }
-  fallback_method: single-switch-scan   # used if pointer_source fails
+  fallback: { selection: auto-scan, activation: [press] }   # used if pointer_source fails (SAFETY-06)
   safety:
     escape: "switch1 hold(3000)"        # required, see 09
   action_sets:                          # alternative item meanings the user switches between (04); `default` is implicit
@@ -337,12 +359,14 @@ profile:
 ```
 
 **Config keys grow with features (decided):** the config accepts only keys whose feature exists. An unknown key is an error that names the key. The example above shows the full design; in M1 these keys are not accepted yet:
-- `inputs.face_thresholds` and `fallback_method` (M2)
+- `inputs.face_thresholds` and `fallback` (M2)
 - `switch_pointer` and `assessment` (M3)
+
+**Fallback (decided):** `fallback: {selection, activation}` names what replaces the cascaded selection and activation everywhere while the pointer source is lost (SAFETY-06). Boards cannot override it, since their override may need the lost pointer. Its `selection` must not be `direct`.
 
 **Trigger settings (decided):** the per-trigger conditioner settings (`03`) live under `profile.inputs.trigger_settings`. Each key is a trigger id or a switch alias: `trigger_settings: { switch1: { debounce_ms: 50, min_press_ms: 80 } }`.
 
-**`mode.set` (decided):** accepts only modes that are built: `Direct` and `Paused` in M1. Other modes are added with their milestone.
+**`mode.set` (decided):** accepts only modes that are built: `Board` and `Paused` in M1. Other modes are added with their milestone.
 
 **Item ids (decided):** an item without an `id` gets `item-<n>`, where `<n>` is its 0-based position in the layer. A generated id that clashes with a written one is a duplicate-id error.
 
@@ -377,12 +401,12 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
   - literals assigned to names ending in `_ms`, `_secs` or `_hz`.
 
   The literal `0` is allowed. The fixed safety values (above) carry `// SETTINGS-EXEMPT: <reason>` on the same line or the line above. Test code (`#[cfg(test)]` modules, `tests/`, `benches/`) is not checked.
-- **Off values (decided):** a setting may declare an explicit "off" value outside its range. `behavior.dwell_ms: 0` turns dwell off (`04`). Any other value must be in range, e.g. 1–99 ms is rejected with the range shown.
+- **Off values (decided):** a setting may declare an explicit "off" value outside its range, e.g. `trigger.max_rate_hz`. Any other value must be in range. `behavior.dwell_ms` has no off value: dwell is turned off by leaving it out of `activation`, and `dwell_ms: 0` is an error that says so.
 - **M1 registry entries (decided):**
 
   | Key | Default | Range |
   | --- | --- | --- |
-  | `behavior.dwell_ms` | 800 | off = 0, else 100–10 000 ms |
+  | `behavior.dwell_ms` | 800 | 100–10 000 ms |
   | `behavior.dwell_grace_ms` | 150 | 0–5 000 ms |
   | `behavior.cooldown_ms` | 300 | 0–10 000 ms |
   | `behavior.repeat_delay_ms` | 500 | 0–10 000 ms |
@@ -417,7 +441,7 @@ Every number that shapes how input is interpreted is **adjustable by the user**.
 - **Ranges are wide on purpose:** dwell 100–10 000 ms, repeat delay 0–10 000 ms, repeat interval 30–10 000 ms, scan interval 200–15 000 ms, expression levels 0.01–0.99, so unusual needs fit. Values outside a range are rejected with the range shown.
 - **History:** every change is saved to the profile and captured by the automatic backups (`16`), so a bad change can be undone.
 
-**Not user-adjustable** (fixed safety values, `09` and `14`): the HID bridge firmware watchdog (300 ms), plugin heartbeat timeouts, crash-loop detection (60 s) and the restart delay after a panic (5 s), and the requirement that an escape route exists. The escape *pattern* itself is user-configurable (SAFETY-01).
+**Not user-adjustable** (fixed safety values, `09` and `14`): the safe selection and activation of the safe profile and the Safe Board (direct, dwell + press, dwell 800 ms), the HID bridge firmware watchdog (300 ms), plugin heartbeat timeouts, crash-loop detection (60 s) and the restart delay after a panic (5 s), and the requirement that an escape route exists. The escape *pattern* itself is user-configurable (SAFETY-01).
 
 ## Validation and loading
 

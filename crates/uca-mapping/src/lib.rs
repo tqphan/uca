@@ -16,6 +16,7 @@ use uca_config::board::Binding;
 use uca_config::pattern::{Input, Modifier, Pattern, Term};
 use uca_config::profile::Profile;
 use uca_config::store::LoadedConfig;
+use uca_config::values::Selection;
 use uca_types::{GestureEvent, Key, Phase, TriggerEvent, TriggerId};
 
 /// Where a binding is written, from highest to lowest priority (04).
@@ -58,6 +59,8 @@ pub struct BindingKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchContext {
     pub mode: Mode,
+    /// The top board's resolved selection (04).
+    pub selection: Selection,
     pub top_board: String,
     /// Visible layers of the top board.
     pub visible_layers: Vec<String>,
@@ -320,6 +323,7 @@ impl Mapping {
         };
         scoped
             && f.mode.is_none_or(|m| m == ctx.mode)
+            && f.selection.is_none_or(|s| s == ctx.selection)
             && f.board.as_ref().is_none_or(|b| b.0 == ctx.top_board)
             && f.layer
                 .as_ref()

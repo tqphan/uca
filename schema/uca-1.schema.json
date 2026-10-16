@@ -1192,6 +1192,23 @@
         }
       ]
     },
+    "Activation": {
+      "description": "The enabled activation methods; any combination, at least one.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ActivationMethod"
+      },
+      "minItems": 1
+    },
+    "ActivationMethod": {
+      "description": "One way a reached target fires (02 \"Selection and activation\").",
+      "type": "string",
+      "enum": [
+        "dwell",
+        "press",
+        "release"
+      ]
+    },
     "Align": {
       "type": "string",
       "enum": [
@@ -1294,6 +1311,16 @@
       "description": "Behavior (02). Numbers are checked against the settings registry.",
       "type": "object",
       "properties": {
+        "activation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Activation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "active_flash_ms": {
           "description": "Setting `behavior.active_flash_ms` (ms)",
           "type": "integer",
@@ -1325,18 +1352,10 @@
           "minimum": 0.0
         },
         "dwell_ms": {
-          "anyOf": [
-            {
-              "description": "off",
-              "const": 0
-            },
-            {
-              "description": "Setting `behavior.dwell_ms` (ms)",
-              "type": "integer",
-              "maximum": 10000.0,
-              "minimum": 100.0
-            }
-          ]
+          "description": "Setting `behavior.dwell_ms` (ms)",
+          "type": "integer",
+          "maximum": 10000.0,
+          "minimum": 100.0
         },
         "enter_delay_ms": {
           "description": "Setting `behavior.enter_delay_ms` (ms)",
@@ -1365,6 +1384,17 @@
           "type": "integer",
           "maximum": 10000.0,
           "minimum": 30.0
+        },
+        "selection": {
+          "description": "Profile, board or layer only (02).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Selection"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -1850,6 +1880,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Mode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selection": {
+          "description": "The top board's resolved selection (04).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Selection"
             },
             {
               "type": "null"
@@ -2734,26 +2775,19 @@
         "do"
       ]
     },
-    "Method": {
-      "description": "Method ids from 08.",
-      "type": "string",
-      "enum": [
-        "gaze-trigger",
-        "gaze-dwell",
-        "gaze-dwell-large",
-        "mouse-direct",
-        "mouse-dwell",
-        "two-switch-step-scan",
-        "inverse-scan",
-        "single-switch-auto-scan",
-        "assisted"
-      ]
-    },
     "Mode": {
-      "type": "string",
-      "enum": [
-        "Direct",
-        "Paused"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "Paused"
+          ]
+        },
+        {
+          "description": "Interacting with boards by the resolved selection and activation (04).",
+          "type": "string",
+          "const": "Board"
+        }
       ]
     },
     "MouseButton": {
@@ -2892,6 +2926,17 @@
             }
           }
         },
+        "behavior": {
+          "description": "The user's selection, activation and timings: level 2 of the cascade (02).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Behavior"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "bindings": {
           "type": "array",
           "items": {
@@ -2916,17 +2961,6 @@
               "$ref": "#/$defs/Macro"
             }
           }
-        },
-        "method": {
-          "description": "Informational; bindings are what run (08).",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Method"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "name": {
           "type": "string"
@@ -3013,6 +3047,16 @@
       "additionalProperties": false,
       "required": [
         "escape"
+      ]
+    },
+    "Selection": {
+      "description": "How the user reaches a target (02 \"Selection and activation\").",
+      "type": "string",
+      "enum": [
+        "direct",
+        "auto-scan",
+        "step-scan",
+        "inverse-scan"
       ]
     },
     "Shadow": {

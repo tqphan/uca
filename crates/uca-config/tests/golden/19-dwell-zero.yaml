@@ -1,0 +1,14 @@
+schema: uca/1
+profile:
+  name: Alex
+  behavior: { dwell_ms: 0 }
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+---
+schema: uca/1
+board: { id: main }
+layers:
+  - id: keys
+    layout: { type: row }
+    items:
+      - { id: away, action: { board.open: main } }

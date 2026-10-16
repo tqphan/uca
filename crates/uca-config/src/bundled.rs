@@ -8,7 +8,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::settings_registry::SettingValue;
 use crate::store::{ConfigIssue, ConfigStore, ConfigUpdate, LoadedConfig, ProfilePaths, Sources};
+use crate::values::{Activation, ActivationMethod, Behavior, Selection};
 
 /// The id of the shipped default profile.
 pub const DEFAULT_PROFILE_ID: &str = "default";
@@ -37,7 +39,25 @@ pub const FILES: &[(&str, &str)] = &[
     ),
 ];
 
-/// The built-in safe profile (SAFETY-04): the shipped files, loaded in memory.
+/// Dwell time of the safe profile and the Safe Board (02, 09).
+pub const SAFE_DWELL_MS: f64 = 800.0; // SETTINGS-EXEMPT: fixed safety value (02, 09)
+
+/// The fixed selection and activation of the safe profile and the Safe Board:
+/// direct, dwell + press, dwell 800 ms (02 "Selection and activation", 09).
+pub fn safe_behavior() -> Behavior {
+    Behavior {
+        selection: Some(Selection::Direct),
+        activation: Some(Activation(vec![
+            ActivationMethod::Dwell,
+            ActivationMethod::Press,
+        ])),
+        dwell_ms: Some(SettingValue::Number(SAFE_DWELL_MS)),
+        ..Behavior::default()
+    }
+}
+
+/// The built-in safe profile (SAFETY-04): the shipped files, loaded in memory,
+/// with the profile's behavior replaced by [`safe_behavior`].
 pub fn safe_profile() -> Result<Arc<LoadedConfig>, Vec<ConfigIssue>> {
     let paths = ProfilePaths {
         config_dir: PathBuf::from("<built-in>"),
@@ -52,7 +72,16 @@ pub fn safe_profile() -> Result<Arc<LoadedConfig>, Vec<ConfigIssue>> {
         );
     }
     match ConfigStore::from_sources(paths, sources).1 {
-        ConfigUpdate::Applied(c) => Ok(c),
+        ConfigUpdate::Applied(c) => {
+            let mut c = Arc::unwrap_or_clone(c);
+            let behavior = c
+                .profile
+                .profile
+                .behavior
+                .get_or_insert_with(Behavior::default);
+            crate::cascade::Merge::merge_from(behavior, &safe_behavior());
+            Ok(Arc::new(c))
+        }
         ConfigUpdate::Rejected(issues) => Err(issues),
     }
 }
@@ -149,6 +178,70 @@ mod tests {
         );
         assert_eq!(c.boards.len(), 2);
         assert_eq!(c.themes.len(), 2);
+        let b = c.profile.profile.behavior.as_ref().expect("behavior");
+        assert_eq!(b.selection, Some(Selection::Direct));
+        assert_eq!(
+            b.activation,
+            Some(Activation(vec![
+                ActivationMethod::Dwell,
+                ActivationMethod::Press
+            ]))
+        );
+        assert_eq!(b.dwell_ms, Some(SettingValue::Number(SAFE_DWELL_MS)));
+    }
+
+    /// 02: the safe values reach every item, because the shipped boards set
+    /// no selection, activation or dwell time of their own.
+    #[test]
+    fn shipped_boards_leave_activation_to_the_profile() {
+        let c = safe_profile().expect("valid");
+        for board in c.boards.values() {
+            let theme = board
+                .board
+                .theme
+                .as_ref()
+                .and_then(|t| c.themes.get(t))
+                .map(|(_, t)| t);
+            let cascade = crate::cascade::Cascade::new(board, theme)
+                .with_profile(c.profile.profile.behavior.as_ref());
+            for layer in &board.layers {
+                for item in &layer.items {
+                    let b = cascade.item(layer, item).behavior;
+                    assert_eq!(b.selection, Selection::Direct);
+                    assert!(b.activation.has(ActivationMethod::Dwell));
+                    assert!(b.activation.has(ActivationMethod::Press));
+                    assert_eq!(b.dwell_ms, SAFE_DWELL_MS);
+                }
+            }
+        }
+    }
+
+    /// 02: the shipped Default profile activates by click.
+    #[test]
+    fn default_profile_clicks() {
+        let tmp = TempDir::new("default-clicks");
+        install_defaults(&tmp.0).expect("install");
+        let (_, update) = ConfigStore::load(ProfilePaths {
+            config_dir: tmp.0.clone(),
+            profile_id: DEFAULT_PROFILE_ID.into(),
+        });
+        let ConfigUpdate::Applied(c) = update else {
+            panic!("default profile is invalid");
+        };
+        assert!(c.warnings.is_empty(), "{:#?}", c.warnings);
+        let p = &c.profile.profile;
+        let b = p.behavior.as_ref().expect("behavior");
+        assert_eq!(b.selection, Some(Selection::Direct));
+        assert_eq!(
+            b.activation,
+            Some(Activation(vec![ActivationMethod::Press]))
+        );
+        assert_eq!(p.bindings.len(), 1);
+        assert_eq!(p.bindings[0].when, "mouse:left press");
+        assert_eq!(
+            p.bindings[0].do_.as_ref().map(|s| s.0.clone()),
+            Some(vec![crate::action::Action::Select])
+        );
     }
 
     #[test]

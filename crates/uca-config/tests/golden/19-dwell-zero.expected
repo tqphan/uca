@@ -1,0 +1,1 @@
+parse error: profile.yaml:4:13 profile.behavior: behavior.dwell_ms: 0 does not turn dwell off; leave `dwell` out of `activation`

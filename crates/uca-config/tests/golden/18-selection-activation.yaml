@@ -1,0 +1,31 @@
+schema: uca/1
+profile:
+  name: Alex
+  behavior: { selection: auto-scan, activation: [dwell] }
+  start_board: main
+  safety: { escape: "key:F13 hold(3000)" }
+  bindings:
+    - when: "key:F14"
+      do: { key.tap: a }
+      behavior: { activation: [press] }
+---
+schema: uca/1
+board: { id: main, behavior: { selection: inverse-scan } }
+groups:
+  big: { behavior: { selection: direct } }
+templates:
+  wide: { behavior: { activation: [release] } }
+layers:
+  - id: keys
+    layout: { type: row }
+    behavior: { selection: direct, activation: [release] }
+    items:
+      - { id: a, behavior: { selection: direct }, action: { key.tap: a } }
+      - id: b
+        actions:
+          default: { start: { key.tap: b }, behavior: { activation: [dwell] } }
+      - { id: away, action: { board.open: main } }
+  - id: scanned
+    layout: { type: row }
+    items:
+      - { id: c, behavior: { activation: [press] }, action: { key.tap: c } }

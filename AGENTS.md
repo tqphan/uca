@@ -101,4 +101,6 @@ UCA is used with whatever input the person has: gaze, facial expression, head mo
 - **Activation / stage** — an activation runs from the moment an item (or binding) is activated until the user lets go. It has `start`, `repeat` and `stop` stages, each a sequence of actions. Not the grid `span: {cols, rows}` key.
 - **Binding** — a rule `input pattern [+ context] → action list`.
 - **Point provider** — a plugin that supplies gaze/head points.
-- **Profile** — per-user settings: enabled inputs, bindings, calibration, chosen method.
+- **Selection** — how the user reaches a target: `direct` pointing or a scan (`02`).
+- **Activation (method)** — what makes a reached target fire: `dwell`, `press`, `release` (`02`). Not the same as an item's *activation* (the run from start to stop).
+- **Profile** — per-user settings: enabled inputs, bindings, calibration, selection and activation.

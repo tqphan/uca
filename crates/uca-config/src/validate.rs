@@ -16,7 +16,10 @@ use crate::board::{Binding, BoardFile, Item, Layer, LayoutKind, RESERVED_SET_NAM
 use crate::pattern::{Input, Modifier, Pattern, PatternError, Term};
 use crate::profile::{Filter, FilterKind, Profile};
 use crate::theme::ThemeFile;
-use crate::values::{Border, Color, Font, Groups, Id, Length, Shadow, States, Style};
+use crate::values::{
+    ActivationMethod, Behavior, Border, Color, Font, Groups, Id, Length, Selection, Shadow, States,
+    Style,
+};
 
 /// The built-in action set every profile has.
 pub const DEFAULT_SET: &str = "default";
@@ -142,6 +145,20 @@ pub enum ProblemKind {
         slot: u32,
     },
     PredictionWeightsZero,
+    /// `selection` on an item, group, template, action-set entry or binding (02).
+    SelectionNotHere,
+    /// `activation` on an action-set entry or binding (02).
+    ActivationNotHere,
+    /// A scan selection before scanning exists (M3).
+    ScanNotAvailable {
+        selection: &'static str,
+    },
+    DwellWithScan {
+        selection: &'static str,
+    },
+    InverseScanNeedsRelease,
+    /// An item fires only by `select`, and no binding does `select`.
+    NothingCanFire,
 }
 
 impl ProblemKind {
@@ -190,6 +207,12 @@ impl ProblemKind {
             PredictionWithAction => "config-prediction-with-action",
             DuplicatePredictionSlot { .. } => "config-duplicate-prediction-slot",
             PredictionWeightsZero => "config-prediction-weights-zero",
+            SelectionNotHere => "config-selection-not-here",
+            ActivationNotHere => "config-activation-not-here",
+            ScanNotAvailable { .. } => "config-scan-not-available",
+            DwellWithScan { .. } => "config-dwell-with-scan",
+            InverseScanNeedsRelease => "config-inverse-scan-needs-release",
+            NothingCanFire => "config-nothing-can-fire",
         }
     }
 
@@ -207,8 +230,15 @@ impl ProblemKind {
             | ZoneOutsideFree
             | RepeatNeverRuns
             | PredictionWithAction
-            | PredictionWeightsZero => {
+            | PredictionWeightsZero
+            | SelectionNotHere
+            | ActivationNotHere
+            | InverseScanNeedsRelease
+            | NothingCanFire => {
                 vec![]
+            }
+            ScanNotAvailable { selection } | DwellWithScan { selection } => {
+                vec![("selection", (*selection).to_owned())]
             }
             DuplicatePredictionSlot { slot } => vec![("slot", slot.to_string())],
             InvalidPattern { pattern, error } => {
@@ -368,6 +398,24 @@ impl fmt::Display for ProblemKind {
                 f,
                 "the three prediction weights can't all be 0; set at least one above 0"
             ),
+            SelectionNotHere => write!(
+                f,
+                "selection can only be set on the profile, a board or a layer"
+            ),
+            ActivationNotHere => write!(
+                f,
+                "activation can't be set on an action-set entry or a binding"
+            ),
+            ScanNotAvailable { selection } => write!(f, "{selection} is not available yet"),
+            DwellWithScan { selection } => write!(
+                f,
+                "dwell can't be used with {selection}, which has no pointer; use press or release"
+            ),
+            InverseScanNeedsRelease => write!(f, "inverse-scan needs `activation: [release]`"),
+            NothingCanFire => write!(
+                f,
+                "this item fires only by select, but no binding does select"
+            ),
         }
     }
 }
@@ -487,9 +535,157 @@ impl<'a> Validator<'a> {
             }
             self.board(board);
         }
+        self.themes();
+        self.nothing_can_fire();
         self.file = self.set.profile_file.to_owned();
         self.action_set_usage();
         self.single_and_double();
+    }
+
+    // ---------------------------------------------------------------- selection and activation
+
+    /// Where `selection` and `activation` may be set, and scanning before M3 (02).
+    fn behavior_keys(
+        &mut self,
+        b: Option<&Behavior>,
+        path: &str,
+        selection_ok: bool,
+        activation_ok: bool,
+    ) {
+        let Some(b) = b else {
+            return;
+        };
+        if let Some(s) = b.selection {
+            let spath = format!("{path}.behavior.selection");
+            if !selection_ok {
+                self.error(spath, ProblemKind::SelectionNotHere);
+            } else if s.is_scan() {
+                self.error(
+                    spath,
+                    ProblemKind::ScanNotAvailable {
+                        selection: s.as_str(),
+                    },
+                );
+            }
+        }
+        if b.activation.is_some() && !activation_ok {
+            self.error(
+                format!("{path}.behavior.activation"),
+                ProblemKind::ActivationNotHere,
+            );
+        }
+    }
+
+    /// Theme groups and templates: no `selection` (02).
+    fn themes(&mut self) {
+        let themes: Vec<_> = self.set.themes.values().copied().collect();
+        for (file, theme) in themes {
+            self.file = file.to_owned();
+            for (name, group) in &theme.groups {
+                let path = format!("groups.{name}");
+                self.behavior_keys(group.behavior.as_ref(), &path, false, true);
+            }
+            for (name, t) in &theme.templates {
+                let path = format!("templates.{name}");
+                self.behavior_keys(t.behavior.as_ref(), &path, false, true);
+            }
+        }
+    }
+
+    /// Scanning has no pointer: no dwell; inverse-scan chooses on release (02).
+    fn selection_combinations(&mut self, scope: &StyleScope<'a>) {
+        let profile = self.set.profile.behavior.as_ref();
+        let board = scope.file.board.behavior.as_ref();
+        let cascade = crate::cascade::Cascade::new(scope.file, scope.theme).with_profile(profile);
+        for (li, layer) in scope.file.layers.iter().enumerate() {
+            let selection = [layer.behavior.as_ref(), board, profile]
+                .into_iter()
+                .flatten()
+                .find_map(|b| b.selection)
+                .unwrap_or(Selection::Direct);
+            if !selection.is_scan() {
+                continue;
+            }
+            let activations: Vec<_> = layer
+                .items
+                .iter()
+                .map(|i| cascade.item(layer, i).behavior.activation)
+                .collect();
+            let path = format!("layers[{li}]");
+            if activations.iter().any(|a| a.has(ActivationMethod::Dwell)) {
+                self.error(
+                    path.clone(),
+                    ProblemKind::DwellWithScan {
+                        selection: selection.as_str(),
+                    },
+                );
+            }
+            if selection == Selection::InverseScan
+                && activations
+                    .iter()
+                    .any(|a| a.0 != [ActivationMethod::Release])
+            {
+                self.error(path, ProblemKind::InverseScanNeedsRelease);
+            }
+        }
+    }
+
+    /// Warns once, at the first item that fires only by `select`, when no
+    /// binding anywhere does `select` (02).
+    fn nothing_can_fire(&mut self) {
+        let set = self.set;
+        let macros = &set.profile.macros;
+        let selects = |seq: Option<&ActionSeq>| {
+            seq.is_some_and(|s| {
+                s.0.iter().any(|a| match a {
+                    Action::Select => true,
+                    Action::MacroRun(id) => macros
+                        .get(id)
+                        .is_some_and(|m| m.do_.0.contains(&Action::Select)),
+                    _ => false,
+                })
+            })
+        };
+        let binding_selects = |b: &Binding| selects(b.do_.as_ref()) || selects(b.start.as_ref());
+        let any_select = set.profile.bindings.iter().any(binding_selects)
+            || set.boards.iter().any(|(_, f)| {
+                f.bindings.iter().any(binding_selects)
+                    || f.layers.iter().any(|l| {
+                        l.bindings.iter().any(binding_selects)
+                            || l.items
+                                .iter()
+                                .any(|i| i.bindings.iter().any(binding_selects))
+                    })
+            });
+        if any_select {
+            return;
+        }
+        for (file, board) in &set.boards {
+            let theme = board
+                .board
+                .theme
+                .as_ref()
+                .and_then(|t| set.themes.get(t))
+                .map(|(_, t)| *t);
+            let cascade = crate::cascade::Cascade::new(board, theme)
+                .with_profile(set.profile.behavior.as_ref());
+            for (li, layer) in board.layers.iter().enumerate() {
+                for (ii, item) in layer.items.iter().enumerate() {
+                    if item.empty == Some(true) {
+                        continue;
+                    }
+                    let activation = cascade.item(layer, item).behavior.activation;
+                    if !activation.has(ActivationMethod::Dwell) {
+                        self.file = file.to_path_buf();
+                        self.warn(
+                            format!("layers[{li}].items[{ii}]"),
+                            ProblemKind::NothingCanFire,
+                        );
+                        return;
+                    }
+                }
+            }
+        }
     }
 
     // ---------------------------------------------------------------- profile
@@ -517,6 +713,7 @@ impl<'a> Validator<'a> {
             self.error("profile.start_board", kind);
         }
         self.inputs(p);
+        self.behavior_keys(p.behavior.as_ref(), "profile", true, true);
         if p.prediction.weights.resolved().iter().all(|&w| w == 0.0) {
             self.error(
                 "profile.prediction.weights",
@@ -685,6 +882,7 @@ impl<'a> Validator<'a> {
         if let Some(set) = b.context.as_ref().and_then(|c| c.action_set.as_ref()) {
             self.set_ref(set, &format!("{path}.in.action_set"));
         }
+        self.behavior_keys(b.behavior.as_ref(), path, false, false);
         if let Some(seq) = &b.do_ {
             self.sequence(seq, Stage::Start, &format!("{path}.do"));
         }
@@ -845,14 +1043,17 @@ impl<'a> Validator<'a> {
         for (i, binding) in file.bindings.iter().enumerate() {
             self.binding(binding, &format!("bindings[{i}]"));
         }
+        self.behavior_keys(b.behavior.as_ref(), "board", true, true);
         for (name, group) in &file.groups {
             let path = format!("groups.{name}");
             self.style(&scope, &path, &group.style);
+            self.behavior_keys(group.behavior.as_ref(), &path, false, true);
         }
         for (name, t) in &file.templates {
             let path = format!("templates.{name}");
             self.item_style(&scope, t, &path);
             self.template_cycle(&scope, name, &path);
+            self.behavior_keys(t.behavior.as_ref(), &path, false, true);
         }
 
         let mut layer_ids = BTreeSet::new();
@@ -868,6 +1069,7 @@ impl<'a> Validator<'a> {
             }
             self.layer(&scope, layer, &path);
         }
+        self.selection_combinations(&scope);
         let mut slots = BTreeSet::new();
         for (li, layer) in file.layers.iter().enumerate() {
             for (ii, item) in layer.items.iter().enumerate() {
@@ -909,6 +1111,7 @@ impl<'a> Validator<'a> {
         for (i, b) in layer.bindings.iter().enumerate() {
             self.binding(b, &format!("{path}.bindings[{i}]"));
         }
+        self.behavior_keys(layer.behavior.as_ref(), path, true, true);
         let kind = layer.layout.kind;
         let columns = Some(
             layer
@@ -1015,6 +1218,7 @@ impl<'a> Validator<'a> {
 
     fn item(&mut self, scope: &StyleScope<'a>, item: &Item, path: &str) {
         self.item_style(scope, item, path);
+        self.behavior_keys(item.behavior.as_ref(), path, false, true);
         if item.action.is_some() && item.actions.is_some() {
             self.error(path, ProblemKind::ActionAndActions);
         }
@@ -1031,6 +1235,7 @@ impl<'a> Validator<'a> {
             for (set, entry) in &actions.0 {
                 let epath = format!("{path}.actions.{set}");
                 self.set_ref(set, &epath);
+                self.behavior_keys(entry.behavior.as_ref(), &epath, false, false);
                 self.stages(
                     entry.start.as_ref(),
                     entry.repeat.as_ref(),
@@ -1616,6 +1821,12 @@ mod tests {
             GridUnitOutsideGrid,
             GridOverflow { layer: s() },
             SingleAlsoFires { pattern: s() },
+            SelectionNotHere,
+            ActivationNotHere,
+            ScanNotAvailable { selection: "" },
+            DwellWithScan { selection: "" },
+            InverseScanNeedsRelease,
+            NothingCanFire,
         ];
         for kind in &kinds {
             assert!(

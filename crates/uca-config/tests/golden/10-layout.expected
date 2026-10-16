@@ -3,3 +3,4 @@ boards/main.yaml board: error: the grid unit can only be used inside a grid laye
 boards/main.yaml layers[1].items[0]: error: the grid unit can only be used inside a grid layer
 boards/centred.yaml board.reserve_space: warning: reserve_space needs an edge anchor (top, bottom, left or right); nothing is reserved
 boards/centred.yaml board.area: warning: area is only used by boards that reserve space; the full bounds are used
+boards/main.yaml layers[0].items[0]: warning: this item fires only by select, but no binding does select

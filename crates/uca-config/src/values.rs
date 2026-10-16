@@ -291,10 +291,76 @@ pub enum Hold {
     Instant,
 }
 
+/// How the user reaches a target (02 "Selection and activation").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum Selection {
+    Direct,
+    AutoScan,
+    StepScan,
+    InverseScan,
+}
+
+impl Selection {
+    pub fn is_scan(self) -> bool {
+        self != Selection::Direct
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Selection::Direct => "direct",
+            Selection::AutoScan => "auto-scan",
+            Selection::StepScan => "step-scan",
+            Selection::InverseScan => "inverse-scan",
+        }
+    }
+}
+
+/// One way a reached target fires (02 "Selection and activation").
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum ActivationMethod {
+    Dwell,
+    Press,
+    Release,
+}
+
+/// The error for `activation: []`, recognised by `ParseMessage`.
+pub(crate) const EMPTY_ACTIVATION: &str =
+    "activation needs at least one of `dwell`, `press`, `release`";
+
+/// The enabled activation methods; any combination, at least one.
+#[derive(Debug, Clone, PartialEq, Eq, schemars::JsonSchema)]
+#[schemars(transparent)]
+pub struct Activation(#[schemars(length(min = 1))] pub Vec<ActivationMethod>);
+
+impl Activation {
+    pub fn has(&self, m: ActivationMethod) -> bool {
+        self.0.contains(&m)
+    }
+}
+
+impl<'de> Deserialize<'de> for Activation {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let mut methods = Vec::<ActivationMethod>::deserialize(d)?;
+        if methods.is_empty() {
+            return Err(de::Error::custom(EMPTY_ACTIVATION));
+        }
+        methods.sort();
+        methods.dedup();
+        Ok(Activation(methods))
+    }
+}
+
 /// Behavior (02). Numbers are checked against the settings registry.
 #[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Behavior {
+    /// Profile, board or layer only (02).
+    pub selection: Option<Selection>,
+    pub activation: Option<Activation>,
     #[serde(default, deserialize_with = "setting::dwell_ms")]
     #[schemars(schema_with = "crate::setting::schema::dwell_ms")]
     pub dwell_ms: Option<SettingValue>,
@@ -446,14 +512,36 @@ mod tests {
 
     #[test]
     fn behavior_is_checked_against_registry() {
-        let b: Behavior = yaml("dwell_ms: 0\ncooldown_ms: 300\nhold: toggle").expect("valid");
-        assert_eq!(b.dwell_ms, Some(SettingValue::Off));
+        let b: Behavior = yaml("dwell_ms: 900\ncooldown_ms: 300\nhold: toggle").expect("valid");
+        assert_eq!(b.dwell_ms, Some(SettingValue::Number(900.0)));
         assert_eq!(b.cooldown_ms, Some(SettingValue::Number(300.0)));
         assert_eq!(b.hold, Some(Hold::Toggle));
         assert_eq!(b.dwell_grace_ms, None);
         let err = yaml::<Behavior>("dwell_ms: 50").unwrap_err();
         assert!(err.contains("out of range 100–10000"), "{err}");
         assert!(yaml::<Behavior>("dwell_msec: 800").is_err());
+        // Dwell is turned off through `activation` (02).
+        let err = yaml::<Behavior>("dwell_ms: 0").unwrap_err();
+        assert!(err.contains(crate::setting::DWELL_ZERO), "{err}");
+    }
+
+    #[test]
+    fn selection_and_activation_parse() {
+        let b: Behavior =
+            yaml("selection: direct\nactivation: [release, dwell, release]").expect("valid");
+        assert_eq!(b.selection, Some(Selection::Direct));
+        // Sorted and without repeats.
+        assert_eq!(
+            b.activation,
+            Some(Activation(vec![
+                ActivationMethod::Dwell,
+                ActivationMethod::Release
+            ]))
+        );
+        let err = yaml::<Behavior>("activation: []").unwrap_err();
+        assert!(err.contains(EMPTY_ACTIVATION), "{err}");
+        assert!(yaml::<Behavior>("activation: [click]").is_err());
+        assert!(yaml::<Behavior>("selection: scan").is_err());
     }
 
     #[test]
